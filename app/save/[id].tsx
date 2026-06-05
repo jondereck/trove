@@ -215,9 +215,9 @@ export default function SaveDetailScreen() {
         {/* Tags */}
         <Text style={styles.sectionLabel}>TAGS</Text>
         <View style={styles.tagsRow}>
-          {(editing ? tags : save.tags)?.map(tag => (
+          {(editing ? tags : save.tags)?.map((tag, i) => (
             <TouchableOpacity
-              key={tag}
+              key={`${tag}-${i}`}
               style={styles.tag}
               onPress={() => editing && setTags(t => t.filter(x => x !== tag))}
               activeOpacity={editing ? 0.7 : 1}

@@ -110,7 +110,7 @@ JSON only: {"collection": "Name", "tags": ["tag1", "tag2", "tag3"]}`
   const json = parseJSON<{ collection?: string; tags?: string[] }>(text, {})
   return {
     collection: json.collection ?? 'Read Later',
-    tags: Array.isArray(json.tags) ? json.tags.slice(0, 3) : [],
+    tags: [...new Set(Array.isArray(json.tags) ? json.tags.slice(0, 3) : [])],
   }
 }
 
@@ -143,7 +143,7 @@ JSON array, same order as input:
   return saves.map((save, i) => ({
     save,
     suggested_collection: arr[i]?.collection ?? 'Read Later',
-    suggested_tags: Array.isArray(arr[i]?.tags) ? arr[i].tags as string[] : [],
+    suggested_tags: [...new Set(Array.isArray(arr[i]?.tags) ? arr[i].tags as string[] : [])],
     confidence: arr[i]?.collection ? 0.85 : 0,
   }))
 }

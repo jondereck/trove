@@ -3,17 +3,27 @@ import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 
-const { width: SW } = Dimensions.get('window')
+const SW = Dimensions.get('window').width
 
-const HERO_BG = '#edc5af'
+// Hero background — warm peach from design
+const HERO_BG = '#f0c8b1'
 
+// Pastel cards — exact colors from design, fixed layout
 const CARDS = [
-  { color: '#f4b5a5', w: 130, h: 92, top: 18,  left: 52,  rotate: '-9deg'  },
-  { color: '#b5d1e8', w: 118, h: 86, top: 8,   left: SW - 148, rotate: '7deg'   },
-  { color: '#b5dfca', w: 142, h: 100,top: 122, left: SW - 162, rotate: '-5deg'  },
-  { color: '#c6b5e0', w: 132, h: 92, top: 158, left: 82,  rotate: '8deg'   },
-  { color: '#a5d5d5', w: 132, h: 94, top: 268, left: 14,  rotate: '-7deg'  },
-  { color: '#dfd8a8', w: 134, h: 94, top: 258, left: SW - 156, rotate: '5deg'   },
+  // top-left coral pink
+  { color: '#f0b3a2', w: 130, h: 93,  top: 18,  left: 54,        rotate: '-8deg'  },
+  // top-right periwinkle blue
+  { color: '#b3cce8', w: 118, h: 86,  top: 6,   left: SW - 140,  rotate: '7deg'   },
+  // mid-left light pink
+  { color: '#f3c0b2', w: 135, h: 98,  top: 170, left: 24,        rotate: '-7deg'  },
+  // mid-right mint green
+  { color: '#b2e0c8', w: 140, h: 100, top: 128, left: SW - 160,  rotate: '-5deg'  },
+  // center lavender
+  { color: '#c4b3e0', w: 138, h: 94,  top: 230, left: SW / 2 - 69, rotate: '8deg' },
+  // bottom-left teal
+  { color: '#94d0d2', w: 133, h: 93,  top: 302, left: 12,        rotate: '-7deg'  },
+  // bottom-right cream
+  { color: '#dbd4a8', w: 135, h: 93,  top: 294, left: SW - 157,  rotate: '6deg'   },
 ]
 
 export default function WelcomeScreen() {
@@ -22,7 +32,7 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.root}>
-      {/* Hero */}
+      {/* Hero — pastel cards scattered on warm peach */}
       <View style={[styles.hero, { paddingTop: insets.top }]}>
         {CARDS.map((c, i) => (
           <View
@@ -44,14 +54,18 @@ export default function WelcomeScreen() {
 
       {/* Content */}
       <View style={[styles.content, { paddingBottom: Math.max(insets.bottom, SPACING.xl) }]}>
-        <View style={styles.logoRow}>
-          <Text style={styles.wordmark}>Trove</Text>
-          <Text style={styles.dot}>.</Text>
+        {/* Wordmark */}
+        <View>
+          <View style={styles.logoRow}>
+            <Text style={styles.wordmark}>Trove</Text>
+            <Text style={styles.dot}>.</Text>
+          </View>
+          <Text style={styles.tagline}>
+            Save anything. Let AI sort, tag, and{'\n'}surface it when you need it.
+          </Text>
         </View>
-        <Text style={styles.tagline}>
-          Save anything. Let AI sort, tag, and{'\n'}surface it when you need it.
-        </Text>
 
+        {/* Buttons */}
         <View style={styles.actions}>
           <TouchableOpacity
             style={styles.primaryBtn}
@@ -70,6 +84,7 @@ export default function WelcomeScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Legal */}
         <Text style={styles.legal}>
           By continuing you agree to Trove's{' '}
           <Text style={styles.legalLink}>Terms</Text>
@@ -87,19 +102,18 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bg,
   },
   hero: {
-    height: 380,
+    height: 400,
     backgroundColor: HERO_BG,
     overflow: 'hidden',
-    position: 'relative',
   },
   card: {
     position: 'absolute',
-    borderRadius: RADIUS.xl,
+    borderRadius: 20,
   },
   content: {
     flex: 1,
-    paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.xl + 4,
+    paddingHorizontal: 28,
+    paddingTop: SPACING.xl,
     justifyContent: 'space-between',
   },
   logoRow: {
@@ -107,36 +121,32 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   wordmark: {
-    fontSize: 48,
+    fontSize: 52,
     fontFamily: FONTS.serif,
     color: COLORS.text,
     letterSpacing: -0.5,
-    lineHeight: 54,
+    lineHeight: 58,
   },
   dot: {
-    fontSize: 48,
+    fontSize: 52,
     fontFamily: FONTS.serif,
     color: COLORS.accent,
-    lineHeight: 54,
+    lineHeight: 58,
   },
   tagline: {
     fontSize: 15,
     fontFamily: FONTS.sans,
     color: COLORS.textSub,
     lineHeight: 22,
-    marginTop: SPACING.sm,
+    marginTop: 6,
   },
   actions: {
     gap: SPACING.sm,
-    marginTop: SPACING.xl,
-    flex: 1,
-    justifyContent: 'flex-end',
-    paddingBottom: SPACING.md,
   },
   primaryBtn: {
     backgroundColor: COLORS.accent,
-    borderRadius: RADIUS.lg,
-    paddingVertical: SPACING.md + 4,
+    borderRadius: 14,
+    paddingVertical: 17,
     alignItems: 'center',
   },
   primaryBtnText: {
@@ -147,17 +157,16 @@ const styles = StyleSheet.create({
   },
   secondaryBtn: {
     backgroundColor: COLORS.card,
-    borderRadius: RADIUS.lg,
+    borderRadius: 14,
     borderWidth: 1.5,
     borderColor: COLORS.border,
-    paddingVertical: SPACING.md + 4,
+    paddingVertical: 17,
     alignItems: 'center',
   },
   secondaryBtnText: {
     fontSize: 16,
     fontFamily: FONTS.sansSemi,
     color: COLORS.text,
-    letterSpacing: 0.1,
   },
   legal: {
     fontSize: 12,
@@ -165,7 +174,6 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     textAlign: 'center',
     lineHeight: 18,
-    paddingBottom: SPACING.sm,
   },
   legalLink: {
     color: COLORS.accent,
