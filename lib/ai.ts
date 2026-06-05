@@ -40,7 +40,7 @@ RESPONSE FORMAT:
 - For multiple items the array length MUST equal the number of input items, in the same order`
 
 async function callClaude(userPrompt: string): Promise<string> {
-  if (!ANTHROPIC_KEY) throw new Error('EXPO_PUBLIC_ANTHROPIC_API_KEY is not set')
+  if (!ANTHROPIC_KEY) return '' // AI disabled — no key configured
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
