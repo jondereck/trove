@@ -8,12 +8,14 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from 'react-native'
+import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Collection } from '../../types'
 import { fetchCollections } from '../../lib/db'
 
 export default function CollectionsScreen() {
+  const router = useRouter()
   const insets = useSafeAreaInsets()
   const [collections, setCollections] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
@@ -65,16 +67,18 @@ export default function CollectionsScreen() {
         </View>
       ) : (
         <View style={styles.list}>
-          {collections.map(col => <CollectionCard key={col.id} collection={col} />)}
+          {collections.map(col => (
+            <CollectionCard key={col.id} collection={col} onPress={() => router.push(`/collection/${col.id}`)} />
+          ))}
         </View>
       )}
     </ScrollView>
   )
 }
 
-function CollectionCard({ collection }: { collection: Collection }) {
+function CollectionCard({ collection, onPress }: { collection: Collection; onPress: () => void }) {
   return (
-    <TouchableOpacity style={styles.card} activeOpacity={0.75}>
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
       <View style={[styles.colorStrip, { backgroundColor: collection.color }]} />
       <View style={styles.cardContent}>
         <View style={styles.cardLeft}>

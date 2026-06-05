@@ -8,7 +8,9 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native'
+import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import SwipeableCard from '../../components/SwipeableCard'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save, Collection, OrganizeSuggestion } from '../../types'
 import SaveCard from '../../components/SaveCard'
@@ -16,6 +18,7 @@ import AIOrganize from '../../components/AIOrganize'
 import { fetchInboxSaves, fetchCollections, updateSave, upsertCollectionByName } from '../../lib/db'
 
 export default function InboxScreen() {
+  const router = useRouter()
   const insets = useSafeAreaInsets()
   const [saves, setSaves] = useState<Save[]>([])
   const [collections, setCollections] = useState<Collection[]>([])
@@ -116,10 +119,30 @@ export default function InboxScreen() {
 
             <View style={styles.grid}>
               <View style={styles.col}>
-                {leftCol.map(save => <SaveCard key={save.id} save={save} onPress={() => {}} />)}
+                {leftCol.map(save => (
+                  <SwipeableCard
+                    key={save.id}
+                    onArchive={async () => {
+                      setSaves(prev => prev.filter(s => s.id !== save.id))
+                      await updateSave(save.id, { is_inbox: false })
+                    }}
+                  >
+                    <SaveCard save={save} onPress={() => router.push(`/save/${save.id}`)} />
+                  </SwipeableCard>
+                ))}
               </View>
               <View style={styles.col}>
-                {rightCol.map(save => <SaveCard key={save.id} save={save} onPress={() => {}} />)}
+                {rightCol.map(save => (
+                  <SwipeableCard
+                    key={save.id}
+                    onArchive={async () => {
+                      setSaves(prev => prev.filter(s => s.id !== save.id))
+                      await updateSave(save.id, { is_inbox: false })
+                    }}
+                  >
+                    <SaveCard save={save} onPress={() => router.push(`/save/${save.id}`)} />
+                  </SwipeableCard>
+                ))}
               </View>
             </View>
           </>

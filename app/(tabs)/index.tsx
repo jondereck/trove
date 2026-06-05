@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native'
+import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save } from '../../types'
@@ -31,6 +32,7 @@ function handleSignOut() {
 }
 
 export default function LibraryScreen() {
+  const router = useRouter()
   const insets = useSafeAreaInsets()
   const [saves, setSaves] = useState<Save[]>([])
   const [loading, setLoading] = useState(true)
@@ -94,10 +96,10 @@ export default function LibraryScreen() {
       ) : (
         <View style={styles.grid}>
           <View style={styles.col}>
-            {leftCol.map(save => <SaveCard key={save.id} save={save} onPress={() => {}} />)}
+            {leftCol.map(save => <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />)}
           </View>
           <View style={styles.col}>
-            {rightCol.map(save => <SaveCard key={save.id} save={save} onPress={() => {}} />)}
+            {rightCol.map(save => <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />)}
           </View>
         </View>
       )}
