@@ -12,6 +12,16 @@ import { Save } from '../../types'
 import SaveCard from '../../components/SaveCard'
 import { MOCK_SAVES } from '../../lib/mockData'
 
+// TODO: replace "Jon" with auth user's first name once auth is wired up
+const USER_NAME = 'Jon'
+
+function getGreeting(): string {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
+  return 'Good evening'
+}
+
 export default function LibraryScreen() {
   const insets = useSafeAreaInsets()
   const [saves, setSaves] = useState<Save[]>(
@@ -44,7 +54,10 @@ export default function LibraryScreen() {
     >
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.wordmark}>Trove</Text>
+        <Text style={styles.greeting} numberOfLines={1}>
+          {getGreeting()},{' '}
+          <Text style={styles.greetingName}>{USER_NAME}</Text>
+        </Text>
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{saves.length}</Text>
         </View>
@@ -88,15 +101,19 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
+    justifyContent: 'space-between',
     paddingTop: SPACING.lg,
     paddingBottom: SPACING.xl,
   },
-  wordmark: {
-    fontSize: 32,
+  greeting: {
+    fontSize: 26,
     fontFamily: FONTS.serif,
     color: COLORS.text,
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
+    flex: 1,
+  },
+  greetingName: {
+    color: COLORS.accent,
   },
   badge: {
     backgroundColor: COLORS.accent,
