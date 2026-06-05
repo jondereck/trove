@@ -1,6 +1,8 @@
 import { Save, Collection, AISuggestion, OrganizeSuggestion } from '../types'
 
 const OPENAI_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? ''
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? ''
 const MODEL = 'gpt-4o-mini'
 
 const SYSTEM_PROMPT = `You are the AI organizing assistant for Trove, a personal curation app.
@@ -64,28 +66,27 @@ export interface OGMetadata {
   siteName?: string
 }
 
+// Routes through a Supabase Edge Function so server-side fetching bypasses
+// CORS restrictions and bot-blocking (TikTok, Instagram, etc.)
 export async function fetchOGMetadata(url: string): Promise<OGMetadata> {
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; TroveApp/1.0)' },
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/fetch-og`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+    body: JSON.stringify({ url }),
   })
-  const html = await res.text()
 
-  const og = (prop: string) =>
-    html.match(new RegExp(`<meta[^>]+property=["']og:${prop}["'][^>]+content=["']([^"']+)["']`, 'i'))?.[1] ||
-    html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:${prop}["']`, 'i'))?.[1]
+  if (!res.ok) throw new Error(`fetch-og ${res.status}`)
 
-  const meta = (name: string) =>
-    html.match(new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']+)["']`, 'i'))?.[1] ||
-    html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${name}["']`, 'i'))?.[1]
-
-  const titleTag = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim()
-
+  const data = await res.json()
   return {
-    url,
-    title: (og('title') || meta('twitter:title') || titleTag || new URL(url).hostname).trim(),
-    description: og('description') || meta('description') || meta('twitter:description'),
-    image: og('image') || meta('twitter:image'),
-    siteName: og('site_name'),
+    url: data.url ?? url,
+    title: data.title ?? new URL(url).hostname,
+    description: data.description ?? undefined,
+    image: data.image ?? undefined,
+    siteName: data.siteName ?? undefined,
   }
 }
 
