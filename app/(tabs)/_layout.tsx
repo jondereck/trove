@@ -6,6 +6,8 @@ import { useShareIntentContext } from 'expo-share-intent'
 import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING } from '../../constants/theme'
 import QuickSave from '../../components/QuickSave'
+import { createSave } from '../../lib/db'
+import type { Draft } from '../../components/QuickSave'
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name']
 
@@ -91,6 +93,19 @@ export default function TabsLayout() {
     resetShareIntent()
   }
 
+  const handleSave = async (draft: Draft) => {
+    await createSave({
+      url: draft.url || undefined,
+      title: draft.title,
+      description: draft.description || undefined,
+      type: draft.type,
+      content: draft.type === 'note' ? draft.description : undefined,
+      image_url: draft.imageUrl || undefined,
+      tags: draft.tags,
+      is_inbox: true,
+    })
+  }
+
   return (
     <>
       <Tabs
@@ -108,6 +123,7 @@ export default function TabsLayout() {
       <QuickSave
         visible={quickSaveVisible}
         onClose={handleClose}
+        onSave={handleSave}
         initialUrl={sharedUrl}
       />
     </>

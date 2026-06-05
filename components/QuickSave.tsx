@@ -16,15 +16,15 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
-import { SaveType, OGMetadata, AISuggestion } from '../types'
+import { SaveType, OGMetadata, AISuggestion, Collection } from '../types'
 import { fetchOGMetadata, suggestForSave } from '../lib/ai'
-import { MOCK_COLLECTIONS } from '../lib/mockData'
+import { fetchCollections } from '../lib/db'
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window')
 
 type Step = 'input' | 'loading' | 'preview'
 
-interface Draft {
+export interface Draft {
   url: string
   type: SaveType
   title: string
@@ -53,9 +53,9 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   const insets = useSafeAreaInsets()
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current
   const backdropOpacity = useRef(new Animated.Value(0)).current
-  // Prevents the auto-fetch from firing more than once per open.
   const didAutoFetch = useRef(false)
 
+  const [collections, setCollections] = useState<Collection[]>([])
   const [step, setStep] = useState<Step>('input')
   const [type, setType] = useState<SaveType>('link')
   const [input, setInput] = useState('')
@@ -65,6 +65,11 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   const [editingTag, setEditingTag] = useState('')
   const [showTagInput, setShowTagInput] = useState(false)
   const [editingCollection, setEditingCollection] = useState(false)
+
+  // Load real collections once on mount for AI suggestions
+  useEffect(() => {
+    fetchCollections().then(setCollections)
+  }, [])
 
   // Core fetch+suggest logic — accepts an explicit URL so it can be called
   // both from the button (uses `input` state) and from the auto-fetch path.
@@ -84,7 +89,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
 
     try {
       setLoadingStatus('Asking Claude for suggestions…')
-      suggestion = await suggestForSave(meta, MOCK_COLLECTIONS)
+      suggestion = await suggestForSave(meta, collections)
     } catch {
       // Use defaults — never block the user on AI failure.
     }

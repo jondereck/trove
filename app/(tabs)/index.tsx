@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   View,
   Text,
@@ -7,15 +7,16 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save } from '../../types'
 import SaveCard from '../../components/SaveCard'
-import { MOCK_SAVES } from '../../lib/mockData'
 import { supabase } from '../../lib/supabase'
+import { fetchLibrarySaves } from '../../lib/db'
 
-// TODO: replace with auth user's first name from supabase.auth.getUser()
+// TODO: replace with supabase.auth.getUser() once profile table exists
 const USER_NAME = 'Jon'
 
 function getGreeting(): string {
@@ -28,26 +29,30 @@ function getGreeting(): string {
 function handleSignOut() {
   Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
     { text: 'Cancel', style: 'cancel' },
-    {
-      text: 'Sign Out',
-      style: 'destructive',
-      onPress: () => supabase.auth.signOut(),
-    },
+    { text: 'Sign Out', style: 'destructive', onPress: () => supabase.auth.signOut() },
   ])
 }
 
 export default function LibraryScreen() {
   const insets = useSafeAreaInsets()
-  const [saves, setSaves] = useState<Save[]>(
-    MOCK_SAVES.filter((s) => !s.is_inbox)
-  )
+  const [saves, setSaves] = useState<Save[]>([])
+  const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+
+  const loadSaves = useCallback(async () => {
+    const data = await fetchLibrarySaves()
+    setSaves(data)
+  }, [])
+
+  useEffect(() => {
+    loadSaves().finally(() => setLoading(false))
+  }, [loadSaves])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
-    // TODO: fetch from supabase.from('saves').select('*').eq('is_inbox', false)
+    await loadSaves()
     setRefreshing(false)
-  }, [])
+  }, [loadSaves])
 
   const leftCol = saves.filter((_, i) => i % 2 === 0)
   const rightCol = saves.filter((_, i) => i % 2 === 1)
@@ -77,25 +82,21 @@ export default function LibraryScreen() {
         </TouchableOpacity>
       </View>
 
-      {saves.length === 0 ? (
+      {loading ? (
+        <ActivityIndicator color={COLORS.accent} style={styles.loader} />
+      ) : saves.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyIcon}>◎</Text>
           <Text style={styles.emptyTitle}>Your library awaits</Text>
-          <Text style={styles.emptySubtitle}>
-            Tap + to save your first link, note, or image.
-          </Text>
+          <Text style={styles.emptySubtitle}>Tap + to save your first link, note, or image.</Text>
         </View>
       ) : (
         <View style={styles.grid}>
           <View style={styles.col}>
-            {leftCol.map((save) => (
-              <SaveCard key={save.id} save={save} onPress={() => {}} />
-            ))}
+            {leftCol.map(save => <SaveCard key={save.id} save={save} onPress={() => {}} />)}
           </View>
           <View style={styles.col}>
-            {rightCol.map((save) => (
-              <SaveCard key={save.id} save={save} onPress={() => {}} />
-            ))}
+            {rightCol.map(save => <SaveCard key={save.id} save={save} onPress={() => {}} />)}
           </View>
         </View>
       )}
@@ -104,14 +105,8 @@ export default function LibraryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
-  content: {
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.xl * 2,
-  },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  content: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl * 2 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -126,9 +121,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
     flex: 1,
   },
-  greetingName: {
-    color: COLORS.accent,
-  },
+  greetingName: { color: COLORS.accent },
   avatar: {
     width: 34,
     height: 34,
@@ -137,39 +130,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: {
-    fontSize: 14,
-    fontFamily: FONTS.sansBold,
-    color: '#fff',
-  },
-  grid: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-  },
-  col: {
-    flex: 1,
-    gap: 0,
-  },
-  empty: {
-    alignItems: 'center',
-    paddingTop: SPACING.xl * 4,
-    gap: SPACING.md,
-  },
-  emptyIcon: {
-    fontSize: 40,
-    color: COLORS.border,
-    marginBottom: SPACING.sm,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontFamily: FONTS.serif,
-    color: COLORS.textSub,
-  },
+  avatarText: { fontSize: 14, fontFamily: FONTS.sansBold, color: '#fff' },
+  loader: { marginTop: SPACING.xl * 3 },
+  grid: { flexDirection: 'row', gap: SPACING.sm },
+  col: { flex: 1 },
+  empty: { alignItems: 'center', paddingTop: SPACING.xl * 4, gap: SPACING.md },
+  emptyIcon: { fontSize: 40, color: COLORS.border, marginBottom: SPACING.sm },
+  emptyTitle: { fontSize: 20, fontFamily: FONTS.serif, color: COLORS.textSub },
   emptySubtitle: {
-    fontSize: 14,
-    fontFamily: FONTS.sans,
-    color: COLORS.muted,
-    textAlign: 'center',
-    paddingHorizontal: SPACING.xl,
+    fontSize: 14, fontFamily: FONTS.sans, color: COLORS.muted,
+    textAlign: 'center', paddingHorizontal: SPACING.xl,
   },
 })

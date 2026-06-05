@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   View,
   Text,
@@ -6,34 +6,65 @@ import {
   RefreshControl,
   TouchableOpacity,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
-import { Save, OrganizeSuggestion } from '../../types'
+import { Save, Collection, OrganizeSuggestion } from '../../types'
 import SaveCard from '../../components/SaveCard'
 import AIOrganize from '../../components/AIOrganize'
-import { MOCK_SAVES, MOCK_COLLECTIONS } from '../../lib/mockData'
+import { fetchInboxSaves, fetchCollections, updateSave, upsertCollectionByName } from '../../lib/db'
 
 export default function InboxScreen() {
   const insets = useSafeAreaInsets()
-  const [saves, setSaves] = useState<Save[]>(
-    MOCK_SAVES.filter((s) => s.is_inbox)
-  )
+  const [saves, setSaves] = useState<Save[]>([])
+  const [collections, setCollections] = useState<Collection[]>([])
+  const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [aiVisible, setAiVisible] = useState(false)
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true)
-    // TODO: fetch from supabase.from('saves').select('*').eq('is_inbox', true)
-    setRefreshing(false)
+  const loadData = useCallback(async () => {
+    const [inboxSaves, cols] = await Promise.all([fetchInboxSaves(), fetchCollections()])
+    setSaves(inboxSaves)
+    setCollections(cols)
   }, [])
 
-  const handleApply = (accepted: OrganizeSuggestion[]) => {
-    // Move accepted items out of inbox (mark is_inbox: false)
-    const acceptedIds = new Set(accepted.map((a) => a.save.id))
-    setSaves((prev) => prev.filter((s) => !acceptedIds.has(s.id)))
-    // TODO: update in supabase
-  }
+  useEffect(() => {
+    loadData().finally(() => setLoading(false))
+  }, [loadData])
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    await loadData()
+    setRefreshing(false)
+  }, [loadData])
+
+  const handleApply = useCallback(async (accepted: OrganizeSuggestion[]) => {
+    // Optimistic UI update
+    const acceptedIds = new Set(accepted.map(a => a.save.id))
+    setSaves(prev => prev.filter(s => !acceptedIds.has(s.id)))
+
+    // Persist to Supabase
+    await Promise.all(
+      accepted.map(async suggestion => {
+        let collectionId: string | undefined
+
+        if (suggestion.suggested_collection && suggestion.suggested_collection !== 'Read Later') {
+          const id = await upsertCollectionByName(suggestion.suggested_collection)
+          collectionId = id ?? undefined
+        }
+
+        await updateSave(suggestion.save.id, {
+          is_inbox: false,
+          collection_id: collectionId,
+          tags: suggestion.suggested_tags,
+        })
+      })
+    )
+
+    // Refresh collections so counts are updated
+    fetchCollections().then(setCollections)
+  }, [])
 
   const leftCol = saves.filter((_, i) => i % 2 === 0)
   const rightCol = saves.filter((_, i) => i % 2 === 1)
@@ -53,7 +84,6 @@ export default function InboxScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.title}>Inbox</Text>
@@ -65,25 +95,18 @@ export default function InboxScreen() {
           </View>
         </View>
 
-        {saves.length === 0 ? (
+        {loading ? (
+          <ActivityIndicator color={COLORS.accent} style={styles.loader} />
+        ) : saves.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>○</Text>
             <Text style={styles.emptyTitle}>Inbox is clear</Text>
-            <Text style={styles.emptySubtitle}>
-              Everything is organized. Tap + to save something new.
-            </Text>
+            <Text style={styles.emptySubtitle}>Everything is organized. Tap + to save something new.</Text>
           </View>
         ) : (
           <>
-            {/* AI Organize CTA */}
-            <TouchableOpacity
-              style={styles.aiCta}
-              onPress={() => setAiVisible(true)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.aiOrb}>
-                <Text style={styles.aiOrbIcon}>✦</Text>
-              </View>
+            <TouchableOpacity style={styles.aiCta} onPress={() => setAiVisible(true)} activeOpacity={0.8}>
+              <View style={styles.aiOrb}><Text style={styles.aiOrbIcon}>✦</Text></View>
               <View style={styles.aiCtaText}>
                 <Text style={styles.aiCtaTitle}>AI Organize</Text>
                 <Text style={styles.aiCtaSub}>Sort {saves.length} items into collections</Text>
@@ -91,17 +114,12 @@ export default function InboxScreen() {
               <Text style={styles.aiChevron}>›</Text>
             </TouchableOpacity>
 
-            {/* Masonry grid */}
             <View style={styles.grid}>
               <View style={styles.col}>
-                {leftCol.map((save) => (
-                  <SaveCard key={save.id} save={save} onPress={() => {}} />
-                ))}
+                {leftCol.map(save => <SaveCard key={save.id} save={save} onPress={() => {}} />)}
               </View>
               <View style={styles.col}>
-                {rightCol.map((save) => (
-                  <SaveCard key={save.id} save={save} onPress={() => {}} />
-                ))}
+                {rightCol.map(save => <SaveCard key={save.id} save={save} onPress={() => {}} />)}
               </View>
             </View>
           </>
@@ -112,7 +130,7 @@ export default function InboxScreen() {
         visible={aiVisible}
         onClose={() => setAiVisible(false)}
         saves={saves}
-        collections={MOCK_COLLECTIONS}
+        collections={collections}
         onApply={handleApply}
       />
     </>
@@ -120,125 +138,31 @@ export default function InboxScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
-  content: {
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.xl * 2,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: SPACING.lg,
-    paddingBottom: SPACING.xl,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  title: {
-    fontSize: 32,
-    fontFamily: FONTS.serif,
-    color: COLORS.text,
-    letterSpacing: -0.5,
-  },
-  badge: {
-    backgroundColor: COLORS.accent,
-    borderRadius: 10,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 2,
-    minWidth: 22,
-    alignItems: 'center',
-  },
-  badgeText: {
-    fontSize: 11,
-    fontFamily: FONTS.sansBold,
-    color: '#fff',
-  },
-
-  // AI CTA banner
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  content: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl * 2 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: SPACING.lg, paddingBottom: SPACING.xl },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  title: { fontSize: 32, fontFamily: FONTS.serif, color: COLORS.text, letterSpacing: -0.5 },
+  badge: { backgroundColor: COLORS.accent, borderRadius: 10, paddingHorizontal: SPACING.sm, paddingVertical: 2, minWidth: 22, alignItems: 'center' },
+  badgeText: { fontSize: 11, fontFamily: FONTS.sansBold, color: '#fff' },
+  loader: { marginTop: SPACING.xl * 3 },
   aiCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: '#f0c4b4',
-    padding: SPACING.md,
-    gap: SPACING.md,
-    marginBottom: SPACING.lg,
-    shadowColor: COLORS.accent,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card,
+    borderRadius: RADIUS.lg, borderWidth: 1, borderColor: '#f0c4b4',
+    padding: SPACING.md, gap: SPACING.md, marginBottom: SPACING.lg,
+    shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },
-  aiOrb: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  aiOrbIcon: {
-    fontSize: 14,
-    color: '#fff',
-  },
-  aiCtaText: {
-    flex: 1,
-  },
-  aiCtaTitle: {
-    fontSize: 14,
-    fontFamily: FONTS.sansSemi,
-    color: COLORS.text,
-  },
-  aiCtaSub: {
-    fontSize: 12,
-    fontFamily: FONTS.sans,
-    color: COLORS.muted,
-    marginTop: 1,
-  },
-  aiChevron: {
-    fontSize: 22,
-    color: COLORS.muted,
-    fontFamily: FONTS.sans,
-  },
-
-  // Grid
-  grid: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-  },
-  col: {
-    flex: 1,
-  },
-
-  // Empty
-  empty: {
-    alignItems: 'center',
-    paddingTop: SPACING.xl * 4,
-    gap: SPACING.md,
-  },
-  emptyIcon: {
-    fontSize: 40,
-    color: COLORS.border,
-    marginBottom: SPACING.sm,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontFamily: FONTS.serif,
-    color: COLORS.textSub,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    fontFamily: FONTS.sans,
-    color: COLORS.muted,
-    textAlign: 'center',
-    paddingHorizontal: SPACING.xl,
-  },
+  aiOrb: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.accent, alignItems: 'center', justifyContent: 'center' },
+  aiOrbIcon: { fontSize: 14, color: '#fff' },
+  aiCtaText: { flex: 1 },
+  aiCtaTitle: { fontSize: 14, fontFamily: FONTS.sansSemi, color: COLORS.text },
+  aiCtaSub: { fontSize: 12, fontFamily: FONTS.sans, color: COLORS.muted, marginTop: 1 },
+  aiChevron: { fontSize: 22, color: COLORS.muted, fontFamily: FONTS.sans },
+  grid: { flexDirection: 'row', gap: SPACING.sm },
+  col: { flex: 1 },
+  empty: { alignItems: 'center', paddingTop: SPACING.xl * 4, gap: SPACING.md },
+  emptyIcon: { fontSize: 40, color: COLORS.border, marginBottom: SPACING.sm },
+  emptyTitle: { fontSize: 20, fontFamily: FONTS.serif, color: COLORS.textSub },
+  emptySubtitle: { fontSize: 14, fontFamily: FONTS.sans, color: COLORS.muted, textAlign: 'center', paddingHorizontal: SPACING.xl },
 })
