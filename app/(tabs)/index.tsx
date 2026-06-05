@@ -5,14 +5,17 @@ import {
   ScrollView,
   RefreshControl,
   StyleSheet,
+  TouchableOpacity,
+  Alert,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { COLORS, FONTS, SPACING } from '../../constants/theme'
+import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save } from '../../types'
 import SaveCard from '../../components/SaveCard'
 import { MOCK_SAVES } from '../../lib/mockData'
+import { supabase } from '../../lib/supabase'
 
-// TODO: replace "Jon" with auth user's first name once auth is wired up
+// TODO: replace with auth user's first name from supabase.auth.getUser()
 const USER_NAME = 'Jon'
 
 function getGreeting(): string {
@@ -20,6 +23,17 @@ function getGreeting(): string {
   if (h < 12) return 'Good morning'
   if (h < 17) return 'Good afternoon'
   return 'Good evening'
+}
+
+function handleSignOut() {
+  Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+    { text: 'Cancel', style: 'cancel' },
+    {
+      text: 'Sign Out',
+      style: 'destructive',
+      onPress: () => supabase.auth.signOut(),
+    },
+  ])
 }
 
 export default function LibraryScreen() {
@@ -58,9 +72,9 @@ export default function LibraryScreen() {
           {getGreeting()},{' '}
           <Text style={styles.greetingName}>{USER_NAME}</Text>
         </Text>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{saves.length}</Text>
-        </View>
+        <TouchableOpacity style={styles.avatar} onPress={handleSignOut} activeOpacity={0.75}>
+          <Text style={styles.avatarText}>{USER_NAME.charAt(0).toUpperCase()}</Text>
+        </TouchableOpacity>
       </View>
 
       {saves.length === 0 ? (
@@ -115,16 +129,16 @@ const styles = StyleSheet.create({
   greetingName: {
     color: COLORS.accent,
   },
-  badge: {
+  avatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: COLORS.accent,
-    borderRadius: 10,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 2,
-    minWidth: 22,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  badgeText: {
-    fontSize: 11,
+  avatarText: {
+    fontSize: 14,
     fontFamily: FONTS.sansBold,
     color: '#fff',
   },

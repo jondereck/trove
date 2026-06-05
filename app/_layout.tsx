@@ -1,10 +1,11 @@
-import { useEffect } from 'react'
-import { Stack } from 'expo-router'
+import { useEffect, useState } from 'react'
+import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { useFonts } from 'expo-font'
 import * as SplashScreen from 'expo-splash-screen'
 import { ShareIntentProvider } from 'expo-share-intent'
+import type { Session } from '@supabase/supabase-js'
 import {
   InstrumentSerif_400Regular,
   InstrumentSerif_400Regular_Italic,
@@ -16,6 +17,7 @@ import {
   HankenGrotesk_700Bold,
 } from '@expo-google-fonts/hanken-grotesk'
 import { COLORS } from '../constants/theme'
+import { supabase } from '../lib/supabase'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -29,24 +31,59 @@ export default function RootLayout() {
     HankenGrotesk_700Bold,
   })
 
+  // undefined = still checking, null = no session, Session = logged in
+  const [session, setSession] = useState<Session | null | undefined>(undefined)
+
+  const segments = useSegments()
+  const router = useRouter()
+
   useEffect(() => {
     if (fontsLoaded || fontError) {
       SplashScreen.hideAsync()
     }
   }, [fontsLoaded, fontError])
 
-  if (!fontsLoaded && !fontError) {
+  // Fetch initial session and subscribe to auth changes
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // Redirect based on auth state
+  useEffect(() => {
+    if (session === undefined) return // still loading
+    if (!fontsLoaded && !fontError) return // fonts not ready
+
+    const inAuthGroup = segments[0] === '(auth)'
+
+    if (!session && !inAuthGroup) {
+      // Not logged in — go to login
+      router.replace('/(auth)/login')
+    } else if (session && inAuthGroup) {
+      // Logged in — go to app
+      router.replace('/(tabs)')
+    }
+  }, [session, fontsLoaded, fontError, segments])
+
+  // Hold render until fonts AND session check are done
+  if ((!fontsLoaded && !fontError) || session === undefined) {
     return null
   }
 
   return (
-    // ShareIntentProvider must wrap everything — it listens for the deep link
-    // that the native share extension fires when the user taps "Trove" in the share sheet.
     <ShareIntentProvider>
       <SafeAreaProvider>
         <StatusBar style="dark" />
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.bg } }}>
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="(auth)" />
         </Stack>
       </SafeAreaProvider>
     </ShareIntentProvider>
