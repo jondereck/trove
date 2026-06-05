@@ -13,11 +13,13 @@ import {
 import { Link, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../lib/supabase'
+import { updateProfile } from '../../lib/db'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 
 export default function SignupScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
+  const [firstName, setFirstName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -47,6 +49,12 @@ export default function SignupScreen() {
       email: email.trim().toLowerCase(),
       password,
     })
+
+    // Save first name immediately (trigger has already created the profiles row)
+    if (!error && firstName.trim()) {
+      await updateProfile({ first_name: firstName.trim() })
+    }
+
     setLoading(false)
 
     if (error) {
@@ -101,6 +109,22 @@ export default function SignupScreen() {
 
         {/* Form */}
         <View style={styles.form}>
+          <View style={styles.field}>
+            <Text style={styles.label}>FIRST NAME <Text style={styles.optional}>(optional)</Text></Text>
+            <TextInput
+              style={[styles.input, focused === 'firstName' && styles.inputFocused]}
+              value={firstName}
+              onChangeText={setFirstName}
+              onFocus={() => setFocused('firstName')}
+              onBlur={() => setFocused(null)}
+              placeholder="How should we greet you?"
+              placeholderTextColor={COLORS.muted}
+              autoCapitalize="words"
+              autoCorrect={false}
+              returnKeyType="next"
+            />
+          </View>
+
           <View style={styles.field}>
             <Text style={styles.label}>EMAIL</Text>
             <TextInput
@@ -251,6 +275,11 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.sansSemi,
     color: COLORS.muted,
     letterSpacing: 1,
+  },
+  optional: {
+    fontFamily: FONTS.sans,
+    letterSpacing: 0,
+    textTransform: 'none',
   },
   input: {
     backgroundColor: COLORS.card,

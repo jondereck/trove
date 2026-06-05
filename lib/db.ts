@@ -122,3 +122,36 @@ export async function upsertCollectionByName(name: string): Promise<string | nul
   const created = await createCollection({ name })
   return created?.id ?? null
 }
+
+// ── Profile ───────────────────────────────────────────────────────────────────
+
+export interface Profile {
+  id: string
+  first_name: string | null
+  avatar_url: string | null
+}
+
+export async function fetchProfile(): Promise<Profile | null> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, first_name, avatar_url')
+    .eq('id', user.id)
+    .maybeSingle()
+  if (error) { console.error('fetchProfile:', error.message); return null }
+  return data as Profile | null
+}
+
+export async function updateProfile(
+  updates: Partial<Pick<Profile, 'first_name' | 'avatar_url'>>
+): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return false
+  const { error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('id', user.id)
+  if (error) { console.error('updateProfile:', error.message); return false }
+  return true
+}

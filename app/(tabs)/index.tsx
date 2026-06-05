@@ -14,10 +14,7 @@ import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save } from '../../types'
 import SaveCard from '../../components/SaveCard'
 import { supabase } from '../../lib/supabase'
-import { fetchLibrarySaves } from '../../lib/db'
-
-// TODO: replace with supabase.auth.getUser() once profile table exists
-const USER_NAME = 'Jon'
+import { fetchLibrarySaves, fetchProfile } from '../../lib/db'
 
 function getGreeting(): string {
   const h = new Date().getHours()
@@ -38,6 +35,7 @@ export default function LibraryScreen() {
   const [saves, setSaves] = useState<Save[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [userName, setUserName] = useState<string | null>(null)
 
   const loadSaves = useCallback(async () => {
     const data = await fetchLibrarySaves()
@@ -46,6 +44,7 @@ export default function LibraryScreen() {
 
   useEffect(() => {
     loadSaves().finally(() => setLoading(false))
+    fetchProfile().then(p => setUserName(p?.first_name ?? null))
   }, [loadSaves])
 
   const onRefresh = useCallback(async () => {
@@ -75,10 +74,12 @@ export default function LibraryScreen() {
       <View style={styles.header}>
         <Text style={styles.greeting} numberOfLines={1}>
           {getGreeting()},{' '}
-          <Text style={styles.greetingName}>{USER_NAME}</Text>
+          <Text style={styles.greetingName}>{userName ?? 'there'}</Text>
         </Text>
         <TouchableOpacity style={styles.avatar} onPress={handleSignOut} activeOpacity={0.75}>
-          <Text style={styles.avatarText}>{USER_NAME.charAt(0).toUpperCase()}</Text>
+          <Text style={styles.avatarText}>
+            {userName ? userName.charAt(0).toUpperCase() : '?'}
+          </Text>
         </TouchableOpacity>
       </View>
 
