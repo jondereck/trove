@@ -2,12 +2,9 @@ import { Save, Collection, OGMetadata, AISuggestion, OrganizeSuggestion } from '
 
 // ⚠️  EXPO_PUBLIC_ vars are bundled into the app binary.
 // For production, proxy this call through a Supabase Edge Function.
-const ANTHROPIC_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? ''
-const MODEL = 'claude-haiku-4-5-20251001'
+const OPENAI_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? ''
+const MODEL = 'gpt-4o-mini'
 
-// Stable system prompt — placed with cache_control so it is cached across calls.
-// Haiku 4.5 requires ≥2048 tokens for a cache hit; the prompt below is intentionally
-// detailed to approach that threshold and provide richer guidance to the model.
 const SYSTEM_PROMPT = `You are the AI organizing assistant for Trove, a personal curation and bookmarking app.
 
 Your job is to analyze saved items and suggest appropriate collections and tags so users can find their saves later.
@@ -39,37 +36,32 @@ RESPONSE FORMAT:
 - Respond with VALID JSON ONLY — no explanation, no markdown code fences, no preamble, no trailing text
 - For multiple items the array length MUST equal the number of input items, in the same order`
 
-async function callClaude(userPrompt: string): Promise<string> {
-  if (!ANTHROPIC_KEY) return '' // AI disabled — no key configured
+async function callAI(userPrompt: string): Promise<string> {
+  if (!OPENAI_KEY) return ''
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_KEY,
-      'anthropic-version': '2023-06-01',
+      'Authorization': `Bearer ${OPENAI_KEY}`,
     },
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 512,
-      system: [
-        {
-          type: 'text',
-          text: SYSTEM_PROMPT,
-          cache_control: { type: 'ephemeral' },
-        },
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: userPrompt },
       ],
-      messages: [{ role: 'user', content: userPrompt }],
     }),
   })
 
   if (!res.ok) {
     const body = await res.text()
-    throw new Error(`Claude API ${res.status}: ${body}`)
+    throw new Error(`OpenAI API ${res.status}: ${body}`)
   }
 
   const data = await res.json()
-  return (data.content?.[0]?.text as string) ?? ''
+  return (data.choices?.[0]?.message?.content as string) ?? ''
 }
 
 function parseJSON<T>(text: string, fallback: T): T {
@@ -131,7 +123,7 @@ Available collections: ${colList}
 
 Respond with JSON only: {"collection": "Name", "tags": ["tag1", "tag2", "tag3"]}`
 
-  const text = await callClaude(prompt)
+  const text = await callAI(prompt)
   const json = parseJSON<{ collection?: string; tags?: string[] }>(text, {})
   return {
     collection: json.collection ?? 'Read Later',
@@ -164,7 +156,7 @@ Available collections: ${colList}
 Respond with a JSON array, one entry per item, in the SAME ORDER as the input:
 [{"collection": "Name", "tags": ["tag1", "tag2"]}, ...]`
 
-  const text = await callClaude(prompt)
+  const text = await callAI(prompt)
   const arr = parseJSON<Array<{ collection?: string; tags?: string[] }>>(text, [])
 
   return saves.map((save, i) => ({

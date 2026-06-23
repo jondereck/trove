@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useFocusEffect, useRouter } from 'expo-router'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save } from '../../types'
 import SaveCard from '../../components/SaveCard'
@@ -32,6 +33,7 @@ function handleSignOut() {
 
 export default function LibraryScreen() {
   const insets = useSafeAreaInsets()
+  const router = useRouter()
   const [saves, setSaves] = useState<Save[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -43,9 +45,15 @@ export default function LibraryScreen() {
   }, [])
 
   useEffect(() => {
-    loadSaves().finally(() => setLoading(false))
     fetchProfile().then(p => setUserName(p?.first_name ?? null))
-  }, [loadSaves])
+  }, [])
+
+  // Reload on focus so edits/deletes from the detail screen show up
+  useFocusEffect(
+    useCallback(() => {
+      loadSaves().finally(() => setLoading(false))
+    }, [loadSaves])
+  )
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -94,10 +102,14 @@ export default function LibraryScreen() {
       ) : (
         <View style={styles.grid}>
           <View style={styles.col}>
-            {leftCol.map(save => <SaveCard key={save.id} save={save} onPress={() => {}} />)}
+            {leftCol.map(save => (
+              <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />
+            ))}
           </View>
           <View style={styles.col}>
-            {rightCol.map(save => <SaveCard key={save.id} save={save} onPress={() => {}} />)}
+            {rightCol.map(save => (
+              <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />
+            ))}
           </View>
         </View>
       )}

@@ -84,6 +84,8 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.bg } }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(auth)" />
+          <Stack.Screen name="save/[id]" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="collection/[id]" options={{ animation: 'slide_from_right' }} />
         </Stack>
       </SafeAreaProvider>
     </ShareIntentProvider>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   View,
   Text,
@@ -9,12 +9,14 @@ import {
   ActivityIndicator,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useFocusEffect, useRouter } from 'expo-router'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Collection } from '../../types'
 import { fetchCollections } from '../../lib/db'
 
 export default function CollectionsScreen() {
   const insets = useSafeAreaInsets()
+  const router = useRouter()
   const [collections, setCollections] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -24,9 +26,12 @@ export default function CollectionsScreen() {
     setCollections(data)
   }, [])
 
-  useEffect(() => {
-    loadCollections().finally(() => setLoading(false))
-  }, [loadCollections])
+  // Reload on focus so save counts stay current after edits
+  useFocusEffect(
+    useCallback(() => {
+      loadCollections().finally(() => setLoading(false))
+    }, [loadCollections])
+  )
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -65,16 +70,22 @@ export default function CollectionsScreen() {
         </View>
       ) : (
         <View style={styles.list}>
-          {collections.map(col => <CollectionCard key={col.id} collection={col} />)}
+          {collections.map(col => (
+            <CollectionCard
+              key={col.id}
+              collection={col}
+              onPress={() => router.push(`/collection/${col.id}`)}
+            />
+          ))}
         </View>
       )}
     </ScrollView>
   )
 }
 
-function CollectionCard({ collection }: { collection: Collection }) {
+function CollectionCard({ collection, onPress }: { collection: Collection; onPress: () => void }) {
   return (
-    <TouchableOpacity style={styles.card} activeOpacity={0.75}>
+    <TouchableOpacity style={styles.card} activeOpacity={0.75} onPress={onPress}>
       <View style={[styles.colorStrip, { backgroundColor: collection.color }]} />
       <View style={styles.cardContent}>
         <View style={styles.cardLeft}>

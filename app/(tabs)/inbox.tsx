@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useFocusEffect, useRouter } from 'expo-router'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save, Collection, OrganizeSuggestion } from '../../types'
 import SaveCard from '../../components/SaveCard'
@@ -17,6 +18,7 @@ import { fetchInboxSaves, fetchCollections, updateSave, upsertCollectionByName }
 
 export default function InboxScreen() {
   const insets = useSafeAreaInsets()
+  const router = useRouter()
   const [saves, setSaves] = useState<Save[]>([])
   const [collections, setCollections] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
@@ -29,9 +31,12 @@ export default function InboxScreen() {
     setCollections(cols)
   }, [])
 
-  useEffect(() => {
-    loadData().finally(() => setLoading(false))
-  }, [loadData])
+  // Reload on focus so AI-organized / edited saves leave the inbox
+  useFocusEffect(
+    useCallback(() => {
+      loadData().finally(() => setLoading(false))
+    }, [loadData])
+  )
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -116,10 +121,14 @@ export default function InboxScreen() {
 
             <View style={styles.grid}>
               <View style={styles.col}>
-                {leftCol.map(save => <SaveCard key={save.id} save={save} onPress={() => {}} />)}
+                {leftCol.map(save => (
+                  <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />
+                ))}
               </View>
               <View style={styles.col}>
-                {rightCol.map(save => <SaveCard key={save.id} save={save} onPress={() => {}} />)}
+                {rightCol.map(save => (
+                  <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />
+                ))}
               </View>
             </View>
           </>

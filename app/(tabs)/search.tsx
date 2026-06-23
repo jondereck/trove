@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save } from '../../types'
 import SaveCard from '../../components/SaveCard'
@@ -25,6 +26,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets()
+  const router = useRouter()
   const [query, setQuery] = useState('')
   const [focused, setFocused] = useState(false)
   const [results, setResults] = useState<Save[]>([])
@@ -108,7 +110,9 @@ export default function SearchScreen() {
             <Text style={styles.resultCount}>
               {results.length} {results.length === 1 ? 'result' : 'results'}
             </Text>
-            {results.map(save => <SaveCard key={save.id} save={save} onPress={() => {}} />)}
+            {results.map(save => (
+              <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />
+            ))}
           </>
         )}
       </ScrollView>

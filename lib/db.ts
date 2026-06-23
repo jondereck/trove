@@ -23,6 +23,26 @@ export async function fetchInboxSaves(): Promise<Save[]> {
   return (data ?? []) as Save[]
 }
 
+export async function fetchSave(id: string): Promise<Save | null> {
+  const { data, error } = await supabase
+    .from('saves')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) { console.error('fetchSave:', error.message); return null }
+  return data as Save | null
+}
+
+export async function fetchCollectionSaves(collectionId: string): Promise<Save[]> {
+  const { data, error } = await supabase
+    .from('saves')
+    .select('*')
+    .eq('collection_id', collectionId)
+    .order('created_at', { ascending: false })
+  if (error) { console.error('fetchCollectionSaves:', error.message); return [] }
+  return (data ?? []) as Save[]
+}
+
 export async function searchSaves(query: string): Promise<Save[]> {
   if (!query.trim()) return []
   const q = `%${query.trim()}%`
@@ -92,6 +112,16 @@ export async function fetchCollections(): Promise<Collection[]> {
   })
 
   return cols.map(c => ({ ...c, save_count: countMap[c.id] ?? 0 })) as Collection[]
+}
+
+export async function fetchCollection(id: string): Promise<Collection | null> {
+  const { data, error } = await supabase
+    .from('collections')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) { console.error('fetchCollection:', error.message); return null }
+  return data as Collection | null
 }
 
 export async function createCollection(input: {
