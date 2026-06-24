@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import {
   View,
   Text,
+  Image,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -100,15 +101,22 @@ export default function CollectionsScreen() {
 
 function CollectionCard({ collection, onPress }: { collection: Collection; onPress: () => void }) {
   const c = collection.color || COLORS.accent
+  const covers = collection.cover_urls ?? []
   return (
     <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={onPress}>
       <View style={styles.cover}>
         <View style={[styles.coverBig, { backgroundColor: withAlpha(c, 0.85) }]}>
-          <Text style={styles.coverEmoji}>{collection.emoji}</Text>
+          {covers[0]
+            ? <Image source={{ uri: covers[0] }} style={styles.coverImg} resizeMode="cover" />
+            : <Text style={styles.coverEmoji}>{collection.emoji}</Text>}
         </View>
         <View style={styles.coverSide}>
-          <View style={[styles.coverSmall, { backgroundColor: withAlpha(c, 0.35) }]} />
-          <View style={[styles.coverSmall, { backgroundColor: withAlpha(c, 0.2) }]} />
+          <View style={[styles.coverSmall, { backgroundColor: withAlpha(c, 0.35) }]}>
+            {covers[1] ? <Image source={{ uri: covers[1] }} style={styles.coverImg} resizeMode="cover" /> : null}
+          </View>
+          <View style={[styles.coverSmall, { backgroundColor: withAlpha(c, 0.2) }]}>
+            {covers[2] ? <Image source={{ uri: covers[2] }} style={styles.coverImg} resizeMode="cover" /> : null}
+          </View>
         </View>
       </View>
       <View style={styles.cardBody}>
@@ -141,10 +149,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cover: { flexDirection: 'row', gap: 3, height: 96, padding: 8 },
-  coverBig: { flex: 2, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  coverBig: { flex: 2, borderRadius: 10, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   coverEmoji: { fontSize: 30 },
   coverSide: { flex: 1, gap: 3 },
-  coverSmall: { flex: 1, borderRadius: 8 },
+  coverSmall: { flex: 1, borderRadius: 8, overflow: 'hidden' },
+  coverImg: { width: '100%', height: '100%' },
   cardBody: { padding: SPACING.md, paddingTop: SPACING.xs },
   cardName: { fontSize: 15, fontFamily: FONTS.sansBold, color: COLORS.text },
   cardMeta: { fontSize: 12, fontFamily: FONTS.sans, color: COLORS.muted, marginTop: 3 },

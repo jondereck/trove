@@ -100,18 +100,29 @@ export async function fetchCollections(): Promise<Collection[]> {
   if (error) { console.error('fetchCollections:', error.message); return [] }
   if (!cols?.length) return []
 
-  // Fetch save counts in a single query, then merge client-side
-  const { data: counts } = await supabase
+  // One query gives both counts and recent cover images, merged client-side.
+  const { data: rows } = await supabase
     .from('saves')
-    .select('collection_id')
+    .select('collection_id, image_url, created_at')
     .not('collection_id', 'is', null)
+    .order('created_at', { ascending: false })
 
   const countMap: Record<string, number> = {}
-  counts?.forEach(s => {
-    if (s.collection_id) countMap[s.collection_id] = (countMap[s.collection_id] ?? 0) + 1
+  const coverMap: Record<string, string[]> = {}
+  rows?.forEach(s => {
+    if (!s.collection_id) return
+    countMap[s.collection_id] = (countMap[s.collection_id] ?? 0) + 1
+    if (s.image_url) {
+      const arr = coverMap[s.collection_id] ?? (coverMap[s.collection_id] = [])
+      if (arr.length < 3) arr.push(s.image_url)
+    }
   })
 
-  return cols.map(c => ({ ...c, save_count: countMap[c.id] ?? 0 })) as Collection[]
+  return cols.map(c => ({
+    ...c,
+    save_count: countMap[c.id] ?? 0,
+    cover_urls: coverMap[c.id] ?? [],
+  })) as Collection[]
 }
 
 export async function fetchCollection(id: string): Promise<Collection | null> {

@@ -25,6 +25,7 @@ export interface Collection {
   description?: string
   created_at: string
   save_count?: number
+  cover_urls?: string[]
 }
 
 export interface OGMetadata {
