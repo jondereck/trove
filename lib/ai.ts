@@ -88,28 +88,80 @@ function parseJSON<T>(text: string, fallback: T): T {
 // OG metadata
 // ---------------------------------------------------------------------------
 
+// Aborts a fetch that takes too long so slow hosts (e.g. Facebook) can't hang
+// the "Analyzing" step indefinitely.
+async function fetchWithTimeout(input: string, init: RequestInit = {}, ms = 8000): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ms)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+// oEmbed gives reliable thumbnails/titles for providers whose pages are
+// JS-rendered or bot-gated (TikTok, YouTube) and don't expose og: tags to a
+// plain fetch.
+async function fetchOEmbed(endpoint: string, url: string): Promise<OGMetadata | null> {
+  try {
+    const res = await fetchWithTimeout(endpoint, {}, 7000)
+    if (!res.ok) return null
+    const j = await res.json()
+    if (!j?.title && !j?.thumbnail_url) return null
+    return {
+      url,
+      title: (j.title ?? new URL(url).hostname).trim(),
+      description: j.author_name ? `by ${j.author_name}` : undefined,
+      image: j.thumbnail_url,
+      siteName: j.provider_name,
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function fetchOGMetadata(url: string): Promise<OGMetadata> {
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; TroveApp/1.0)' },
-  })
-  const html = await res.text()
+  let host = ''
+  try { host = new URL(url).hostname.replace(/^www\./, '') } catch { /* keep raw url */ }
 
-  const og = (prop: string) =>
-    html.match(new RegExp(`<meta[^>]+property=["']og:${prop}["'][^>]+content=["']([^"']+)["']`, 'i'))?.[1] ||
-    html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:${prop}["']`, 'i'))?.[1]
+  // Provider-specific oEmbed first (thumbnails these sites hide from scrapers).
+  if (host.includes('tiktok.com')) {
+    const m = await fetchOEmbed(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`, url)
+    if (m) return m
+  }
+  if (host.includes('youtube.com') || host.includes('youtu.be')) {
+    const m = await fetchOEmbed(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(url)}`, url)
+    if (m) return m
+  }
 
-  const meta = (name: string) =>
-    html.match(new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']+)["']`, 'i'))?.[1] ||
-    html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${name}["']`, 'i'))?.[1]
+  // Generic Open Graph scrape, with a timeout + graceful fallback.
+  try {
+    const res = await fetchWithTimeout(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; TroveApp/1.0)' },
+    }, 8000)
+    const html = await res.text()
 
-  const titleTag = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim()
+    const og = (prop: string) =>
+      html.match(new RegExp(`<meta[^>]+property=["']og:${prop}["'][^>]+content=["']([^"']+)["']`, 'i'))?.[1] ||
+      html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:${prop}["']`, 'i'))?.[1]
 
-  return {
-    url,
-    title: (og('title') || meta('twitter:title') || titleTag || new URL(url).hostname).trim(),
-    description: og('description') || meta('description') || meta('twitter:description'),
-    image: og('image') || meta('twitter:image'),
-    siteName: og('site_name'),
+    const meta = (name: string) =>
+      html.match(new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']+)["']`, 'i'))?.[1] ||
+      html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${name}["']`, 'i'))?.[1]
+
+    const titleTag = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim()
+
+    return {
+      url,
+      title: (og('title') || meta('twitter:title') || titleTag || host || url).trim(),
+      description: og('description') || meta('description') || meta('twitter:description'),
+      image: og('image') || meta('twitter:image'),
+      siteName: og('site_name'),
+    }
+  } catch {
+    // Timeout or network error — still let the user save with a sane title.
+    return { url, title: host || url }
   }
 }
 

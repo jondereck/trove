@@ -20,7 +20,7 @@ import * as ImagePicker from 'expo-image-picker'
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
 import { SaveType, OGMetadata, AISuggestion, Collection } from '../types'
 import { fetchOGMetadata, suggestForSave } from '../lib/ai'
-import { fetchCollections } from '../lib/db'
+import { fetchCollections, findSaveByUrl } from '../lib/db'
 import { uploadMedia } from '../lib/storage'
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window')
@@ -83,6 +83,15 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   const doFetchAndSuggest = useCallback(async (url: string, saveType: SaveType = 'link') => {
     setError('')
     setStep('loading')
+
+    // Stop early if this link is already saved.
+    setLoadingStatus('Checking your library…')
+    const dup = await findSaveByUrl(url)
+    if (dup) {
+      setError('This link is already in your library.')
+      setStep('input')
+      return
+    }
 
     let meta: OGMetadata = { url, title: url }
     let suggestion: AISuggestion = { collection: 'Read Later', tags: [] }
