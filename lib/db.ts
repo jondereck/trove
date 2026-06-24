@@ -43,17 +43,64 @@ export async function fetchCollectionSaves(collectionId: string): Promise<Save[]
   return (data ?? []) as Save[]
 }
 
+const SEARCH_STOPWORDS = new Set([
+  'the', 'that', 'this', 'from', 'last', 'ideas', 'idea', 'saved', 'save', 'my',
+  'everything', 'all', 'in', 'me', 'and', 'for', 'with', 'about', 'show',
+])
+
+// Splits a natural-language query into meaningful words and matches saves where
+// ANY word appears in the title, description, content, or tags — so plain-words
+// queries like "my design saves" still surface tagged items.
 export async function searchSaves(query: string): Promise<Save[]> {
-  if (!query.trim()) return []
-  const q = `%${query.trim()}%`
+  const trimmed = query.trim()
+  if (!trimmed) return []
+
+  const words = trimmed
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !SEARCH_STOPWORDS.has(w))
+
+  const terms = words.length ? words : [trimmed.toLowerCase()]
+  const conditions = terms
+    .flatMap(w => [
+      `title.ilike.%${w}%`,
+      `description.ilike.%${w}%`,
+      `content.ilike.%${w}%`,
+      `tags.cs.{${w}}`,
+    ])
+    .join(',')
+
   const { data, error } = await supabase
     .from('saves')
     .select('*')
-    .or(`title.ilike.${q},description.ilike.${q},content.ilike.${q}`)
+    .or(conditions)
     .order('created_at', { ascending: false })
     .limit(50)
   if (error) { console.error('searchSaves:', error.message); return [] }
   return (data ?? []) as Save[]
+}
+
+// Builds "Try asking" suggestions from the user's own data: their most-used
+// tags plus a collection name. Returns [] when there's nothing to suggest yet.
+export async function fetchSearchSuggestions(): Promise<string[]> {
+  const [saveRes, colRes] = await Promise.all([
+    supabase.from('saves').select('tags').limit(200),
+    supabase.from('collections').select('name').order('name').limit(10),
+  ])
+
+  const freq: Record<string, number> = {}
+  saveRes.data?.forEach(r => {
+    ;(r.tags as string[] | null)?.forEach(t => { freq[t] = (freq[t] ?? 0) + 1 })
+  })
+  const topTags = Object.entries(freq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2)
+    .map(([t]) => t)
+
+  const out = topTags.map(t => `my ${t} saves`)
+  const firstCol = colRes.data?.[0]?.name
+  if (firstCol) out.push(`everything in ${firstCol}`)
+  return out.slice(0, 3)
 }
 
 export async function createSave(input: {

@@ -14,14 +14,15 @@ import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save, SaveType } from '../../types'
 import SaveCard from '../../components/SaveCard'
-import { searchSaves } from '../../lib/db'
+import { searchSaves, fetchSearchSuggestions } from '../../lib/db'
+import { getRecentSearches, addRecentSearch } from '../../lib/recents'
 
-const SUGGESTIONS = [
+// Shown only until the user's own data produces suggestions.
+const SAMPLE_SUGGESTIONS = [
   'that miso recipe I saved',
   'design articles from last month',
   'kitchen lighting ideas',
 ]
-const RECENTS = ['typography', 'kyoto', 'lighting']
 
 type TypeId = 'all' | SaveType
 const TYPES: { id: TypeId; label: string; icon?: keyof typeof Ionicons.glyphMap }[] = [
@@ -48,7 +49,14 @@ export default function SearchScreen() {
   const [type, setType] = useState<TypeId>('all')
   const [results, setResults] = useState<Save[]>([])
   const [searching, setSearching] = useState(false)
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [recents, setRecents] = useState<string[]>([])
   const debouncedQuery = useDebounce(query, 350)
+
+  useEffect(() => {
+    fetchSearchSuggestions().then(s => setSuggestions(s.length ? s : SAMPLE_SUGGESTIONS))
+    getRecentSearches().then(setRecents)
+  }, [])
 
   useEffect(() => {
     if (!debouncedQuery.trim()) {
@@ -61,6 +69,12 @@ export default function SearchScreen() {
       setSearching(false)
     })
   }, [debouncedQuery])
+
+  // Set the query and remember it as a recent search.
+  const runSearch = (term: string) => {
+    setQuery(term)
+    addRecentSearch(term).then(setRecents)
+  }
 
   const ql = debouncedQuery.trim().toLowerCase()
   const hasQuery = ql.length > 0
@@ -82,6 +96,7 @@ export default function SearchScreen() {
             placeholderTextColor={COLORS.muted}
             value={query}
             onChangeText={setQuery}
+            onSubmitEditing={() => query.trim() && runSearch(query)}
             returnKeyType="search"
             autoCapitalize="none"
             autoCorrect={false}
@@ -102,23 +117,27 @@ export default function SearchScreen() {
               <Text style={styles.tryHeaderText}>Try asking</Text>
             </View>
             <View style={styles.suggestList}>
-              {SUGGESTIONS.map(s => (
-                <TouchableOpacity key={s} style={styles.suggestRow} onPress={() => setQuery(s)} activeOpacity={0.8}>
+              {suggestions.map(s => (
+                <TouchableOpacity key={s} style={styles.suggestRow} onPress={() => runSearch(s)} activeOpacity={0.8}>
                   <Text style={styles.suggestText}>"{s}"</Text>
                   <Ionicons name="arrow-forward" size={16} color={COLORS.muted} />
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Text style={styles.recentLabel}>RECENT</Text>
-            <View style={styles.recentRow}>
-              {RECENTS.map(r => (
-                <TouchableOpacity key={r} style={styles.recentChip} onPress={() => setQuery(r)} activeOpacity={0.8}>
-                  <Ionicons name="time-outline" size={14} color={COLORS.muted} />
-                  <Text style={styles.recentChipText}>{r}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {recents.length > 0 && (
+              <>
+                <Text style={styles.recentLabel}>RECENT</Text>
+                <View style={styles.recentRow}>
+                  {recents.map(r => (
+                    <TouchableOpacity key={r} style={styles.recentChip} onPress={() => runSearch(r)} activeOpacity={0.8}>
+                      <Ionicons name="time-outline" size={14} color={COLORS.muted} />
+                      <Text style={styles.recentChipText}>{r}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
           </>
         )}
 
