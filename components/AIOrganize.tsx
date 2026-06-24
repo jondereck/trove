@@ -247,9 +247,9 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
 
                 <Text style={styles.sectionLabel}>Tags</Text>
                 <View style={styles.tagsRow}>
-                  {effectiveTags.map(tag => (
+                  {effectiveTags.map((tag, i) => (
                     <TouchableOpacity
-                      key={tag}
+                      key={`${tag}-${i}`}
                       style={styles.tagChip}
                       onPress={() => editingItem && removeTag(tag)}
                       activeOpacity={editingItem ? 0.7 : 1}

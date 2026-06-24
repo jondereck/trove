@@ -454,8 +454,8 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
               {/* Tags */}
               <Text style={styles.sectionLabel}>Tags</Text>
               <View style={styles.tagsRow}>
-                {draft.tags.map(tag => (
-                  <TouchableOpacity key={tag} style={styles.tagChip} onPress={() => removeTag(tag)} activeOpacity={0.7}>
+                {draft.tags.map((tag, i) => (
+                  <TouchableOpacity key={`${tag}-${i}`} style={styles.tagChip} onPress={() => removeTag(tag)} activeOpacity={0.7}>
                     <Text style={styles.tagChipText}>{tag}  ×</Text>
                   </TouchableOpacity>
                 ))}

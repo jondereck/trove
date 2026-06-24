@@ -1,38 +1,29 @@
-import { ReactNode, useRef } from 'react'
-import { Animated, PanResponder, Dimensions, StyleSheet, Text, View } from 'react-native'
+import { useRef } from 'react'
+import { Animated, PanResponder, View, Text, StyleSheet } from 'react-native'
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme'
 
-const { width: SCREEN_W } = Dimensions.get('window')
-const THRESHOLD = 110
-
 interface SwipeableCardProps {
-  children: ReactNode
-  onSwipe: () => void
-  /** Label shown on the revealed background. */
-  label?: string
+  children: React.ReactNode
+  onArchive: () => void
 }
 
-/**
- * Wraps a card so a horizontal swipe past THRESHOLD fires `onSwipe`.
- * Built on PanResponder so it needs no native gesture libraries. The responder
- * only claims clearly-horizontal gestures, so vertical scroll + tap pass through.
- */
-export default function SwipeableCard({ children, onSwipe, label = 'Archive' }: SwipeableCardProps) {
-  const translateX = useRef(new Animated.Value(0)).current
-  const opacity = useRef(new Animated.Value(1)).current
+const THRESHOLD = -72
 
-  const pan = useRef(
+export default function SwipeableCard({ children, onArchive }: SwipeableCardProps) {
+  const translateX = useRef(new Animated.Value(0)).current
+  const opacity = translateX.interpolate({ inputRange: [THRESHOLD, 0], outputRange: [1, 0] })
+
+  const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, g) =>
-        Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 1.4,
-      onPanResponderMove: (_, g) => translateX.setValue(g.dx),
+        Math.abs(g.dx) > 6 && Math.abs(g.dx) > Math.abs(g.dy),
+      onPanResponderMove: (_, g) => {
+        if (g.dx < 0) translateX.setValue(Math.max(g.dx, THRESHOLD * 2))
+      },
       onPanResponderRelease: (_, g) => {
-        if (Math.abs(g.dx) > THRESHOLD) {
-          const to = g.dx > 0 ? SCREEN_W : -SCREEN_W
-          Animated.parallel([
-            Animated.timing(translateX, { toValue: to, duration: 180, useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 0, duration: 180, useNativeDriver: true }),
-          ]).start(() => onSwipe())
+        if (g.dx < THRESHOLD) {
+          Animated.timing(translateX, { toValue: -500, duration: 220, useNativeDriver: true })
+            .start(() => onArchive())
         } else {
           Animated.spring(translateX, { toValue: 0, useNativeDriver: true, bounciness: 6 }).start()
         }
@@ -40,19 +31,17 @@ export default function SwipeableCard({ children, onSwipe, label = 'Archive' }: 
     })
   ).current
 
-  const hintOpacity = translateX.interpolate({
-    inputRange: [-THRESHOLD, -24, 0, 24, THRESHOLD],
-    outputRange: [1, 0.15, 0, 0.15, 1],
-    extrapolate: 'clamp',
-  })
-
   return (
     <View style={styles.wrap}>
-      <Animated.View style={[styles.hint, { opacity: hintOpacity }]} pointerEvents="none">
-        <Text style={styles.hintIcon}>✓</Text>
-        <Text style={styles.hintText}>{label}</Text>
+      {/* Archive hint revealed on swipe */}
+      <Animated.View style={[styles.archiveBg, { opacity }]}>
+        <Text style={styles.archiveIcon}>archive</Text>
       </Animated.View>
-      <Animated.View style={{ transform: [{ translateX }], opacity }} {...pan.panHandlers}>
+
+      <Animated.View
+        style={{ transform: [{ translateX }] }}
+        {...panResponder.panHandlers}
+      >
         {children}
       </Animated.View>
     </View>
@@ -60,20 +49,25 @@ export default function SwipeableCard({ children, onSwipe, label = 'Archive' }: 
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: 'relative' },
-  hint: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: SPACING.sm,
+  wrap: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: RADIUS.lg,
+    marginBottom: SPACING.sm,
+  },
+  archiveBg: {
+    ...StyleSheet.absoluteFill,
     backgroundColor: COLORS.accent,
     borderRadius: RADIUS.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'center',
-    gap: SPACING.sm,
+    paddingRight: SPACING.lg,
   },
-  hintIcon: { fontSize: 16, color: '#fff' },
-  hintText: { fontSize: 14, fontFamily: FONTS.sansSemi, color: '#fff', letterSpacing: 0.3 },
+  archiveIcon: {
+    fontSize: 11,
+    fontFamily: FONTS.sansBold,
+    color: '#fff',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
 })

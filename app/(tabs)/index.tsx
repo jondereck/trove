@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native'
+import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -47,6 +48,7 @@ function handleSignOut() {
 }
 
 export default function LibraryScreen() {
+  const router = useRouter()
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const [saves, setSaves] = useState<Save[]>([])
@@ -134,73 +136,13 @@ export default function LibraryScreen() {
             <Text style={styles.avatarText}>{userName ? userName.charAt(0).toUpperCase() : '?'}</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Filter chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipRow}
-          style={styles.chipScroll}
-        >
-          {CHIPS.map(c => {
-            const on = filter === c.id
-            return (
-              <TouchableOpacity
-                key={c.id}
-                style={[styles.chip, on && styles.chipOn]}
-                onPress={() => setFilter(c.id)}
-                activeOpacity={0.8}
-              >
-                {c.icon && <Ionicons name={c.icon} size={14} color={on ? '#fff' : COLORS.text} />}
-                <Text style={[styles.chipText, on && styles.chipTextOn]}>{c.label}</Text>
-              </TouchableOpacity>
-            )
-          })}
-        </ScrollView>
-
-        {/* Inbox banner */}
-        {inboxSaves.length > 0 && (
-          <TouchableOpacity style={styles.banner} onPress={() => setAiVisible(true)} activeOpacity={0.85}>
-            <View style={styles.bannerOrb}>
-              <Ionicons name="sparkles" size={18} color="#fff" />
-            </View>
-            <View style={styles.bannerText}>
-              <Text style={styles.bannerTitle}>{inboxSaves.length} saves waiting to be sorted</Text>
-              <Text style={styles.bannerSub}>Let AI file them into collections</Text>
-            </View>
-            <View style={styles.bannerBtn}>
-              <Text style={styles.bannerBtnText}>Organize</Text>
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {/* Masonry */}
-        {loading ? (
-          <ActivityIndicator color={COLORS.accent} style={styles.loader} />
-        ) : shown.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>◎</Text>
-            <Text style={styles.emptyTitle}>
-              {filter === 'all' ? 'Your library awaits' : 'Nothing here'}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              {filter === 'all'
-                ? 'Tap + to save your first link, note, or image.'
-                : 'No saves match this filter yet.'}
-            </Text>
+      ) : (
+        <View style={styles.grid}>
+          <View style={styles.col}>
+            {leftCol.map(save => <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />)}
           </View>
-        ) : (
-          <View style={styles.grid}>
-            <View style={styles.col}>
-              {leftCol.map(save => (
-                <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />
-              ))}
-            </View>
-            <View style={styles.col}>
-              {rightCol.map(save => (
-                <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />
-              ))}
-            </View>
+          <View style={styles.col}>
+            {rightCol.map(save => <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />)}
           </View>
         )}
       </ScrollView>

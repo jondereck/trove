@@ -1,113 +1,90 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  View,
-  Text,
-  TextInput,
-  Image,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-  Linking,
-  KeyboardAvoidingView,
-  Platform,
+  View, Text, TextInput, ScrollView, TouchableOpacity,
+  StyleSheet, Alert, ActivityIndicator, Image, Linking,
 } from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save, Collection } from '../../types'
-import { fetchSave, fetchCollections, updateSave, deleteSave } from '../../lib/db'
+import { fetchSaveById, updateSave, deleteSave, fetchCollections } from '../../lib/db'
 
-function getDomain(url?: string): string {
-  if (!url) return ''
-  try {
-    return new URL(url).hostname.replace(/^www\./, '')
-  } catch {
-    return ''
-  }
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+}
+
+function getDomain(url?: string) {
+  try { return url ? new URL(url).hostname.replace(/^www\./, '') : '' } catch { return '' }
+}
+
+const TYPE_COLORS: Record<string, string> = {
+  link: '#3b82f6', note: '#8b5cf6', image: '#10b981', video: '#f59e0b',
 }
 
 export default function SaveDetailScreen() {
-  const insets = useSafeAreaInsets()
-  const router = useRouter()
   const { id } = useLocalSearchParams<{ id: string }>()
+  const router = useRouter()
+  const insets = useSafeAreaInsets()
 
   const [save, setSave] = useState<Save | null>(null)
   const [collections, setCollections] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [editing, setEditing] = useState(false)
 
+  // Edit state
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
-  const [collectionId, setCollectionId] = useState<string | undefined>(undefined)
-  const [favorite, setFavorite] = useState(false)
+  const [selectedCollection, setSelectedCollection] = useState<string | undefined>()
 
-  useEffect(() => {
-    if (!id) return
-    Promise.all([fetchSave(id), fetchCollections()]).then(([s, cols]) => {
-      setCollections(cols)
-      if (s) {
-        setSave(s)
-        setTitle(s.title)
-        setDescription(s.description ?? '')
-        setTags(s.tags ?? [])
-        setCollectionId(s.collection_id)
-        setFavorite(s.is_favorite ?? false)
-      }
-      setLoading(false)
-    })
+  const load = useCallback(async () => {
+    const [s, cols] = await Promise.all([fetchSaveById(id), fetchCollections()])
+    if (s) {
+      setSave(s)
+      setTitle(s.title)
+      setDescription(s.description ?? '')
+      setTags(s.tags ?? [])
+      setSelectedCollection(s.collection_id ?? undefined)
+    }
+    setCollections(cols)
   }, [id])
 
-  const addTag = useCallback(() => {
-    const t = tagInput.trim().toLowerCase().replace(/\s+/g, '-').replace(/#/g, '')
-    if (t && !tags.includes(t)) setTags(prev => [...prev, t])
-    setTagInput('')
-  }, [tagInput, tags])
+  useEffect(() => { load().finally(() => setLoading(false)) }, [load])
 
-  const removeTag = useCallback((t: string) => {
-    setTags(prev => prev.filter(x => x !== t))
-  }, [])
-
-  const handleSave = useCallback(async () => {
+  const handleSave = async () => {
     if (!save) return
-    setSaving(true)
-    const ok = await updateSave(save.id, {
+    await updateSave(save.id, {
       title: title.trim() || save.title,
       description: description.trim() || undefined,
       tags,
-      collection_id: collectionId,
-      is_favorite: favorite,
-      // assigning a collection moves it out of the inbox
-      is_inbox: collectionId ? false : save.is_inbox,
+      collection_id: selectedCollection,
     })
-    setSaving(false)
-    if (ok) router.back()
-    else Alert.alert('Error', 'Could not save changes. Please try again.')
-  }, [save, title, description, tags, collectionId, router])
+    setSave(prev => prev ? { ...prev, title, description, tags, collection_id: selectedCollection } : prev)
+    setEditing(false)
+  }
 
-  const handleDelete = useCallback(() => {
-    if (!save) return
-    Alert.alert('Delete save', 'This cannot be undone.', [
+  const handleDelete = () => {
+    Alert.alert('Delete Save', 'This cannot be undone.', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Delete',
-        style: 'destructive',
+        text: 'Delete', style: 'destructive',
         onPress: async () => {
-          const ok = await deleteSave(save.id)
-          if (ok) router.back()
-          else Alert.alert('Error', 'Could not delete. Please try again.')
+          if (save) { await deleteSave(save.id); router.back() }
         },
       },
     ])
-  }, [save, router])
+  }
+
+  const addTag = () => {
+    const t = tagInput.trim().toLowerCase().replace(/\s+/g, '-')
+    if (t && !tags.includes(t)) setTags(prev => [...prev, t])
+    setTagInput('')
+  }
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.center]}>
+      <View style={[styles.center, { paddingTop: insets.top }]}>
         <ActivityIndicator color={COLORS.accent} />
       </View>
     )
@@ -115,231 +92,213 @@ export default function SaveDetailScreen() {
 
   if (!save) {
     return (
-      <View style={[styles.container, styles.center, { paddingTop: insets.top }]}>
-        <Text style={styles.missingTitle}>Save not found</Text>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.75}>
-          <Text style={styles.missingLink}>Go back</Text>
-        </TouchableOpacity>
+      <View style={[styles.center, { paddingTop: insets.top }]}>
+        <Text style={styles.notFound}>Save not found.</Text>
       </View>
     )
   }
 
-  const domain = getDomain(save.url)
+  const currentCollection = collections.find(c => c.id === (editing ? selectedCollection : save.collection_id))
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      {/* Top bar */}
-      <View style={[styles.topBar, { paddingTop: insets.top + SPACING.sm }]}>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()} activeOpacity={0.7}>
-          <Text style={styles.iconBtnText}>‹</Text>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+          <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
-        <View style={styles.topBarRight}>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => setFavorite(f => !f)} activeOpacity={0.7}>
-            <Ionicons
-              name={favorite ? 'star' : 'star-outline'}
-              size={22}
-              color={favorite ? COLORS.accent : COLORS.muted}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} onPress={handleDelete} activeOpacity={0.7}>
-            <Text style={styles.deleteText}>Delete</Text>
-          </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {editing ? (
+            <>
+              <TouchableOpacity onPress={() => setEditing(false)} style={styles.actionBtn} activeOpacity={0.7}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSave} style={[styles.actionBtn, styles.saveBtn]} activeOpacity={0.85}>
+                <Text style={styles.saveBtnText}>Save</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity onPress={() => setEditing(true)} style={styles.actionBtn} activeOpacity={0.7}>
+                <Text style={styles.editText}>Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleDelete} style={styles.actionBtn} activeOpacity={0.7}>
+                <Text style={styles.deleteText}>🗑</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {save.image_url ? (
-          <Image source={{ uri: save.image_url }} style={styles.hero} resizeMode="cover" />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {/* Hero image */}
+        {save.image_url && !editing && (
+          <Image source={{ uri: save.image_url }} style={styles.heroImage} resizeMode="cover" />
+        )}
+
+        {/* Type + domain */}
+        <View style={styles.metaRow}>
+          <View style={[styles.typeBadge, { backgroundColor: TYPE_COLORS[save.type] + '22' }]}>
+            <Text style={[styles.typeBadgeText, { color: TYPE_COLORS[save.type] }]}>
+              {save.type.toUpperCase()}
+            </Text>
+          </View>
+          {save.url && (
+            <TouchableOpacity onPress={() => save.url && Linking.openURL(save.url)} activeOpacity={0.7}>
+              <Text style={styles.domain}>{getDomain(save.url)} ↗</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Title */}
+        {editing ? (
+          <TextInput
+            style={styles.titleInput}
+            value={title}
+            onChangeText={setTitle}
+            multiline
+            placeholder="Title"
+            placeholderTextColor={COLORS.muted}
+          />
+        ) : (
+          <Text style={styles.title}>{save.title}</Text>
+        )}
+
+        {/* Description / content */}
+        {editing ? (
+          <TextInput
+            style={styles.descInput}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            placeholder="Description or note…"
+            placeholderTextColor={COLORS.muted}
+            textAlignVertical="top"
+          />
+        ) : (save.description || save.content) ? (
+          <Text style={styles.description}>{save.description || save.content}</Text>
         ) : null}
 
-        {domain ? (
-          <TouchableOpacity
-            style={styles.domainPill}
-            onPress={() => save.url && Linking.openURL(save.url)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.domainText}>{domain}</Text>
-            <Text style={styles.openText}>Open ↗</Text>
-          </TouchableOpacity>
-        ) : null}
+        {/* Collection */}
+        <Text style={styles.sectionLabel}>COLLECTION</Text>
+        {editing ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.colPicker}>
+            <TouchableOpacity
+              style={[styles.colChip, !selectedCollection && styles.colChipActive]}
+              onPress={() => setSelectedCollection(undefined)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.colChipText, !selectedCollection && styles.colChipTextActive]}>None</Text>
+            </TouchableOpacity>
+            {collections.map(c => (
+              <TouchableOpacity
+                key={c.id}
+                style={[styles.colChip, selectedCollection === c.id && styles.colChipActive]}
+                onPress={() => setSelectedCollection(c.id)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.colChipText, selectedCollection === c.id && styles.colChipTextActive]}>
+                  {c.emoji} {c.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        ) : (
+          <View style={styles.colDisplay}>
+            {currentCollection
+              ? <Text style={styles.colName}>{currentCollection.emoji} {currentCollection.name}</Text>
+              : <Text style={styles.colNone}>No collection</Text>
+            }
+          </View>
+        )}
 
-        <Text style={styles.label}>Title</Text>
-        <TextInput
-          style={styles.titleInput}
-          value={title}
-          onChangeText={setTitle}
-          multiline
-          placeholder="Untitled"
-          placeholderTextColor={COLORS.muted}
-        />
-
-        {save.type === 'note' && save.content ? (
-          <>
-            <Text style={styles.label}>Note</Text>
-            <Text style={styles.noteContent}>{save.content}</Text>
-          </>
-        ) : null}
-
-        <Text style={styles.label}>Description</Text>
-        <TextInput
-          style={styles.descInput}
-          value={description}
-          onChangeText={setDescription}
-          multiline
-          placeholder="Add a description…"
-          placeholderTextColor={COLORS.muted}
-        />
-
-        <Text style={styles.label}>Tags</Text>
-        <View style={styles.tagRow}>
-          {tags.map(t => (
-            <TouchableOpacity key={t} style={styles.tagChip} onPress={() => removeTag(t)} activeOpacity={0.7}>
-              <Text style={styles.tagText}>{t}</Text>
-              <Text style={styles.tagRemove}>✕</Text>
+        {/* Tags */}
+        <Text style={styles.sectionLabel}>TAGS</Text>
+        <View style={styles.tagsRow}>
+          {(editing ? tags : save.tags)?.map((tag, i) => (
+            <TouchableOpacity
+              key={`${tag}-${i}`}
+              style={styles.tag}
+              onPress={() => editing && setTags(t => t.filter(x => x !== tag))}
+              activeOpacity={editing ? 0.7 : 1}
+            >
+              <Text style={styles.tagText}>{tag}{editing ? ' ×' : ''}</Text>
             </TouchableOpacity>
           ))}
+          {editing && (
+            <TextInput
+              style={styles.tagInput}
+              value={tagInput}
+              onChangeText={setTagInput}
+              placeholder="+ add"
+              placeholderTextColor={COLORS.muted}
+              autoCapitalize="none"
+              returnKeyType="done"
+              onSubmitEditing={addTag}
+              blurOnSubmit={false}
+            />
+          )}
         </View>
-        <TextInput
-          style={styles.tagInput}
-          value={tagInput}
-          onChangeText={setTagInput}
-          onSubmitEditing={addTag}
-          placeholder="Add a tag…"
-          placeholderTextColor={COLORS.muted}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="done"
-        />
 
-        <Text style={styles.label}>Collection</Text>
-        <View style={styles.collectionWrap}>
-          <TouchableOpacity
-            style={[styles.colChip, !collectionId && styles.colChipActive]}
-            onPress={() => setCollectionId(undefined)}
-            activeOpacity={0.75}
-          >
-            <Text style={[styles.colChipText, !collectionId && styles.colChipTextActive]}>None</Text>
-          </TouchableOpacity>
-          {collections.map(col => {
-            const active = collectionId === col.id
-            return (
-              <TouchableOpacity
-                key={col.id}
-                style={[styles.colChip, active && styles.colChipActive]}
-                onPress={() => setCollectionId(col.id)}
-                activeOpacity={0.75}
-              >
-                <Text style={styles.colEmoji}>{col.emoji}</Text>
-                <Text style={[styles.colChipText, active && styles.colChipTextActive]}>{col.name}</Text>
-              </TouchableOpacity>
-            )
-          })}
-        </View>
+        <Text style={styles.date}>Saved {formatDate(save.created_at)}</Text>
       </ScrollView>
-
-      {/* Sticky save button */}
-      <View style={[styles.footer, { paddingBottom: insets.bottom + SPACING.md }]}>
-        <TouchableOpacity
-          style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
-          onPress={handleSave}
-          disabled={saving}
-          activeOpacity={0.85}
-        >
-          {saving
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.saveBtnText}>Save changes</Text>}
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  center: { alignItems: 'center', justifyContent: 'center', gap: SPACING.md },
-  missingTitle: { fontSize: 20, fontFamily: FONTS.serif, color: COLORS.textSub },
-  missingLink: { fontSize: 14, fontFamily: FONTS.sansSemi, color: COLORS.accent },
-
-  topBar: {
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.bg },
+  notFound: { fontFamily: FONTS.serif, fontSize: 18, color: COLORS.muted },
+  header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md, paddingBottom: SPACING.sm,
+    paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
-  topBarRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
-  iconBtn: { minWidth: 44, height: 36, alignItems: 'center', justifyContent: 'center' },
-  iconBtnText: { fontSize: 30, color: COLORS.text, fontFamily: FONTS.sans, marginTop: -4 },
-  deleteText: { fontSize: 14, fontFamily: FONTS.sansSemi, color: '#c0392b' },
-
-  content: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl * 2 },
-  hero: { width: '100%', height: 180, borderRadius: RADIUS.lg, marginBottom: SPACING.md },
-
-  domainPill: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
-    marginBottom: SPACING.lg,
-  },
-  domainText: { fontSize: 13, fontFamily: FONTS.sansMed, color: COLORS.textSub },
-  openText: { fontSize: 13, fontFamily: FONTS.sansSemi, color: COLORS.accent },
-
-  label: {
-    fontSize: 11, fontFamily: FONTS.sansSemi, color: COLORS.muted,
-    letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: SPACING.sm, marginTop: SPACING.lg,
-  },
+  backBtn: { padding: SPACING.xs },
+  backText: { fontSize: 22, color: COLORS.text },
+  headerActions: { flexDirection: 'row', gap: SPACING.sm, alignItems: 'center' },
+  actionBtn: { paddingHorizontal: SPACING.sm, paddingVertical: SPACING.xs },
+  editText: { fontSize: 15, fontFamily: FONTS.sansMed, color: COLORS.accent },
+  deleteText: { fontSize: 16 },
+  cancelText: { fontSize: 15, fontFamily: FONTS.sans, color: COLORS.muted },
+  saveBtn: { backgroundColor: COLORS.accent, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.md },
+  saveBtnText: { fontSize: 14, fontFamily: FONTS.sansSemi, color: '#fff' },
+  content: { padding: SPACING.lg, paddingBottom: SPACING.xl * 2, gap: SPACING.md },
+  heroImage: { width: '100%', height: 200, borderRadius: RADIUS.lg, marginBottom: SPACING.sm },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  typeBadge: { borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3 },
+  typeBadgeText: { fontSize: 10, fontFamily: FONTS.sansBold, letterSpacing: 0.8 },
+  domain: { fontSize: 13, fontFamily: FONTS.sans, color: COLORS.accent },
+  title: { fontSize: 22, fontFamily: FONTS.serif, color: COLORS.text, lineHeight: 30 },
   titleInput: {
-    fontSize: 24, fontFamily: FONTS.serif, color: COLORS.text, lineHeight: 30,
-    padding: 0,
+    fontSize: 22, fontFamily: FONTS.serif, color: COLORS.text, lineHeight: 30,
+    borderBottomWidth: 1.5, borderBottomColor: COLORS.accent, paddingVertical: SPACING.xs,
   },
-  noteContent: {
-    fontSize: 15, fontFamily: FONTS.serifItal, color: COLORS.text, lineHeight: 24,
-    backgroundColor: COLORS.cream, borderRadius: RADIUS.md, padding: SPACING.md,
-  },
+  description: { fontSize: 15, fontFamily: FONTS.sans, color: COLORS.textSub, lineHeight: 22 },
   descInput: {
     fontSize: 15, fontFamily: FONTS.sans, color: COLORS.text, lineHeight: 22,
-    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: RADIUS.md, padding: SPACING.md, minHeight: 80, textAlignVertical: 'top',
+    borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.md,
+    padding: SPACING.md, minHeight: 80,
   },
-
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  tagChip: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.xs,
-    backgroundColor: COLORS.accent + '18', borderRadius: RADIUS.sm,
-    paddingHorizontal: SPACING.sm, paddingVertical: 5,
-  },
-  tagText: { fontSize: 13, fontFamily: FONTS.sansMed, color: COLORS.accent },
-  tagRemove: { fontSize: 10, color: COLORS.accent, opacity: 0.7 },
-  tagInput: {
-    fontSize: 14, fontFamily: FONTS.sans, color: COLORS.text,
-    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
-    marginTop: SPACING.sm,
-  },
-
-  collectionWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  sectionLabel: { fontSize: 10, fontFamily: FONTS.sansSemi, color: COLORS.muted, letterSpacing: 1, marginTop: SPACING.sm },
+  colDisplay: { marginTop: SPACING.xs },
+  colName: { fontSize: 14, fontFamily: FONTS.sansMed, color: COLORS.text },
+  colNone: { fontSize: 14, fontFamily: FONTS.sans, color: COLORS.muted, fontStyle: 'italic' },
+  colPicker: { marginTop: SPACING.xs },
   colChip: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.xs,
-    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
+    borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, marginRight: SPACING.sm,
   },
-  colChipActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
-  colEmoji: { fontSize: 14 },
-  colChipText: { fontSize: 13, fontFamily: FONTS.sansMed, color: COLORS.text },
-  colChipTextActive: { color: '#fff' },
-
-  footer: {
-    paddingHorizontal: SPACING.lg, paddingTop: SPACING.md,
-    borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.bg,
+  colChipActive: { borderColor: COLORS.accent, backgroundColor: '#fdf0eb' },
+  colChipText: { fontSize: 13, fontFamily: FONTS.sans, color: COLORS.textSub },
+  colChipTextActive: { color: COLORS.accent, fontFamily: FONTS.sansMed },
+  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginTop: SPACING.xs },
+  tag: { backgroundColor: COLORS.border, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 4 },
+  tagText: { fontSize: 12, fontFamily: FONTS.sansMed, color: COLORS.textSub },
+  tagInput: {
+    borderBottomWidth: 1.5, borderBottomColor: COLORS.accent, minWidth: 56,
+    fontSize: 12, fontFamily: FONTS.sans, color: COLORS.text, paddingVertical: 2,
   },
-  saveBtn: {
-    backgroundColor: COLORS.accent, borderRadius: RADIUS.lg,
-    paddingVertical: SPACING.md, alignItems: 'center', justifyContent: 'center',
-  },
-  saveBtnDisabled: { opacity: 0.6 },
-  saveBtnText: { fontSize: 16, fontFamily: FONTS.sansSemi, color: '#fff' },
+  date: { fontSize: 12, fontFamily: FONTS.sans, color: COLORS.muted, marginTop: SPACING.md },
 })

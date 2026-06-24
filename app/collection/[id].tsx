@@ -1,151 +1,122 @@
 import { useCallback, useEffect, useState } from 'react'
-import {
-  View,
-  Text,
-  ScrollView,
-  RefreshControl,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-} from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { View, Text, ScrollView, RefreshControl, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { COLORS, FONTS, SPACING } from '../../constants/theme'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save, Collection } from '../../types'
+import { fetchCollectionById, fetchSavesByCollection } from '../../lib/db'
 import SaveCard from '../../components/SaveCard'
-import CollectionForm from '../../components/CollectionForm'
-import { fetchCollection, fetchCollectionSaves } from '../../lib/db'
 
 export default function CollectionDetailScreen() {
-  const insets = useSafeAreaInsets()
-  const router = useRouter()
   const { id } = useLocalSearchParams<{ id: string }>()
+  const router = useRouter()
+  const insets = useSafeAreaInsets()
 
   const [collection, setCollection] = useState<Collection | null>(null)
   const [saves, setSaves] = useState<Save[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [formVisible, setFormVisible] = useState(false)
 
-  const loadData = useCallback(async () => {
-    if (!id) return
-    const [col, items] = await Promise.all([fetchCollection(id), fetchCollectionSaves(id)])
+  const load = useCallback(async () => {
+    const [col, items] = await Promise.all([fetchCollectionById(id), fetchSavesByCollection(id)])
     setCollection(col)
     setSaves(items)
   }, [id])
 
-  useEffect(() => {
-    loadData().finally(() => setLoading(false))
-  }, [loadData])
+  useEffect(() => { load().finally(() => setLoading(false)) }, [load])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
-    await loadData()
+    await load()
     setRefreshing(false)
-  }, [loadData])
-
-  // After edit, refresh; after delete the collection is gone, so go back.
-  const handleSaved = useCallback(async () => {
-    if (!id) return
-    const col = await fetchCollection(id)
-    if (!col) { router.back(); return }
-    setCollection(col)
-    fetchCollectionSaves(id).then(setSaves)
-  }, [id, router])
+  }, [load])
 
   const leftCol = saves.filter((_, i) => i % 2 === 0)
   const rightCol = saves.filter((_, i) => i % 2 === 1)
 
   return (
-    <>
-    <ScrollView
-      style={[styles.container, { paddingTop: insets.top }]}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={COLORS.accent}
-          colors={[COLORS.accent]}
-        />
-      }
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.topRow}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-          <Text style={styles.backText}>‹ Collections</Text>
-        </TouchableOpacity>
-        {collection ? (
-          <TouchableOpacity onPress={() => setFormVisible(true)} activeOpacity={0.7}>
-            <Text style={styles.editText}>Edit</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.emoji}>{collection?.emoji ?? '📁'}</Text>
-        <Text style={styles.title}>{collection?.name ?? 'Collection'}</Text>
-        {collection?.description ? (
-          <Text style={styles.description}>{collection.description}</Text>
-        ) : null}
-        <Text style={styles.count}>
-          {saves.length} {saves.length === 1 ? 'save' : 'saves'}
-        </Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+          <Text style={styles.backText}>←</Text>
+        </TouchableOpacity>
+        {collection && (
+          <View style={styles.headerCenter}>
+            <View style={[styles.colorDot, { backgroundColor: collection.color }]} />
+            <Text style={styles.emoji}>{collection.emoji}</Text>
+            <Text style={styles.name} numberOfLines={1}>{collection.name}</Text>
+          </View>
+        )}
+        <View style={styles.headerRight}>
+          {!loading && (
+            <View style={[styles.countBadge, { backgroundColor: (collection?.color ?? COLORS.accent) + '22' }]}>
+              <Text style={[styles.countText, { color: collection?.color ?? COLORS.accent }]}>
+                {saves.length}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {loading ? (
         <ActivityIndicator color={COLORS.accent} style={styles.loader} />
-      ) : saves.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>◎</Text>
-          <Text style={styles.emptyTitle}>Nothing here yet</Text>
-          <Text style={styles.emptySubtitle}>Saves you add to this collection will appear here.</Text>
-        </View>
       ) : (
-        <View style={styles.grid}>
-          <View style={styles.col}>
-            {leftCol.map(save => (
-              <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />
-            ))}
-          </View>
-          <View style={styles.col}>
-            {rightCol.map(save => (
-              <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />
-            ))}
-          </View>
-        </View>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} colors={[COLORS.accent]} />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          {saves.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyIcon}>{collection?.emoji ?? '◈'}</Text>
+              <Text style={styles.emptyTitle}>No saves yet</Text>
+              <Text style={styles.emptySubtitle}>Use AI Organize or set collection in a save to add items here.</Text>
+            </View>
+          ) : (
+            <View style={styles.grid}>
+              <View style={styles.col}>
+                {leftCol.map(save => (
+                  <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />
+                ))}
+              </View>
+              <View style={styles.col}>
+                {rightCol.map(save => (
+                  <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />
+                ))}
+              </View>
+            </View>
+          )}
+        </ScrollView>
       )}
-    </ScrollView>
-
-    <CollectionForm
-      visible={formVisible}
-      onClose={() => setFormVisible(false)}
-      onSaved={handleSaved}
-      collection={collection}
-    />
-    </>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  content: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl * 2 },
-  topRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: SPACING.sm, paddingBottom: SPACING.md,
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  header: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
-  backText: { fontSize: 15, fontFamily: FONTS.sansMed, color: COLORS.accent },
-  editText: { fontSize: 15, fontFamily: FONTS.sansSemi, color: COLORS.accent },
-  header: { paddingBottom: SPACING.xl, gap: SPACING.xs },
-  emoji: { fontSize: 40 },
-  title: { fontSize: 32, fontFamily: FONTS.serif, color: COLORS.text, letterSpacing: -0.5, marginTop: SPACING.sm },
-  description: { fontSize: 14, fontFamily: FONTS.sans, color: COLORS.textSub, lineHeight: 20 },
-  count: { fontSize: 12, fontFamily: FONTS.sansMed, color: COLORS.muted, marginTop: SPACING.xs, letterSpacing: 0.3 },
+  backBtn: { padding: SPACING.xs, marginRight: SPACING.sm },
+  backText: { fontSize: 22, color: COLORS.text },
+  headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  colorDot: { width: 8, height: 8, borderRadius: 4 },
+  emoji: { fontSize: 20 },
+  name: { fontSize: 18, fontFamily: FONTS.serif, color: COLORS.text, flex: 1 },
+  headerRight: { marginLeft: SPACING.sm },
+  countBadge: { borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3, minWidth: 28, alignItems: 'center' },
+  countText: { fontSize: 12, fontFamily: FONTS.sansBold },
   loader: { marginTop: SPACING.xl * 3 },
+  content: { padding: SPACING.lg, paddingBottom: SPACING.xl * 2 },
   grid: { flexDirection: 'row', gap: SPACING.sm },
   col: { flex: 1 },
   empty: { alignItems: 'center', paddingTop: SPACING.xl * 3, gap: SPACING.md },
-  emptyIcon: { fontSize: 40, color: COLORS.border, marginBottom: SPACING.sm },
+  emptyIcon: { fontSize: 40, marginBottom: SPACING.sm },
   emptyTitle: { fontSize: 20, fontFamily: FONTS.serif, color: COLORS.textSub },
   emptySubtitle: { fontSize: 14, fontFamily: FONTS.sans, color: COLORS.muted, textAlign: 'center', paddingHorizontal: SPACING.xl },
 })

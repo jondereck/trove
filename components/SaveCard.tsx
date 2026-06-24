@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { View, Text, Image, Animated, Pressable, StyleSheet } from 'react-native'
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
 import { Save } from '../types'
@@ -51,10 +51,16 @@ export default function SaveCard({ save, onPress }: SaveCardProps) {
 
 function LinkCard({ save }: { save: Save }) {
   const domain = getDomain(save.url)
+  const [imgError, setImgError] = useState(false)
   return (
     <>
-      {save.image_url && (
-        <Image source={{ uri: save.image_url }} style={styles.heroImage} resizeMode="cover" />
+      {save.image_url && !imgError && (
+        <Image
+          source={{ uri: save.image_url }}
+          style={styles.heroImage}
+          resizeMode="cover"
+          onError={() => setImgError(true)}
+        />
       )}
       <View style={styles.linkBody}>
         {domain ? (
@@ -85,10 +91,11 @@ function NoteCard({ save }: { save: Save }) {
 }
 
 function ImageCard({ save }: { save: Save }) {
+  const [imgError, setImgError] = useState(false)
   return (
     <View style={styles.imageWrap}>
-      {save.image_url ? (
-        <Image source={{ uri: save.image_url }} style={styles.imageFullBleed} resizeMode="cover" />
+      {save.image_url && !imgError ? (
+        <Image source={{ uri: save.image_url }} style={styles.imageFullBleed} resizeMode="cover" onError={() => setImgError(true)} />
       ) : (
         <View style={[styles.imageFullBleed, styles.imagePlaceholder]} />
       )}
@@ -100,10 +107,11 @@ function ImageCard({ save }: { save: Save }) {
 }
 
 function VideoCard({ save }: { save: Save }) {
+  const [imgError, setImgError] = useState(false)
   return (
     <View style={styles.imageWrap}>
-      {save.image_url ? (
-        <Image source={{ uri: save.image_url }} style={styles.videoThumb} resizeMode="cover" />
+      {save.image_url && !imgError ? (
+        <Image source={{ uri: save.image_url }} style={styles.videoThumb} resizeMode="cover" onError={() => setImgError(true)} />
       ) : (
         <View style={[styles.videoThumb, styles.imagePlaceholder]} />
       )}

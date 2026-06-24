@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+
 import {
   View,
   Text,
@@ -8,6 +9,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native'
+import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -43,6 +45,7 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export default function SearchScreen() {
+  const router = useRouter()
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const [query, setQuery] = useState('')
@@ -149,53 +152,10 @@ export default function SearchScreen() {
 
         {hasQuery && (
           <>
-            {isQuestion && !searching && (
-              <View style={styles.aiAnswer}>
-                <View style={styles.aiAnswerHead}>
-                  <Ionicons name="sparkles" size={16} color={COLORS.accent} />
-                  <Text style={styles.aiAnswerLabel}>AI answer</Text>
-                </View>
-                <Text style={styles.aiAnswerText}>
-                  Found {shown.length} {shown.length === 1 ? 'save' : 'saves'} that match.
-                  {shown[0] ? ` The closest is ${shown[0].title}.` : ''}
-                </Text>
-              </View>
-            )}
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeRow} style={styles.typeScroll}>
-              {TYPES.map(t => {
-                const on = type === t.id
-                return (
-                  <TouchableOpacity key={t.id} style={[styles.typeChip, on && styles.typeChipOn]} onPress={() => setType(t.id)} activeOpacity={0.8}>
-                    {t.icon && <Ionicons name={t.icon} size={14} color={on ? '#fff' : COLORS.text} />}
-                    <Text style={[styles.typeChipText, on && styles.typeChipTextOn]}>{t.label}</Text>
-                  </TouchableOpacity>
-                )
-              })}
-            </ScrollView>
-
-            {searching ? (
-              <ActivityIndicator color={COLORS.accent} style={{ marginTop: SPACING.xl * 2 }} />
-            ) : shown.length === 0 ? (
-              <View style={styles.noResults}>
-                <Text style={styles.noResultsIcon}>◎</Text>
-                <Text style={styles.noResultsTitle}>Nothing found</Text>
-                <Text style={styles.noResultsSub}>No saves match "{debouncedQuery}" yet.</Text>
-              </View>
-            ) : (
-              <View style={styles.grid}>
-                <View style={styles.col}>
-                  {leftCol.map(save => (
-                    <SaveCard key={save.id} save={save} onPress={() => openResult(save.id)} />
-                  ))}
-                </View>
-                <View style={styles.col}>
-                  {rightCol.map(save => (
-                    <SaveCard key={save.id} save={save} onPress={() => openResult(save.id)} />
-                  ))}
-                </View>
-              </View>
-            )}
+            <Text style={styles.resultCount}>
+              {results.length} {results.length === 1 ? 'result' : 'results'}
+            </Text>
+            {results.map(save => <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />)}
           </>
         )}
       </ScrollView>

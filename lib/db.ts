@@ -250,6 +250,28 @@ export async function upsertCollectionByName(name: string): Promise<string | nul
   return created?.id ?? null
 }
 
+export async function fetchSaveById(id: string): Promise<Save | null> {
+  const { data, error } = await supabase.from('saves').select('*').eq('id', id).single()
+  if (error) { console.error('fetchSaveById:', error.message); return null }
+  return data as Save
+}
+
+export async function fetchCollectionById(id: string): Promise<Collection | null> {
+  const { data, error } = await supabase.from('collections').select('*').eq('id', id).single()
+  if (error) { console.error('fetchCollectionById:', error.message); return null }
+  return data as Collection
+}
+
+export async function fetchSavesByCollection(collectionId: string): Promise<Save[]> {
+  const { data, error } = await supabase
+    .from('saves')
+    .select('*')
+    .eq('collection_id', collectionId)
+    .order('created_at', { ascending: false })
+  if (error) { console.error('fetchSavesByCollection:', error.message); return [] }
+  return (data ?? []) as Save[]
+}
+
 // ── Profile ───────────────────────────────────────────────────────────────────
 
 export interface Profile {
