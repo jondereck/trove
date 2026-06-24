@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import {
   Modal,
   View,
@@ -15,10 +15,13 @@ import {
   ActivityIndicator,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
+import * as ImagePicker from 'expo-image-picker'
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
 import { SaveType, OGMetadata, AISuggestion, Collection } from '../types'
 import { fetchOGMetadata, suggestForSave } from '../lib/ai'
-import { fetchCollections } from '../lib/db'
+import { fetchCollections, findSaveByUrl } from '../lib/db'
+import { uploadMedia } from '../lib/storage'
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window')
 
@@ -42,11 +45,11 @@ interface QuickSaveProps {
   initialUrl?: string
 }
 
-const TYPE_OPTS: { key: SaveType; label: string }[] = [
-  { key: 'link', label: 'Link' },
-  { key: 'note', label: 'Note' },
-  { key: 'image', label: 'Image' },
-  { key: 'video', label: 'Video' },
+const TYPE_OPTS: { key: SaveType; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'link', label: 'Link', icon: 'link-outline' },
+  { key: 'note', label: 'Note', icon: 'create-outline' },
+  { key: 'image', label: 'Image', icon: 'image-outline' },
+  { key: 'video', label: 'Video', icon: 'videocam-outline' },
 ]
 
 export default function QuickSave({ visible, onClose, onSave, initialUrl }: QuickSaveProps) {
@@ -64,7 +67,11 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   const [draft, setDraft] = useState<Draft | null>(null)
   const [editingTag, setEditingTag] = useState('')
   const [showTagInput, setShowTagInput] = useState(false)
-  const [editingCollection, setEditingCollection] = useState(false)
+  // Collection selection in the preview step. '' = Inbox (unsorted).
+  const [selectedCollection, setSelectedCollection] = useState('')
+  const [showNewColl, setShowNewColl] = useState(false)
+  const [newColl, setNewColl] = useState('')
+  const [customColl, setCustomColl] = useState<string | null>(null)
 
   // Load real collections once on mount for AI suggestions
   useEffect(() => {
@@ -77,6 +84,15 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
     setError('')
     setStep('loading')
 
+    // Stop early if this link is already saved.
+    setLoadingStatus('Checking your library…')
+    const dup = await findSaveByUrl(url)
+    if (dup) {
+      setError('This link is already in your library.')
+      setStep('input')
+      return
+    }
+
     let meta: OGMetadata = { url, title: url }
     let suggestion: AISuggestion = { collection: 'Read Later', tags: [] }
 
@@ -88,7 +104,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
     }
 
     try {
-      setLoadingStatus('Asking Claude for suggestions…')
+      setLoadingStatus('Asking AI for suggestions…')
       suggestion = await suggestForSave(meta, collections)
     } catch {
       // Use defaults — never block the user on AI failure.
@@ -110,6 +126,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   // and go straight to loading so the user sees the spinner immediately.
   useEffect(() => {
     if (visible) {
+      fetchCollections().then(setCollections)
       Animated.parallel([
         Animated.spring(translateY, { toValue: 0, damping: 22, mass: 0.85, stiffness: 200, useNativeDriver: true }),
         Animated.timing(backdropOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
@@ -133,7 +150,10 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
         setDraft(null)
         setEditingTag('')
         setShowTagInput(false)
-        setEditingCollection(false)
+        setSelectedCollection('')
+        setShowNewColl(false)
+        setNewColl('')
+        setCustomColl(null)
       })
     }
   }, [visible, initialUrl])
@@ -143,6 +163,54 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
     doFetchAndSuggest(input.trim(), type)
   }
 
+  // Pick an image/video from the gallery, upload it to Supabase Storage, then
+  // drop into the preview step so the user can title + tag it before saving.
+  const handlePickMedia = async (kind: SaveType) => {
+    setError('')
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (!perm.granted) {
+      setError('Photo library permission is required to import media.')
+      return
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: kind === 'video' ? ['videos'] : ['images'],
+      quality: 0.8,
+      base64: true,
+    })
+    if (result.canceled || !result.assets?.length) return
+
+    const asset = result.assets[0]
+    if (!asset.base64) {
+      setError('Could not read the selected file.')
+      return
+    }
+
+    setStep('loading')
+    setLoadingStatus('Uploading to your library…')
+
+    const mime = asset.mimeType ?? (kind === 'video' ? 'video/mp4' : 'image/jpeg')
+    const ext = mime.split('/')[1] ?? (kind === 'video' ? 'mp4' : 'jpg')
+    const publicUrl = await uploadMedia(asset.base64, ext, mime)
+
+    if (!publicUrl) {
+      setError('Upload failed. Please try again.')
+      setStep('input')
+      return
+    }
+
+    setDraft({
+      url: kind === 'video' ? publicUrl : '',
+      type: kind,
+      title: asset.fileName ?? (kind === 'video' ? 'Video' : 'Photo'),
+      description: '',
+      imageUrl: kind === 'image' ? publicUrl : undefined,
+      collection: 'Read Later',
+      tags: [],
+    })
+    setStep('preview')
+  }
+
   const handleDirectSave = () => {
     if (!input.trim()) return
     const d: Draft = {
@@ -150,7 +218,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
       type,
       title: type === 'note' ? input.trim().slice(0, 80) : input.trim(),
       description: type === 'note' ? input.trim() : '',
-      collection: 'Read Later',
+      collection: '',
       tags: [],
     }
     if (type !== 'note') d.url = input.trim()
@@ -159,8 +227,39 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   }
 
   const handleSaveDraft = () => {
-    if (draft) onSave?.(draft)
+    // Carry the manually chosen collection name ('' = stays in Inbox).
+    if (draft) onSave?.({ ...draft, collection: selectedCollection })
     onClose()
+  }
+
+  // Build the selectable collection chips: Inbox + the AI suggestion (if it's a
+  // new name) + any custom-typed name + all existing collections.
+  const collOptions = useMemo(() => {
+    const existing = new Set(collections.map(c => c.name.toLowerCase()))
+    const sugg = draft?.collection?.trim()
+    const suggIsNew = !!sugg && sugg.toLowerCase() !== 'read later' && !existing.has(sugg.toLowerCase())
+
+    const opts: { id: string; label: string; emoji?: string; isNew?: boolean; recommended?: boolean }[] = [
+      { id: '', label: 'Inbox' },
+    ]
+    if (suggIsNew) opts.push({ id: sugg!, label: sugg!, isNew: true, recommended: true })
+    if (customColl && customColl.toLowerCase() !== sugg?.toLowerCase() && !existing.has(customColl.toLowerCase())) {
+      opts.push({ id: customColl, label: customColl, isNew: true })
+    }
+    collections.forEach(c =>
+      opts.push({ id: c.name, label: c.name, emoji: c.emoji, recommended: sugg?.toLowerCase() === c.name.toLowerCase() })
+    )
+    return opts
+  }, [collections, draft?.collection, customColl])
+
+  const commitNewColl = () => {
+    const n = newColl.trim()
+    if (n) {
+      setCustomColl(n)
+      setSelectedCollection(n)
+    }
+    setNewColl('')
+    setShowNewColl(false)
   }
 
   const removeTag = (tag: string) =>
@@ -202,6 +301,11 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                     onPress={() => setType(opt.key)}
                     activeOpacity={0.7}
                   >
+                    <Ionicons
+                      name={opt.icon}
+                      size={15}
+                      color={type === opt.key ? COLORS.accent : COLORS.textSub}
+                    />
                     <Text style={[styles.typePillText, type === opt.key && styles.typePillTextActive]}>
                       {opt.label}
                     </Text>
@@ -209,41 +313,61 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                 ))}
               </View>
 
-              <TextInput
-                style={[styles.input, type === 'note' && styles.inputNote]}
-                placeholder={type === 'note' ? 'Write a note…' : 'Paste a URL…'}
-                placeholderTextColor={COLORS.muted}
-                value={input}
-                onChangeText={setInput}
-                multiline={type === 'note'}
-                numberOfLines={type === 'note' ? 4 : 1}
-                autoCapitalize="none"
-                autoCorrect={type === 'note'}
-                keyboardType={type !== 'note' ? 'url' : 'default'}
-                textAlignVertical={type === 'note' ? 'top' : 'center'}
-              />
-
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-              {type === 'link' ? (
+              {type === 'image' || type === 'video' ? (
                 <TouchableOpacity
-                  style={[styles.primaryBtn, !input.trim() && styles.btnDisabled]}
-                  onPress={handleFetchAndSuggest}
-                  disabled={!input.trim()}
-                  activeOpacity={0.85}
+                  style={styles.galleryBox}
+                  onPress={() => handlePickMedia(type)}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.primaryBtnText}>Fetch & Suggest  →</Text>
+                  <Ionicons
+                    name={type === 'video' ? 'videocam-outline' : 'images-outline'}
+                    size={28}
+                    color={COLORS.muted}
+                  />
+                  <Text style={styles.galleryTitle}>Choose from gallery</Text>
+                  <Text style={styles.gallerySub}>
+                    {type === 'video' ? 'Pick a video to save' : 'Pick a photo to save'}
+                  </Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity
-                  style={[styles.primaryBtn, !input.trim() && styles.btnDisabled]}
-                  onPress={handleDirectSave}
-                  disabled={!input.trim()}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.primaryBtnText}>Save to Inbox</Text>
-                </TouchableOpacity>
+                <>
+                  <TextInput
+                    style={[styles.input, type === 'note' && styles.inputNote]}
+                    placeholder={type === 'note' ? 'Write a note…' : 'Paste a URL…'}
+                    placeholderTextColor={COLORS.muted}
+                    value={input}
+                    onChangeText={setInput}
+                    multiline={type === 'note'}
+                    numberOfLines={type === 'note' ? 4 : 1}
+                    autoCapitalize="none"
+                    autoCorrect={type === 'note'}
+                    keyboardType={type !== 'note' ? 'url' : 'default'}
+                    textAlignVertical={type === 'note' ? 'top' : 'center'}
+                  />
+
+                  {type === 'link' ? (
+                    <TouchableOpacity
+                      style={[styles.primaryBtn, !input.trim() && styles.btnDisabled]}
+                      onPress={handleFetchAndSuggest}
+                      disabled={!input.trim()}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.primaryBtnText}>Fetch & Suggest  →</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.primaryBtn, !input.trim() && styles.btnDisabled]}
+                      onPress={handleDirectSave}
+                      disabled={!input.trim()}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.primaryBtnText}>Save to Inbox</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
               )}
+
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
             </>
           )}
 
@@ -285,24 +409,47 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                 <Text style={styles.previewDesc} numberOfLines={2}>{draft.description}</Text>
               ) : null}
 
-              {/* Collection */}
-              <Text style={styles.sectionLabel}>Collection</Text>
-              {editingCollection ? (
-                <TextInput
-                  style={styles.collectionInput}
-                  value={draft.collection}
-                  onChangeText={v => setDraft(d => d ? { ...d, collection: v } : d)}
-                  onBlur={() => setEditingCollection(false)}
-                  autoFocus
-                  returnKeyType="done"
-                  onSubmitEditing={() => setEditingCollection(false)}
-                />
-              ) : (
-                <TouchableOpacity style={styles.collectionChip} onPress={() => setEditingCollection(true)} activeOpacity={0.75}>
-                  <Text style={styles.collectionChipText}>✦  {draft.collection}</Text>
-                  <Text style={styles.collectionChipEdit}>edit</Text>
-                </TouchableOpacity>
-              )}
+              {/* Collection picker */}
+              <Text style={styles.sectionLabel}>Save to</Text>
+              <View style={styles.collGrid}>
+                {collOptions.map(opt => {
+                  const on = selectedCollection === opt.id
+                  return (
+                    <TouchableOpacity
+                      key={opt.id || 'inbox'}
+                      style={[styles.collChip, on && styles.collChipOn]}
+                      onPress={() => setSelectedCollection(opt.id)}
+                      activeOpacity={0.75}
+                    >
+                      {opt.id === '' ? (
+                        <Ionicons name="file-tray-outline" size={14} color={on ? '#fff' : COLORS.textSub} />
+                      ) : opt.emoji ? (
+                        <Text style={styles.collChipEmoji}>{opt.emoji}</Text>
+                      ) : null}
+                      {opt.recommended && <Text style={[styles.collStar, on && styles.collChipTextOn]}>✦</Text>}
+                      <Text style={[styles.collChipText, on && styles.collChipTextOn]}>{opt.label}</Text>
+                    </TouchableOpacity>
+                  )
+                })}
+
+                {showNewColl ? (
+                  <TextInput
+                    style={styles.collNewInput}
+                    value={newColl}
+                    onChangeText={setNewColl}
+                    placeholder="New collection…"
+                    placeholderTextColor={COLORS.muted}
+                    autoFocus
+                    returnKeyType="done"
+                    onSubmitEditing={commitNewColl}
+                    onBlur={commitNewColl}
+                  />
+                ) : (
+                  <TouchableOpacity style={styles.collChipNew} onPress={() => setShowNewColl(true)} activeOpacity={0.7}>
+                    <Text style={styles.collChipNewText}>+ New</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
               {/* Tags */}
               <Text style={styles.sectionLabel}>Tags</Text>
@@ -334,7 +481,9 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
               </View>
 
               <TouchableOpacity style={styles.primaryBtn} onPress={handleSaveDraft} activeOpacity={0.85}>
-                <Text style={styles.primaryBtnText}>Save to Inbox</Text>
+                <Text style={styles.primaryBtnText}>
+                  {selectedCollection ? `Save to ${selectedCollection}` : 'Save to Inbox'}
+                </Text>
               </TouchableOpacity>
             </ScrollView>
           )}
@@ -387,7 +536,10 @@ const styles = StyleSheet.create({
   },
   typePill: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
     paddingVertical: SPACING.sm,
     borderRadius: RADIUS.md,
     borderWidth: 1.5,
@@ -421,6 +573,29 @@ const styles = StyleSheet.create({
   inputNote: {
     minHeight: 100,
     paddingTop: SPACING.md,
+  },
+  galleryBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    paddingVertical: SPACING.xl,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    backgroundColor: COLORS.card,
+    marginBottom: SPACING.md,
+  },
+  galleryTitle: {
+    fontSize: 15,
+    fontFamily: FONTS.sansSemi,
+    color: COLORS.text,
+    marginTop: SPACING.xs,
+  },
+  gallerySub: {
+    fontSize: 12.5,
+    fontFamily: FONTS.sans,
+    color: COLORS.muted,
   },
   errorText: {
     fontSize: 12,
@@ -525,39 +700,51 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
     marginTop: SPACING.md,
   },
-  collectionChip: {
+  collGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  collChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#fdf0eb',
+    gap: 5,
+    backgroundColor: COLORS.card,
     borderWidth: 1,
-    borderColor: '#f0c4b4',
+    borderColor: COLORS.border,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    marginBottom: SPACING.sm,
   },
-  collectionChipText: {
-    fontSize: 14,
-    fontFamily: FONTS.sansMed,
-    color: COLORS.accent,
+  collChipOn: {
+    backgroundColor: COLORS.accent,
+    borderColor: COLORS.accent,
   },
-  collectionChipEdit: {
-    fontSize: 11,
-    fontFamily: FONTS.sans,
-    color: COLORS.muted,
+  collChipEmoji: { fontSize: 13 },
+  collStar: { fontSize: 12, color: COLORS.accent },
+  collChipText: { fontSize: 13, fontFamily: FONTS.sansMed, color: COLORS.text },
+  collChipTextOn: { color: '#fff' },
+  collChipNew: {
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
   },
-  collectionInput: {
+  collChipNewText: { fontSize: 13, fontFamily: FONTS.sansMed, color: COLORS.muted },
+  collNewInput: {
+    minWidth: 130,
     backgroundColor: COLORS.card,
     borderRadius: RADIUS.md,
     borderWidth: 1.5,
     borderColor: COLORS.accent,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: FONTS.sans,
     color: COLORS.text,
-    marginBottom: SPACING.sm,
   },
   tagsRow: {
     flexDirection: 'row',

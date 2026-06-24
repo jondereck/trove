@@ -16,6 +16,10 @@ import {
   HankenGrotesk_600SemiBold,
   HankenGrotesk_700Bold,
 } from '@expo-google-fonts/hanken-grotesk'
+import {
+  SplineSansMono_400Regular,
+  SplineSansMono_500Medium,
+} from '@expo-google-fonts/spline-sans-mono'
 import { COLORS } from '../constants/theme'
 import { supabase } from '../lib/supabase'
 
@@ -29,6 +33,8 @@ export default function RootLayout() {
     HankenGrotesk_500Medium,
     HankenGrotesk_600SemiBold,
     HankenGrotesk_700Bold,
+    SplineSansMono_400Regular,
+    SplineSansMono_500Medium,
   })
 
   // undefined = still checking, null = no session, Session = logged in
@@ -84,6 +90,8 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.bg } }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(auth)" />
+          <Stack.Screen name="save/[id]" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="collection/[id]" options={{ animation: 'slide_from_right' }} />
         </Stack>
       </SafeAreaProvider>
     </ShareIntentProvider>

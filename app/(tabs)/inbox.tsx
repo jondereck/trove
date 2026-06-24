@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   View,
   Text,
@@ -14,12 +14,15 @@ import SwipeableCard from '../../components/SwipeableCard'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save, Collection, OrganizeSuggestion } from '../../types'
 import SaveCard from '../../components/SaveCard'
+import SwipeableCard from '../../components/SwipeableCard'
 import AIOrganize from '../../components/AIOrganize'
-import { fetchInboxSaves, fetchCollections, updateSave, upsertCollectionByName } from '../../lib/db'
+import { fetchInboxSaves, fetchCollections, updateSave } from '../../lib/db'
+import { applyOrganizeSuggestions } from '../../lib/organize'
 
 export default function InboxScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const router = useRouter()
   const [saves, setSaves] = useState<Save[]>([])
   const [collections, setCollections] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,9 +35,12 @@ export default function InboxScreen() {
     setCollections(cols)
   }, [])
 
-  useEffect(() => {
-    loadData().finally(() => setLoading(false))
-  }, [loadData])
+  // Reload on focus so AI-organized / edited saves leave the inbox
+  useFocusEffect(
+    useCallback(() => {
+      loadData().finally(() => setLoading(false))
+    }, [loadData])
+  )
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -47,26 +53,16 @@ export default function InboxScreen() {
     const acceptedIds = new Set(accepted.map(a => a.save.id))
     setSaves(prev => prev.filter(s => !acceptedIds.has(s.id)))
 
-    // Persist to Supabase
-    await Promise.all(
-      accepted.map(async suggestion => {
-        let collectionId: string | undefined
-
-        if (suggestion.suggested_collection && suggestion.suggested_collection !== 'Read Later') {
-          const id = await upsertCollectionByName(suggestion.suggested_collection)
-          collectionId = id ?? undefined
-        }
-
-        await updateSave(suggestion.save.id, {
-          is_inbox: false,
-          collection_id: collectionId,
-          tags: suggestion.suggested_tags,
-        })
-      })
-    )
+    await applyOrganizeSuggestions(accepted)
 
     // Refresh collections so counts are updated
     fetchCollections().then(setCollections)
+  }, [])
+
+  // Swipe a card out of the inbox — moves it to the Library, uncategorized.
+  const handleArchive = useCallback(async (save: Save) => {
+    setSaves(prev => prev.filter(s => s.id !== save.id))
+    await updateSave(save.id, { is_inbox: false })
   }, [])
 
   const leftCol = saves.filter((_, i) => i % 2 === 0)

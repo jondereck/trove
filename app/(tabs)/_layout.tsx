@@ -6,16 +6,16 @@ import { useShareIntentContext } from 'expo-share-intent'
 import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING } from '../../constants/theme'
 import QuickSave from '../../components/QuickSave'
-import { createSave } from '../../lib/db'
+import { createSave, upsertCollectionByName } from '../../lib/db'
 import type { Draft } from '../../components/QuickSave'
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name']
 
 const TAB_CONFIG: Record<string, { label: string; icon: IoniconName; activeIcon: IoniconName }> = {
-  index:       { label: 'Library',     icon: 'grid-outline',    activeIcon: 'grid' },
-  collections: { label: 'Collections', icon: 'folder-outline',  activeIcon: 'folder' },
-  search:      { label: 'Search',      icon: 'search-outline',  activeIcon: 'search' },
-  inbox:       { label: 'Inbox',       icon: 'archive-outline', activeIcon: 'archive' },
+  index:       { label: 'Library',     icon: 'grid-outline',       activeIcon: 'grid' },
+  collections: { label: 'Collections', icon: 'folder-outline',     activeIcon: 'folder' },
+  search:      { label: 'Search',      icon: 'search-outline',     activeIcon: 'search' },
+  inbox:       { label: 'Inbox',       icon: 'file-tray-outline',  activeIcon: 'file-tray' },
 }
 
 function CustomTabBar({ state, navigation, onQuickSave }: any) {
@@ -38,7 +38,7 @@ function CustomTabBar({ state, navigation, onQuickSave }: any) {
       <TouchableOpacity key={route.key} style={styles.tab} onPress={onPress} activeOpacity={0.7}>
         <Ionicons
           name={isFocused ? config.activeIcon : config.icon}
-          size={22}
+          size={23}
           color={isFocused ? COLORS.accent : COLORS.muted}
         />
         <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
@@ -49,17 +49,15 @@ function CustomTabBar({ state, navigation, onQuickSave }: any) {
   }
 
   return (
-    <View style={[styles.tabBar, { paddingBottom: insets.bottom || SPACING.sm }]}>
-      <View style={styles.tabRow}>
+    <View style={[styles.tabBarOuter, { paddingBottom: (insets.bottom || SPACING.md) + SPACING.sm }]}>
+      <View style={styles.pill}>
         {routes.slice(0, 2).map((r: typeof routes[number], i: number) => renderTab(r, i))}
-
-        <TouchableOpacity style={styles.plusWrap} onPress={onQuickSave} activeOpacity={0.85}>
-          <View style={styles.plusBtn}>
-            <Text style={styles.plusText}>+</Text>
-          </View>
-        </TouchableOpacity>
-
+        <View style={styles.fabSpacer} />
         {routes.slice(2, 4).map((r: typeof routes[number], i: number) => renderTab(r, i + 2))}
+
+        <TouchableOpacity style={styles.fab} onPress={onQuickSave} activeOpacity={0.85}>
+          <Ionicons name="add" size={28} color="#fff" />
+        </TouchableOpacity>
       </View>
     </View>
   )
@@ -94,6 +92,15 @@ export default function TabsLayout() {
   }
 
   const handleSave = async (draft: Draft) => {
+    // A chosen collection name files the save directly; empty keeps it in Inbox.
+    const name = draft.collection?.trim()
+    let collectionId: string | undefined
+    let isInbox = true
+    if (name) {
+      collectionId = (await upsertCollectionByName(name)) ?? undefined
+      isInbox = false
+    }
+
     await createSave({
       url: draft.url || undefined,
       title: draft.title,
@@ -101,8 +108,9 @@ export default function TabsLayout() {
       type: draft.type,
       content: draft.type === 'note' ? draft.description : undefined,
       image_url: draft.imageUrl || undefined,
+      collection_id: collectionId,
       tags: draft.tags,
-      is_inbox: true,
+      is_inbox: isInbox,
     })
   }
 
@@ -131,16 +139,27 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: COLORS.tabBar,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.tabBorder,
+  // Transparent outer so the warm canvas shows through the side + bottom gaps.
+  tabBarOuter: {
+    backgroundColor: 'transparent',
+    paddingTop: SPACING.sm,
   },
-  tabRow: {
+  pill: {
+    position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
-    height: 60,
-    paddingHorizontal: SPACING.sm,
+    justifyContent: 'space-around',
+    height: 62,
+    marginHorizontal: SPACING.lg,
+    borderRadius: 24,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#1e140a',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 12,
   },
   tab: {
     flex: 1,
@@ -157,30 +176,24 @@ const styles = StyleSheet.create({
   },
   tabLabelActive: {
     color: COLORS.accent,
+    fontFamily: FONTS.sansBold,
   },
-  plusWrap: {
-    width: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  plusBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  fabSpacer: { width: 58 },
+  fab: {
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -29,
+    top: -16,
+    width: 58,
+    height: 58,
+    borderRadius: 20,
     backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: COLORS.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  plusText: {
-    color: '#fff',
-    fontSize: 24,
-    fontFamily: FONTS.sans,
-    lineHeight: 28,
-    marginTop: -1,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    elevation: 10,
   },
 })

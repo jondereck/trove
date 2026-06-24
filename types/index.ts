@@ -12,6 +12,7 @@ export interface Save {
   collection_id?: string
   tags: string[]
   is_inbox: boolean
+  is_favorite?: boolean
   created_at: string
 }
 
@@ -24,6 +25,7 @@ export interface Collection {
   description?: string
   created_at: string
   save_count?: number
+  cover_urls?: string[]
 }
 
 export interface OGMetadata {

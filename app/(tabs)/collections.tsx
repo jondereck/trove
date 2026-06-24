@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   View,
   Text,
+  Image,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -17,6 +18,7 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useFocusEffect, useRouter } from 'expo-router'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Collection } from '../../types'
 import { fetchCollections, createCollection } from '../../lib/db'
@@ -29,9 +31,11 @@ const COLOR_OPTIONS = ['#c0613c','#5c7a6e','#4a5568','#7c6d8a','#b87333','#2d6a9
 export default function CollectionsScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const router = useRouter()
   const [collections, setCollections] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [formVisible, setFormVisible] = useState(false)
 
   // Create modal state
   const [showCreate, setShowCreate] = useState(false)
@@ -228,14 +232,20 @@ function CollectionCard({ collection, onPress }: { collection: Collection; onPre
               : null}
           </View>
         </View>
-        <View style={styles.cardRight}>
-          <View style={[styles.countBadge, { backgroundColor: collection.color + '22' }]}>
-            <Text style={[styles.countText, { color: collection.color }]}>
-              {collection.save_count ?? 0}
-            </Text>
+        <View style={styles.coverSide}>
+          <View style={[styles.coverSmall, { backgroundColor: withAlpha(c, 0.35) }]}>
+            {covers[1] ? <Image source={{ uri: covers[1] }} style={styles.coverImg} resizeMode="cover" /> : null}
           </View>
-          <Text style={styles.chevron}>›</Text>
+          <View style={[styles.coverSmall, { backgroundColor: withAlpha(c, 0.2) }]}>
+            {covers[2] ? <Image source={{ uri: covers[2] }} style={styles.coverImg} resizeMode="cover" /> : null}
+          </View>
         </View>
+      </View>
+      <View style={styles.cardBody}>
+        <Text style={styles.cardName} numberOfLines={1}>{collection.name}</Text>
+        <Text style={styles.cardMeta}>
+          {collection.save_count ?? 0} {(collection.save_count ?? 0) === 1 ? 'item' : 'items'}
+        </Text>
       </View>
     </TouchableOpacity>
   )
@@ -245,11 +255,12 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   content: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl * 2 },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: SPACING.lg, paddingBottom: SPACING.xl,
+    flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
+    paddingTop: SPACING.md, paddingBottom: SPACING.lg,
   },
-  title: { fontSize: 32, fontFamily: FONTS.serif, color: COLORS.text, letterSpacing: -0.5 },
-  newBtn: { backgroundColor: COLORS.accent, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
+  kicker: { fontSize: 11, fontFamily: FONTS.mono, color: COLORS.muted, letterSpacing: 1, marginBottom: 4 },
+  title: { fontSize: 38, fontFamily: FONTS.serif, color: COLORS.text, letterSpacing: -0.5, lineHeight: 40 },
+  newBtn: { backgroundColor: COLORS.accent, borderRadius: 999, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
   newBtnText: { fontSize: 13, fontFamily: FONTS.sansSemi, color: '#fff' },
   loader: { marginTop: SPACING.xl * 3 },
   list: { gap: SPACING.sm },
