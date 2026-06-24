@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
 import { SaveType, OGMetadata, AISuggestion, Collection } from '../types'
 import { fetchOGMetadata, suggestForSave } from '../lib/ai'
@@ -42,11 +43,11 @@ interface QuickSaveProps {
   initialUrl?: string
 }
 
-const TYPE_OPTS: { key: SaveType; label: string }[] = [
-  { key: 'link', label: 'Link' },
-  { key: 'note', label: 'Note' },
-  { key: 'image', label: 'Image' },
-  { key: 'video', label: 'Video' },
+const TYPE_OPTS: { key: SaveType; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'link', label: 'Link', icon: 'link-outline' },
+  { key: 'note', label: 'Note', icon: 'create-outline' },
+  { key: 'image', label: 'Image', icon: 'image-outline' },
+  { key: 'video', label: 'Video', icon: 'videocam-outline' },
 ]
 
 export default function QuickSave({ visible, onClose, onSave, initialUrl }: QuickSaveProps) {
@@ -202,6 +203,11 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                     onPress={() => setType(opt.key)}
                     activeOpacity={0.7}
                   >
+                    <Ionicons
+                      name={opt.icon}
+                      size={15}
+                      color={type === opt.key ? COLORS.accent : COLORS.textSub}
+                    />
                     <Text style={[styles.typePillText, type === opt.key && styles.typePillTextActive]}>
                       {opt.label}
                     </Text>
@@ -387,7 +393,10 @@ const styles = StyleSheet.create({
   },
   typePill: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
     paddingVertical: SPACING.sm,
     borderRadius: RADIUS.md,
     borderWidth: 1.5,
