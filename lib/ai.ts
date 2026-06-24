@@ -1,7 +1,9 @@
 import { Save, Collection, OGMetadata, AISuggestion, OrganizeSuggestion } from '../types'
+import { supabase } from './supabase'
 
-// ⚠️  EXPO_PUBLIC_ vars are bundled into the app binary.
-// For production, proxy this call through a Supabase Edge Function.
+// ⚠️  EXPO_PUBLIC_ vars are bundled into the app binary. When this key is set we
+// call OpenAI directly (dev). Leave it unset in production builds and the call
+// routes through the `ai-proxy` Edge Function instead, keeping the key server-side.
 const OPENAI_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? ''
 const MODEL = 'gpt-4o-mini'
 
@@ -37,31 +39,40 @@ RESPONSE FORMAT:
 - For multiple items the array length MUST equal the number of input items, in the same order`
 
 async function callAI(userPrompt: string): Promise<string> {
-  if (!OPENAI_KEY) return ''
+  // Dev path: direct call when a public key is bundled.
+  if (OPENAI_KEY) {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_KEY}`,
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 512,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt },
+        ],
+      }),
+    })
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${OPENAI_KEY}`,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 512,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userPrompt },
-      ],
-    }),
-  })
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`OpenAI API ${res.status}: ${body}`)
+    }
 
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`OpenAI API ${res.status}: ${body}`)
+    const data = await res.json()
+    return (data.choices?.[0]?.message?.content as string) ?? ''
   }
 
-  const data = await res.json()
-  return (data.choices?.[0]?.message?.content as string) ?? ''
+  // Prod path: proxy through the Edge Function so the key stays server-side.
+  const { data, error } = await supabase.functions.invoke('ai-proxy', {
+    body: { system: SYSTEM_PROMPT, user: userPrompt, max_tokens: 512 },
+  })
+  if (error) throw new Error(`ai-proxy: ${error.message}`)
+  if (data?.error) throw new Error(`ai-proxy: ${data.error}`)
+  return (data?.content as string) ?? ''
 }
 
 function parseJSON<T>(text: string, fallback: T): T {

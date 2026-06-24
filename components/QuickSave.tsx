@@ -88,7 +88,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
     }
 
     try {
-      setLoadingStatus('Asking Claude for suggestions…')
+      setLoadingStatus('Asking AI for suggestions…')
       suggestion = await suggestForSave(meta, collections)
     } catch {
       // Use defaults — never block the user on AI failure.

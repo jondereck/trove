@@ -103,9 +103,9 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=
 - [x] `app/collection/[id].tsx` — drill-down screen for a single collection
 - [x] `app/save/[id].tsx` — save detail/edit screen
 - [x] Create / edit / delete collections — `components/CollectionForm.tsx`
-- [ ] Supabase Edge Functions for AI features (`suggest-collections`, `auto-tag`, `organize-inbox`)
+- [x] Supabase Edge Function for AI (`supabase/functions/ai-proxy`) — written; deploy + `OPENAI_API_KEY` secret pending. `lib/ai.ts` auto-routes through it when `EXPO_PUBLIC_OPENAI_API_KEY` is unset
 - [x] Share extension / deep link handler — done via `expo-share-intent`
-- [ ] Swipe-to-archive gesture on Inbox cards
+- [x] Swipe-to-archive gesture on Inbox cards — `components/SwipeableCard.tsx` (PanResponder)
 
 ## Running the app
 ```powershell

@@ -13,6 +13,7 @@ import { useFocusEffect, useRouter } from 'expo-router'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save, Collection, OrganizeSuggestion } from '../../types'
 import SaveCard from '../../components/SaveCard'
+import SwipeableCard from '../../components/SwipeableCard'
 import AIOrganize from '../../components/AIOrganize'
 import { fetchInboxSaves, fetchCollections, updateSave, upsertCollectionByName } from '../../lib/db'
 
@@ -71,6 +72,12 @@ export default function InboxScreen() {
     fetchCollections().then(setCollections)
   }, [])
 
+  // Swipe a card out of the inbox — moves it to the Library, uncategorized.
+  const handleArchive = useCallback(async (save: Save) => {
+    setSaves(prev => prev.filter(s => s.id !== save.id))
+    await updateSave(save.id, { is_inbox: false })
+  }, [])
+
   const leftCol = saves.filter((_, i) => i % 2 === 0)
   const rightCol = saves.filter((_, i) => i % 2 === 1)
 
@@ -122,12 +129,16 @@ export default function InboxScreen() {
             <View style={styles.grid}>
               <View style={styles.col}>
                 {leftCol.map(save => (
-                  <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />
+                  <SwipeableCard key={save.id} onSwipe={() => handleArchive(save)}>
+                    <SaveCard save={save} onPress={() => router.push(`/save/${save.id}`)} />
+                  </SwipeableCard>
                 ))}
               </View>
               <View style={styles.col}>
                 {rightCol.map(save => (
-                  <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />
+                  <SwipeableCard key={save.id} onSwipe={() => handleArchive(save)}>
+                    <SaveCard save={save} onPress={() => router.push(`/save/${save.id}`)} />
+                  </SwipeableCard>
                 ))}
               </View>
             </View>
