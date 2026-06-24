@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { Save, Collection } from '../types'
+import { normalizeUrl } from './url'
 
 // ── Saves ─────────────────────────────────────────────────────────────────────
 
@@ -103,7 +104,9 @@ export async function fetchSearchSuggestions(): Promise<string[]> {
   return out.slice(0, 3)
 }
 
-// Returns an existing save with the same URL for the current user, or null.
+// Returns an existing save with the same (normalized) URL for the current
+// user, or null. New saves are stored normalized, so a plain match catches
+// links that differ only by tracking params, `www.`, or a trailing slash.
 export async function findSaveByUrl(url: string): Promise<Save | null> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -111,7 +114,7 @@ export async function findSaveByUrl(url: string): Promise<Save | null> {
     .from('saves')
     .select('*')
     .eq('user_id', user.id)
-    .eq('url', url)
+    .eq('url', normalizeUrl(url))
     .limit(1)
     .maybeSingle()
   return (data as Save) ?? null
@@ -130,14 +133,15 @@ export async function createSave(input: {
 }): Promise<Save | null> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
-  // Don't insert a second copy of a URL already in the library.
-  if (input.url) {
-    const existing = await findSaveByUrl(input.url)
+  // Store the canonical URL and skip inserting a near-duplicate.
+  const url = input.url ? normalizeUrl(input.url) : undefined
+  if (url) {
+    const existing = await findSaveByUrl(url)
     if (existing) return existing
   }
   const { data, error } = await supabase
     .from('saves')
-    .insert({ ...input, user_id: user.id, tags: input.tags ?? [], is_inbox: input.is_inbox ?? true })
+    .insert({ ...input, url, user_id: user.id, tags: input.tags ?? [], is_inbox: input.is_inbox ?? true })
     .select()
     .single()
   if (error) { console.error('createSave:', error.message); return null }

@@ -100,6 +100,26 @@ async function fetchWithTimeout(input: string, init: RequestInit = {}, ms = 8000
   }
 }
 
+// Server-side scrape via the og-scrape Edge Function (real browser/crawler UA).
+// Returns null if the function isn't deployed or yields nothing, so the caller
+// can fall back to a direct fetch.
+async function scrapeViaEdge(url: string): Promise<OGMetadata | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke('og-scrape', { body: { url } })
+    if (error || !data || data.error) return null
+    if (!data.title && !data.image) return null
+    return {
+      url,
+      title: data.title ?? url,
+      description: data.description ?? undefined,
+      image: data.image ?? undefined,
+      siteName: data.siteName ?? undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
 // oEmbed gives reliable thumbnails/titles for providers whose pages are
 // JS-rendered or bot-gated (TikTok, YouTube) and don't expose og: tags to a
 // plain fetch.
@@ -135,7 +155,11 @@ export async function fetchOGMetadata(url: string): Promise<OGMetadata> {
     if (m) return m
   }
 
-  // Generic Open Graph scrape, with a timeout + graceful fallback.
+  // Prefer the server-side scraper (better UA, gets public FB/IG thumbnails).
+  const viaEdge = await scrapeViaEdge(url)
+  if (viaEdge) return viaEdge
+
+  // Fallback: direct Open Graph scrape, with a timeout + graceful fallback.
   try {
     const res = await fetchWithTimeout(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; TroveApp/1.0)' },
