@@ -16,10 +16,12 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import * as ImagePicker from 'expo-image-picker'
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
 import { SaveType, OGMetadata, AISuggestion, Collection } from '../types'
 import { fetchOGMetadata, suggestForSave } from '../lib/ai'
 import { fetchCollections } from '../lib/db'
+import { uploadMedia } from '../lib/storage'
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window')
 
@@ -144,6 +146,54 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
     doFetchAndSuggest(input.trim(), type)
   }
 
+  // Pick an image/video from the gallery, upload it to Supabase Storage, then
+  // drop into the preview step so the user can title + tag it before saving.
+  const handlePickMedia = async (kind: SaveType) => {
+    setError('')
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (!perm.granted) {
+      setError('Photo library permission is required to import media.')
+      return
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: kind === 'video' ? ['videos'] : ['images'],
+      quality: 0.8,
+      base64: true,
+    })
+    if (result.canceled || !result.assets?.length) return
+
+    const asset = result.assets[0]
+    if (!asset.base64) {
+      setError('Could not read the selected file.')
+      return
+    }
+
+    setStep('loading')
+    setLoadingStatus('Uploading to your library…')
+
+    const mime = asset.mimeType ?? (kind === 'video' ? 'video/mp4' : 'image/jpeg')
+    const ext = mime.split('/')[1] ?? (kind === 'video' ? 'mp4' : 'jpg')
+    const publicUrl = await uploadMedia(asset.base64, ext, mime)
+
+    if (!publicUrl) {
+      setError('Upload failed. Please try again.')
+      setStep('input')
+      return
+    }
+
+    setDraft({
+      url: kind === 'video' ? publicUrl : '',
+      type: kind,
+      title: asset.fileName ?? (kind === 'video' ? 'Video' : 'Photo'),
+      description: '',
+      imageUrl: kind === 'image' ? publicUrl : undefined,
+      collection: 'Read Later',
+      tags: [],
+    })
+    setStep('preview')
+  }
+
   const handleDirectSave = () => {
     if (!input.trim()) return
     const d: Draft = {
@@ -215,41 +265,61 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                 ))}
               </View>
 
-              <TextInput
-                style={[styles.input, type === 'note' && styles.inputNote]}
-                placeholder={type === 'note' ? 'Write a note…' : 'Paste a URL…'}
-                placeholderTextColor={COLORS.muted}
-                value={input}
-                onChangeText={setInput}
-                multiline={type === 'note'}
-                numberOfLines={type === 'note' ? 4 : 1}
-                autoCapitalize="none"
-                autoCorrect={type === 'note'}
-                keyboardType={type !== 'note' ? 'url' : 'default'}
-                textAlignVertical={type === 'note' ? 'top' : 'center'}
-              />
-
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-              {type === 'link' ? (
+              {type === 'image' || type === 'video' ? (
                 <TouchableOpacity
-                  style={[styles.primaryBtn, !input.trim() && styles.btnDisabled]}
-                  onPress={handleFetchAndSuggest}
-                  disabled={!input.trim()}
-                  activeOpacity={0.85}
+                  style={styles.galleryBox}
+                  onPress={() => handlePickMedia(type)}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.primaryBtnText}>Fetch & Suggest  →</Text>
+                  <Ionicons
+                    name={type === 'video' ? 'videocam-outline' : 'images-outline'}
+                    size={28}
+                    color={COLORS.muted}
+                  />
+                  <Text style={styles.galleryTitle}>Choose from gallery</Text>
+                  <Text style={styles.gallerySub}>
+                    {type === 'video' ? 'Pick a video to save' : 'Pick a photo to save'}
+                  </Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity
-                  style={[styles.primaryBtn, !input.trim() && styles.btnDisabled]}
-                  onPress={handleDirectSave}
-                  disabled={!input.trim()}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.primaryBtnText}>Save to Inbox</Text>
-                </TouchableOpacity>
+                <>
+                  <TextInput
+                    style={[styles.input, type === 'note' && styles.inputNote]}
+                    placeholder={type === 'note' ? 'Write a note…' : 'Paste a URL…'}
+                    placeholderTextColor={COLORS.muted}
+                    value={input}
+                    onChangeText={setInput}
+                    multiline={type === 'note'}
+                    numberOfLines={type === 'note' ? 4 : 1}
+                    autoCapitalize="none"
+                    autoCorrect={type === 'note'}
+                    keyboardType={type !== 'note' ? 'url' : 'default'}
+                    textAlignVertical={type === 'note' ? 'top' : 'center'}
+                  />
+
+                  {type === 'link' ? (
+                    <TouchableOpacity
+                      style={[styles.primaryBtn, !input.trim() && styles.btnDisabled]}
+                      onPress={handleFetchAndSuggest}
+                      disabled={!input.trim()}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.primaryBtnText}>Fetch & Suggest  →</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.primaryBtn, !input.trim() && styles.btnDisabled]}
+                      onPress={handleDirectSave}
+                      disabled={!input.trim()}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.primaryBtnText}>Save to Inbox</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
               )}
+
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
             </>
           )}
 
@@ -430,6 +500,29 @@ const styles = StyleSheet.create({
   inputNote: {
     minHeight: 100,
     paddingTop: SPACING.md,
+  },
+  galleryBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    paddingVertical: SPACING.xl,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    backgroundColor: COLORS.card,
+    marginBottom: SPACING.md,
+  },
+  galleryTitle: {
+    fontSize: 15,
+    fontFamily: FONTS.sansSemi,
+    color: COLORS.text,
+    marginTop: SPACING.xs,
+  },
+  gallerySub: {
+    fontSize: 12.5,
+    fontFamily: FONTS.sans,
+    color: COLORS.muted,
   },
   errorText: {
     fontSize: 12,

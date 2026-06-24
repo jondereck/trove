@@ -28,6 +28,12 @@
       "expo-font",
       "expo-web-browser",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Trove needs access to your photos so you can save images and videos."
+        }
+      ],
+      [
         "expo-share-intent",
         {
           "iosActivationRules": {
