@@ -13,6 +13,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { COLORS, FONTS, SPACING } from '../../constants/theme'
 import { Save, Collection } from '../../types'
 import SaveCard from '../../components/SaveCard'
+import CollectionForm from '../../components/CollectionForm'
 import { fetchCollection, fetchCollectionSaves } from '../../lib/db'
 
 export default function CollectionDetailScreen() {
@@ -24,6 +25,7 @@ export default function CollectionDetailScreen() {
   const [saves, setSaves] = useState<Save[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [formVisible, setFormVisible] = useState(false)
 
   const loadData = useCallback(async () => {
     if (!id) return
@@ -42,10 +44,20 @@ export default function CollectionDetailScreen() {
     setRefreshing(false)
   }, [loadData])
 
+  // After edit, refresh; after delete the collection is gone, so go back.
+  const handleSaved = useCallback(async () => {
+    if (!id) return
+    const col = await fetchCollection(id)
+    if (!col) { router.back(); return }
+    setCollection(col)
+    fetchCollectionSaves(id).then(setSaves)
+  }, [id, router])
+
   const leftCol = saves.filter((_, i) => i % 2 === 0)
   const rightCol = saves.filter((_, i) => i % 2 === 1)
 
   return (
+    <>
     <ScrollView
       style={[styles.container, { paddingTop: insets.top }]}
       contentContainerStyle={styles.content}
@@ -59,9 +71,16 @@ export default function CollectionDetailScreen() {
       }
       showsVerticalScrollIndicator={false}
     >
-      <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-        <Text style={styles.backText}>‹ Collections</Text>
-      </TouchableOpacity>
+      <View style={styles.topRow}>
+        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
+          <Text style={styles.backText}>‹ Collections</Text>
+        </TouchableOpacity>
+        {collection ? (
+          <TouchableOpacity onPress={() => setFormVisible(true)} activeOpacity={0.7}>
+            <Text style={styles.editText}>Edit</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
 
       <View style={styles.header}>
         <Text style={styles.emoji}>{collection?.emoji ?? '📁'}</Text>
@@ -97,14 +116,26 @@ export default function CollectionDetailScreen() {
         </View>
       )}
     </ScrollView>
+
+    <CollectionForm
+      visible={formVisible}
+      onClose={() => setFormVisible(false)}
+      onSaved={handleSaved}
+      collection={collection}
+    />
+    </>
   )
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   content: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl * 2 },
-  backBtn: { paddingTop: SPACING.sm, paddingBottom: SPACING.md },
+  topRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingTop: SPACING.sm, paddingBottom: SPACING.md,
+  },
   backText: { fontSize: 15, fontFamily: FONTS.sansMed, color: COLORS.accent },
+  editText: { fontSize: 15, fontFamily: FONTS.sansSemi, color: COLORS.accent },
   header: { paddingBottom: SPACING.xl, gap: SPACING.xs },
   emoji: { fontSize: 40 },
   title: { fontSize: 32, fontFamily: FONTS.serif, color: COLORS.text, letterSpacing: -0.5, marginTop: SPACING.sm },

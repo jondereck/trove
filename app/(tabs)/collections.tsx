@@ -13,6 +13,7 @@ import { useFocusEffect, useRouter } from 'expo-router'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Collection } from '../../types'
 import { fetchCollections } from '../../lib/db'
+import CollectionForm from '../../components/CollectionForm'
 
 export default function CollectionsScreen() {
   const insets = useSafeAreaInsets()
@@ -20,6 +21,7 @@ export default function CollectionsScreen() {
   const [collections, setCollections] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [formVisible, setFormVisible] = useState(false)
 
   const loadCollections = useCallback(async () => {
     const data = await fetchCollections()
@@ -40,6 +42,7 @@ export default function CollectionsScreen() {
   }, [loadCollections])
 
   return (
+    <>
     <ScrollView
       style={[styles.container, { paddingTop: insets.top }]}
       contentContainerStyle={styles.content}
@@ -55,7 +58,7 @@ export default function CollectionsScreen() {
     >
       <View style={styles.header}>
         <Text style={styles.title}>Collections</Text>
-        <TouchableOpacity style={styles.newBtn} activeOpacity={0.75}>
+        <TouchableOpacity style={styles.newBtn} activeOpacity={0.75} onPress={() => setFormVisible(true)}>
           <Text style={styles.newBtnText}>New +</Text>
         </TouchableOpacity>
       </View>
@@ -80,6 +83,13 @@ export default function CollectionsScreen() {
         </View>
       )}
     </ScrollView>
+
+    <CollectionForm
+      visible={formVisible}
+      onClose={() => setFormVisible(false)}
+      onSaved={loadCollections}
+    />
+    </>
   )
 }
 

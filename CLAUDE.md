@@ -58,7 +58,7 @@ types/
 - `package.json` main = `expo-router/entry` (not `index.ts`)
 - `tsconfig.json` overrides `customConditions: []` — required because TS 6 bundler resolution breaks on RN packages that lack an `exports` field (react-native-safe-area-context, etc.)
 - npm installs use `--legacy-peer-deps` due to a react@19.2.3 vs 19.2.7 conflict from expo-router's web deps
-- AI calls are proxied through Anthropic API directly for now (`EXPO_PUBLIC_ANTHROPIC_API_KEY`); production should proxy via Supabase Edge Function
+- AI calls hit the OpenAI API directly for now (`EXPO_PUBLIC_OPENAI_API_KEY`, `gpt-4o-mini`); production should proxy via Supabase Edge Function
 - Screens use `MOCK_SAVES` / `MOCK_COLLECTIONS` from `lib/mockData.ts` until Supabase is wired up
 - Share intent: `ShareIntentProvider` wraps the root layout; `useShareIntentContext` in `(tabs)/_layout.tsx` opens QuickSave with `initialUrl` when a URL is shared from Chrome/Safari
 - `expo-share-intent` requires a **dev build** (not Expo Go) — run `npx expo run:android` or `npx expo run:ios` after prebuild
@@ -98,10 +98,11 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=
 ```
 
 ## What's still TODO
-- [ ] Replace `MOCK_SAVES` / `MOCK_COLLECTIONS` with real Supabase queries
-- [ ] Auth flow (login/signup screens + session handling)
-- [ ] `app/collection/[id].tsx` — drill-down screen for a single collection
-- [ ] `app/save/[id].tsx` — save detail/edit screen
+- [x] Replace `MOCK_SAVES` / `MOCK_COLLECTIONS` with real Supabase queries — via `lib/db.ts`
+- [x] Auth flow (login/signup screens + session handling)
+- [x] `app/collection/[id].tsx` — drill-down screen for a single collection
+- [x] `app/save/[id].tsx` — save detail/edit screen
+- [x] Create / edit / delete collections — `components/CollectionForm.tsx`
 - [ ] Supabase Edge Functions for AI features (`suggest-collections`, `auto-tag`, `organize-inbox`)
 - [x] Share extension / deep link handler — done via `expo-share-intent`
 - [ ] Swipe-to-archive gesture on Inbox cards

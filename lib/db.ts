@@ -141,6 +141,22 @@ export async function createCollection(input: {
   return data as Collection
 }
 
+export async function updateCollection(
+  id: string,
+  updates: Partial<Pick<Collection, 'name' | 'emoji' | 'color' | 'description'>>
+): Promise<boolean> {
+  const { error } = await supabase.from('collections').update(updates).eq('id', id)
+  if (error) { console.error('updateCollection:', error.message); return false }
+  return true
+}
+
+// Saves keep `on delete set null`, so their saves fall back to uncategorized.
+export async function deleteCollection(id: string): Promise<boolean> {
+  const { error } = await supabase.from('collections').delete().eq('id', id)
+  if (error) { console.error('deleteCollection:', error.message); return false }
+  return true
+}
+
 // Used by AI Organize: upserts a collection by name (finds existing or creates new)
 export async function upsertCollectionByName(name: string): Promise<string | null> {
   const { data: existing } = await supabase
