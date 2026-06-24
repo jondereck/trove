@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import {
   Modal,
   View,
@@ -67,7 +67,11 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   const [draft, setDraft] = useState<Draft | null>(null)
   const [editingTag, setEditingTag] = useState('')
   const [showTagInput, setShowTagInput] = useState(false)
-  const [editingCollection, setEditingCollection] = useState(false)
+  // Collection selection in the preview step. '' = Inbox (unsorted).
+  const [selectedCollection, setSelectedCollection] = useState('')
+  const [showNewColl, setShowNewColl] = useState(false)
+  const [newColl, setNewColl] = useState('')
+  const [customColl, setCustomColl] = useState<string | null>(null)
 
   // Load real collections once on mount for AI suggestions
   useEffect(() => {
@@ -113,6 +117,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   // and go straight to loading so the user sees the spinner immediately.
   useEffect(() => {
     if (visible) {
+      fetchCollections().then(setCollections)
       Animated.parallel([
         Animated.spring(translateY, { toValue: 0, damping: 22, mass: 0.85, stiffness: 200, useNativeDriver: true }),
         Animated.timing(backdropOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
@@ -136,7 +141,10 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
         setDraft(null)
         setEditingTag('')
         setShowTagInput(false)
-        setEditingCollection(false)
+        setSelectedCollection('')
+        setShowNewColl(false)
+        setNewColl('')
+        setCustomColl(null)
       })
     }
   }, [visible, initialUrl])
@@ -201,7 +209,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
       type,
       title: type === 'note' ? input.trim().slice(0, 80) : input.trim(),
       description: type === 'note' ? input.trim() : '',
-      collection: 'Read Later',
+      collection: '',
       tags: [],
     }
     if (type !== 'note') d.url = input.trim()
@@ -210,8 +218,39 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   }
 
   const handleSaveDraft = () => {
-    if (draft) onSave?.(draft)
+    // Carry the manually chosen collection name ('' = stays in Inbox).
+    if (draft) onSave?.({ ...draft, collection: selectedCollection })
     onClose()
+  }
+
+  // Build the selectable collection chips: Inbox + the AI suggestion (if it's a
+  // new name) + any custom-typed name + all existing collections.
+  const collOptions = useMemo(() => {
+    const existing = new Set(collections.map(c => c.name.toLowerCase()))
+    const sugg = draft?.collection?.trim()
+    const suggIsNew = !!sugg && sugg.toLowerCase() !== 'read later' && !existing.has(sugg.toLowerCase())
+
+    const opts: { id: string; label: string; emoji?: string; isNew?: boolean; recommended?: boolean }[] = [
+      { id: '', label: 'Inbox' },
+    ]
+    if (suggIsNew) opts.push({ id: sugg!, label: sugg!, isNew: true, recommended: true })
+    if (customColl && customColl.toLowerCase() !== sugg?.toLowerCase() && !existing.has(customColl.toLowerCase())) {
+      opts.push({ id: customColl, label: customColl, isNew: true })
+    }
+    collections.forEach(c =>
+      opts.push({ id: c.name, label: c.name, emoji: c.emoji, recommended: sugg?.toLowerCase() === c.name.toLowerCase() })
+    )
+    return opts
+  }, [collections, draft?.collection, customColl])
+
+  const commitNewColl = () => {
+    const n = newColl.trim()
+    if (n) {
+      setCustomColl(n)
+      setSelectedCollection(n)
+    }
+    setNewColl('')
+    setShowNewColl(false)
   }
 
   const removeTag = (tag: string) =>
@@ -361,24 +400,47 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                 <Text style={styles.previewDesc} numberOfLines={2}>{draft.description}</Text>
               ) : null}
 
-              {/* Collection */}
-              <Text style={styles.sectionLabel}>Collection</Text>
-              {editingCollection ? (
-                <TextInput
-                  style={styles.collectionInput}
-                  value={draft.collection}
-                  onChangeText={v => setDraft(d => d ? { ...d, collection: v } : d)}
-                  onBlur={() => setEditingCollection(false)}
-                  autoFocus
-                  returnKeyType="done"
-                  onSubmitEditing={() => setEditingCollection(false)}
-                />
-              ) : (
-                <TouchableOpacity style={styles.collectionChip} onPress={() => setEditingCollection(true)} activeOpacity={0.75}>
-                  <Text style={styles.collectionChipText}>✦  {draft.collection}</Text>
-                  <Text style={styles.collectionChipEdit}>edit</Text>
-                </TouchableOpacity>
-              )}
+              {/* Collection picker */}
+              <Text style={styles.sectionLabel}>Save to</Text>
+              <View style={styles.collGrid}>
+                {collOptions.map(opt => {
+                  const on = selectedCollection === opt.id
+                  return (
+                    <TouchableOpacity
+                      key={opt.id || 'inbox'}
+                      style={[styles.collChip, on && styles.collChipOn]}
+                      onPress={() => setSelectedCollection(opt.id)}
+                      activeOpacity={0.75}
+                    >
+                      {opt.id === '' ? (
+                        <Ionicons name="file-tray-outline" size={14} color={on ? '#fff' : COLORS.textSub} />
+                      ) : opt.emoji ? (
+                        <Text style={styles.collChipEmoji}>{opt.emoji}</Text>
+                      ) : null}
+                      {opt.recommended && <Text style={[styles.collStar, on && styles.collChipTextOn]}>✦</Text>}
+                      <Text style={[styles.collChipText, on && styles.collChipTextOn]}>{opt.label}</Text>
+                    </TouchableOpacity>
+                  )
+                })}
+
+                {showNewColl ? (
+                  <TextInput
+                    style={styles.collNewInput}
+                    value={newColl}
+                    onChangeText={setNewColl}
+                    placeholder="New collection…"
+                    placeholderTextColor={COLORS.muted}
+                    autoFocus
+                    returnKeyType="done"
+                    onSubmitEditing={commitNewColl}
+                    onBlur={commitNewColl}
+                  />
+                ) : (
+                  <TouchableOpacity style={styles.collChipNew} onPress={() => setShowNewColl(true)} activeOpacity={0.7}>
+                    <Text style={styles.collChipNewText}>+ New</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
               {/* Tags */}
               <Text style={styles.sectionLabel}>Tags</Text>
@@ -410,7 +472,9 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
               </View>
 
               <TouchableOpacity style={styles.primaryBtn} onPress={handleSaveDraft} activeOpacity={0.85}>
-                <Text style={styles.primaryBtnText}>Save to Inbox</Text>
+                <Text style={styles.primaryBtnText}>
+                  {selectedCollection ? `Save to ${selectedCollection}` : 'Save to Inbox'}
+                </Text>
               </TouchableOpacity>
             </ScrollView>
           )}
@@ -627,39 +691,51 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
     marginTop: SPACING.md,
   },
-  collectionChip: {
+  collGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  collChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#fdf0eb',
+    gap: 5,
+    backgroundColor: COLORS.card,
     borderWidth: 1,
-    borderColor: '#f0c4b4',
+    borderColor: COLORS.border,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    marginBottom: SPACING.sm,
   },
-  collectionChipText: {
-    fontSize: 14,
-    fontFamily: FONTS.sansMed,
-    color: COLORS.accent,
+  collChipOn: {
+    backgroundColor: COLORS.accent,
+    borderColor: COLORS.accent,
   },
-  collectionChipEdit: {
-    fontSize: 11,
-    fontFamily: FONTS.sans,
-    color: COLORS.muted,
+  collChipEmoji: { fontSize: 13 },
+  collStar: { fontSize: 12, color: COLORS.accent },
+  collChipText: { fontSize: 13, fontFamily: FONTS.sansMed, color: COLORS.text },
+  collChipTextOn: { color: '#fff' },
+  collChipNew: {
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
   },
-  collectionInput: {
+  collChipNewText: { fontSize: 13, fontFamily: FONTS.sansMed, color: COLORS.muted },
+  collNewInput: {
+    minWidth: 130,
     backgroundColor: COLORS.card,
     borderRadius: RADIUS.md,
     borderWidth: 1.5,
     borderColor: COLORS.accent,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: FONTS.sans,
     color: COLORS.text,
-    marginBottom: SPACING.sm,
   },
   tagsRow: {
     flexDirection: 'row',

@@ -6,7 +6,7 @@ import { useShareIntentContext } from 'expo-share-intent'
 import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING } from '../../constants/theme'
 import QuickSave from '../../components/QuickSave'
-import { createSave } from '../../lib/db'
+import { createSave, upsertCollectionByName } from '../../lib/db'
 import type { Draft } from '../../components/QuickSave'
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name']
@@ -92,6 +92,15 @@ export default function TabsLayout() {
   }
 
   const handleSave = async (draft: Draft) => {
+    // A chosen collection name files the save directly; empty keeps it in Inbox.
+    const name = draft.collection?.trim()
+    let collectionId: string | undefined
+    let isInbox = true
+    if (name) {
+      collectionId = (await upsertCollectionByName(name)) ?? undefined
+      isInbox = false
+    }
+
     await createSave({
       url: draft.url || undefined,
       title: draft.title,
@@ -99,8 +108,9 @@ export default function TabsLayout() {
       type: draft.type,
       content: draft.type === 'note' ? draft.description : undefined,
       image_url: draft.imageUrl || undefined,
+      collection_id: collectionId,
       tags: draft.tags,
-      is_inbox: true,
+      is_inbox: isInbox,
     })
   }
 
