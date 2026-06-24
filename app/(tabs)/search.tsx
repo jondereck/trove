@@ -76,6 +76,12 @@ export default function SearchScreen() {
     addRecentSearch(term).then(setRecents)
   }
 
+  // Opening a result is a strong signal the search was useful — record it.
+  const openResult = (id: string) => {
+    if (debouncedQuery.trim()) addRecentSearch(debouncedQuery).then(setRecents)
+    router.push(`/save/${id}`)
+  }
+
   const ql = debouncedQuery.trim().toLowerCase()
   const hasQuery = ql.length > 0
   const isQuestion = ql.length > 14 || /\b(that|where|find|my|i saved)\b/.test(ql)
@@ -180,12 +186,12 @@ export default function SearchScreen() {
               <View style={styles.grid}>
                 <View style={styles.col}>
                   {leftCol.map(save => (
-                    <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />
+                    <SaveCard key={save.id} save={save} onPress={() => openResult(save.id)} />
                   ))}
                 </View>
                 <View style={styles.col}>
                   {rightCol.map(save => (
-                    <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />
+                    <SaveCard key={save.id} save={save} onPress={() => openResult(save.id)} />
                   ))}
                 </View>
               </View>
