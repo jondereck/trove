@@ -15,6 +15,7 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save, Collection } from '../../types'
 import { fetchSave, fetchCollections, updateSave, deleteSave } from '../../lib/db'
@@ -43,6 +44,7 @@ export default function SaveDetailScreen() {
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
   const [collectionId, setCollectionId] = useState<string | undefined>(undefined)
+  const [favorite, setFavorite] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -54,6 +56,7 @@ export default function SaveDetailScreen() {
         setDescription(s.description ?? '')
         setTags(s.tags ?? [])
         setCollectionId(s.collection_id)
+        setFavorite(s.is_favorite ?? false)
       }
       setLoading(false)
     })
@@ -77,6 +80,7 @@ export default function SaveDetailScreen() {
       description: description.trim() || undefined,
       tags,
       collection_id: collectionId,
+      is_favorite: favorite,
       // assigning a collection moves it out of the inbox
       is_inbox: collectionId ? false : save.is_inbox,
     })
@@ -132,9 +136,18 @@ export default function SaveDetailScreen() {
         <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()} activeOpacity={0.7}>
           <Text style={styles.iconBtnText}>‹</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.iconBtn} onPress={handleDelete} activeOpacity={0.7}>
-          <Text style={styles.deleteText}>Delete</Text>
-        </TouchableOpacity>
+        <View style={styles.topBarRight}>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => setFavorite(f => !f)} activeOpacity={0.7}>
+            <Ionicons
+              name={favorite ? 'star' : 'star-outline'}
+              size={22}
+              color={favorite ? COLORS.accent : COLORS.muted}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconBtn} onPress={handleDelete} activeOpacity={0.7}>
+            <Text style={styles.deleteText}>Delete</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -258,6 +271,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: SPACING.md, paddingBottom: SPACING.sm,
   },
+  topBarRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
   iconBtn: { minWidth: 44, height: 36, alignItems: 'center', justifyContent: 'center' },
   iconBtnText: { fontSize: 30, color: COLORS.text, fontFamily: FONTS.sans, marginTop: -4 },
   deleteText: { fontSize: 14, fontFamily: FONTS.sansSemi, color: '#c0392b' },

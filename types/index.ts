@@ -12,6 +12,7 @@ export interface Save {
   collection_id?: string
   tags: string[]
   is_inbox: boolean
+  is_favorite?: boolean
   created_at: string
 }
 

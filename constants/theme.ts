@@ -1,14 +1,16 @@
 export const COLORS = {
-  accent:   '#c0613c',
-  bg:       '#faf9f5',
-  cream:    '#fdf6ef',
-  card:     '#ffffff',
-  border:   '#e8e6e0',
-  muted:    '#999999',
-  text:     '#1a1a1a',
-  textSub:  '#666666',
-  tabBar:   '#fdf6ef',
-  tabBorder:'#e8e6e0',
+  accent:       '#c0613c',
+  accentSoft:   '#fdf0eb',
+  accentBorder: '#f0c4b4',
+  bg:           '#faf9f5',
+  cream:        '#fdf6ef',
+  card:         '#ffffff',
+  border:       '#e8e6e0',
+  muted:        '#999999',
+  text:         '#1a1a1a',
+  textSub:      '#666666',
+  tabBar:       '#fdf6ef',
+  tabBorder:    '#e8e6e0',
 }
 
 export const FONTS = {
@@ -18,6 +20,8 @@ export const FONTS = {
   sansMed:    'HankenGrotesk_500Medium',
   sansSemi:   'HankenGrotesk_600SemiBold',
   sansBold:   'HankenGrotesk_700Bold',
+  mono:       'SplineSansMono_400Regular',
+  monoMed:    'SplineSansMono_500Medium',
 }
 
 export const RADIUS = { sm: 8, md: 12, lg: 18, xl: 24 }

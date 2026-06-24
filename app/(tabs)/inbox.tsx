@@ -15,7 +15,8 @@ import { Save, Collection, OrganizeSuggestion } from '../../types'
 import SaveCard from '../../components/SaveCard'
 import SwipeableCard from '../../components/SwipeableCard'
 import AIOrganize from '../../components/AIOrganize'
-import { fetchInboxSaves, fetchCollections, updateSave, upsertCollectionByName } from '../../lib/db'
+import { fetchInboxSaves, fetchCollections, updateSave } from '../../lib/db'
+import { applyOrganizeSuggestions } from '../../lib/organize'
 
 export default function InboxScreen() {
   const insets = useSafeAreaInsets()
@@ -50,23 +51,7 @@ export default function InboxScreen() {
     const acceptedIds = new Set(accepted.map(a => a.save.id))
     setSaves(prev => prev.filter(s => !acceptedIds.has(s.id)))
 
-    // Persist to Supabase
-    await Promise.all(
-      accepted.map(async suggestion => {
-        let collectionId: string | undefined
-
-        if (suggestion.suggested_collection && suggestion.suggested_collection !== 'Read Later') {
-          const id = await upsertCollectionByName(suggestion.suggested_collection)
-          collectionId = id ?? undefined
-        }
-
-        await updateSave(suggestion.save.id, {
-          is_inbox: false,
-          collection_id: collectionId,
-          tags: suggestion.suggested_tags,
-        })
-      })
-    )
+    await applyOrganizeSuggestions(accepted)
 
     // Refresh collections so counts are updated
     fetchCollections().then(setCollections)
