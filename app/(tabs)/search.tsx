@@ -11,7 +11,6 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save, SaveType } from '../../types'
@@ -47,7 +46,6 @@ function useDebounce<T>(value: T, delay: number): T {
 export default function SearchScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const router = useRouter()
   const [query, setQuery] = useState('')
   const [type, setType] = useState<TypeId>('all')
   const [results, setResults] = useState<Save[]>([])
@@ -213,6 +211,7 @@ const styles = StyleSheet.create({
   typeChipText: { fontSize: 12.5, fontFamily: FONTS.sansSemi, color: COLORS.text },
   typeChipTextOn: { color: '#fff' },
 
+  resultCount: { fontSize: 11, fontFamily: FONTS.mono, color: COLORS.muted, letterSpacing: 1, marginBottom: SPACING.md },
   grid: { flexDirection: 'row', gap: SPACING.sm },
   col: { flex: 1 },
   noResults: { alignItems: 'center', paddingTop: SPACING.xl * 3, gap: SPACING.md },

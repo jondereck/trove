@@ -16,7 +16,6 @@ import {
   Platform,
   Alert,
 } from 'react-native'
-import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
@@ -31,7 +30,6 @@ const COLOR_OPTIONS = ['#c0613c','#5c7a6e','#4a5568','#7c6d8a','#b87333','#2d6a9
 export default function CollectionsScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const router = useRouter()
   const [collections, setCollections] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -232,20 +230,12 @@ function CollectionCard({ collection, onPress }: { collection: Collection; onPre
               : null}
           </View>
         </View>
-        <View style={styles.coverSide}>
-          <View style={[styles.coverSmall, { backgroundColor: withAlpha(c, 0.35) }]}>
-            {covers[1] ? <Image source={{ uri: covers[1] }} style={styles.coverImg} resizeMode="cover" /> : null}
+        <View style={styles.cardRight}>
+          <View style={[styles.countBadge, { backgroundColor: COLORS.cream }]}>
+            <Text style={[styles.countText, { color: collection.color }]}>{collection.save_count ?? 0}</Text>
           </View>
-          <View style={[styles.coverSmall, { backgroundColor: withAlpha(c, 0.2) }]}>
-            {covers[2] ? <Image source={{ uri: covers[2] }} style={styles.coverImg} resizeMode="cover" /> : null}
-          </View>
+          <Text style={styles.chevron}>›</Text>
         </View>
-      </View>
-      <View style={styles.cardBody}>
-        <Text style={styles.cardName} numberOfLines={1}>{collection.name}</Text>
-        <Text style={styles.cardMeta}>
-          {collection.save_count ?? 0} {(collection.save_count ?? 0) === 1 ? 'item' : 'items'}
-        </Text>
       </View>
     </TouchableOpacity>
   )

@@ -9,7 +9,6 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native'
-import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -50,7 +49,6 @@ function handleSignOut() {
 export default function LibraryScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const router = useRouter()
   const [saves, setSaves] = useState<Save[]>([])
   const [inboxSaves, setInboxSaves] = useState<Save[]>([])
   const [collections, setCollections] = useState<Collection[]>([])
@@ -136,13 +134,21 @@ export default function LibraryScreen() {
             <Text style={styles.avatarText}>{userName ? userName.charAt(0).toUpperCase() : '?'}</Text>
           </TouchableOpacity>
         </View>
-      ) : (
-        <View style={styles.grid}>
-          <View style={styles.col}>
-            {leftCol.map(save => <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />)}
+
+        {shown.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyIcon}>◇</Text>
+            <Text style={styles.emptyTitle}>Nothing saved yet</Text>
+            <Text style={styles.emptySubtitle}>Tap + to save your first link, note, or image.</Text>
           </View>
-          <View style={styles.col}>
-            {rightCol.map(save => <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />)}
+        ) : (
+          <View style={styles.grid}>
+            <View style={styles.col}>
+              {leftCol.map(save => <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />)}
+            </View>
+            <View style={styles.col}>
+              {rightCol.map(save => <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />)}
+            </View>
           </View>
         )}
       </ScrollView>

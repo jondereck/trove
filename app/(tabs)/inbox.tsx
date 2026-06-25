@@ -8,9 +8,8 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useFocusEffect, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import SwipeableCard from '../../components/SwipeableCard'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save, Collection, OrganizeSuggestion } from '../../types'
 import SaveCard from '../../components/SaveCard'
@@ -22,7 +21,6 @@ import { applyOrganizeSuggestions } from '../../lib/organize'
 export default function InboxScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const router = useRouter()
   const [saves, setSaves] = useState<Save[]>([])
   const [collections, setCollections] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
