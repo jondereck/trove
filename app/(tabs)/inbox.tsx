@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save, Collection, OrganizeSuggestion } from '../../types'
 import SaveCard from '../../components/SaveCard'
@@ -103,7 +104,7 @@ export default function InboxScreen() {
         ) : (
           <>
             <TouchableOpacity style={styles.aiCta} onPress={() => setAiVisible(true)} activeOpacity={0.8}>
-              <View style={styles.aiOrb}><Text style={styles.aiOrbIcon}>✦</Text></View>
+              <View style={styles.aiOrb}><Ionicons name="sparkles" size={18} color="#fff" /></View>
               <View style={styles.aiCtaText}>
                 <Text style={styles.aiCtaTitle}>AI Organize</Text>
                 <Text style={styles.aiCtaSub}>Sort {saves.length} items into collections</Text>
@@ -171,7 +172,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },
   aiOrb: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.accent, alignItems: 'center', justifyContent: 'center' },
-  aiOrbIcon: { fontSize: 14, color: '#fff' },
   aiCtaText: { flex: 1 },
   aiCtaTitle: { fontSize: 14, fontFamily: FONTS.sansSemi, color: COLORS.text },
   aiCtaSub: { fontSize: 12, fontFamily: FONTS.sans, color: COLORS.muted, marginTop: 1 },

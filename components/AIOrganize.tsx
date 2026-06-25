@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
 import { Save, Collection, OrganizeSuggestion } from '../types'
 import { organizeInboxItems } from '../lib/ai'
@@ -191,7 +192,7 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
               <View style={styles.orbContainer}>
                 <Animated.View style={[styles.orbGlow, { opacity: glowOpacity }]} />
                 <Animated.View style={[styles.orb, { transform: [{ scale }] }]}>
-                  <Text style={styles.orbIcon}>✦</Text>
+                  <Ionicons name="sparkles" size={22} color="#fff" />
                 </Animated.View>
               </View>
               <Text style={styles.loadingTitle}>Analyzing your inbox</Text>
@@ -240,7 +241,10 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
                   />
                 ) : (
                   <TouchableOpacity style={styles.collectionChip} onPress={() => setEditingItem(true)} activeOpacity={0.8}>
-                    <Text style={styles.collectionChipText}>✦  {effectiveCollection}</Text>
+                    <View style={styles.collectionChipMain}>
+                      <Ionicons name="sparkles" size={15} color={COLORS.accent} />
+                      <Text style={styles.collectionChipText}>{effectiveCollection}</Text>
+                    </View>
                     <Text style={styles.editHint}>tap to edit</Text>
                   </TouchableOpacity>
                 )}
@@ -383,7 +387,6 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
   },
-  orbIcon: { fontSize: 22, color: '#fff' },
   loadingTitle: {
     fontSize: 20,
     fontFamily: FONTS.serif,
@@ -482,6 +485,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     marginBottom: SPACING.sm,
+  },
+  collectionChipMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   collectionChipText: {
     fontSize: 14,

@@ -70,7 +70,7 @@ types/
 create table collections (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users(id) on delete cascade,
-  name text not null, emoji text default '📁',
+  name text not null, icon text default 'folder-outline',
   color text default '#c0613c', description text,
   created_at timestamptz default now()
 );

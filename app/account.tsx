@@ -20,6 +20,8 @@ import { SettingGroup, SettingRow } from '../components/Settings'
 import { fetchCounts, fetchProfile, updateProfile } from '../lib/db'
 import { getSettings, patchSettings } from '../lib/settings'
 import { supabase } from '../lib/supabase'
+import { isLoggedIn } from '../lib/session'
+import { exportData, importData } from '../lib/transfer'
 
 // TODO: replace with the real marketing/legal URLs once they exist.
 const HELP_URL = 'https://trove.app/help'
@@ -41,6 +43,7 @@ export default function AccountScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
 
+  const [loggedIn] = useState(isLoggedIn())
   const [editing, setEditing] = useState(false)
   const [first, setFirst] = useState('')
   const [last, setLast] = useState('')
@@ -49,13 +52,34 @@ export default function AccountScreen() {
   const [autoOrganize, setAutoOrganize] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setEmail(user?.email ?? ''))
-    fetchProfile().then(p => {
-      setFirst(p?.first_name ?? '')
-      setLast(p?.last_name ?? '')
-    })
+    if (loggedIn) {
+      supabase.auth.getUser().then(({ data: { user } }) => setEmail(user?.email ?? ''))
+      fetchProfile().then(p => {
+        setFirst(p?.first_name ?? '')
+        setLast(p?.last_name ?? '')
+      })
+    }
     fetchCounts().then(setCounts)
     getSettings().then(s => setAutoOrganize(s.autoOrganize))
+  }, [loggedIn])
+
+  const handleExport = useCallback(async () => {
+    try {
+      await exportData()
+    } catch (e: any) {
+      Alert.alert('Export failed', e?.message ?? String(e))
+    }
+  }, [])
+
+  const handleImport = useCallback(async () => {
+    try {
+      const res = await importData()
+      if (!res) return
+      Alert.alert('Import complete', `Added ${res.saves} saves and ${res.collections} collections.`)
+      fetchCounts().then(setCounts)
+    } catch (e: any) {
+      Alert.alert('Import failed', e?.message ?? String(e))
+    }
   }, [])
 
   const toggleEditing = useCallback(async () => {
@@ -90,9 +114,13 @@ export default function AccountScreen() {
           <Text style={styles.topAction}>Library</Text>
         </TouchableOpacity>
         <Text style={styles.topTitle}>Account</Text>
-        <TouchableOpacity onPress={toggleEditing} activeOpacity={0.6} style={styles.editBtn}>
-          <Text style={styles.topAction}>{editing ? 'Done' : 'Edit'}</Text>
-        </TouchableOpacity>
+        {loggedIn ? (
+          <TouchableOpacity onPress={toggleEditing} activeOpacity={0.6} style={styles.editBtn}>
+            <Text style={styles.topAction}>{editing ? 'Done' : 'Edit'}</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.editBtn} />
+        )}
       </View>
 
       <ScrollView
@@ -130,8 +158,8 @@ export default function AccountScreen() {
             </View>
           ) : (
             <View style={styles.nameBlock}>
-              <Text style={styles.name}>{`${first} ${last}`.trim() || 'Trove'}</Text>
-              <Text style={styles.email}>{email}</Text>
+              <Text style={styles.name}>{loggedIn ? `${first} ${last}`.trim() || 'Trove' : 'Guest'}</Text>
+              <Text style={styles.email}>{loggedIn ? email : 'Saving on this device'}</Text>
             </View>
           )}
 
@@ -146,8 +174,12 @@ export default function AccountScreen() {
           )}
         </View>
 
-        {/* upgrade banner */}
-        <TouchableOpacity activeOpacity={0.9} style={styles.bannerWrap}>
+        {/* banner: upgrade (signed in) or create-account CTA (guest) */}
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={styles.bannerWrap}
+          onPress={loggedIn ? undefined : () => router.push('/(auth)/')}
+        >
           <LinearGradient
             colors={UPGRADE_GRADIENT}
             start={{ x: 0, y: 0 }}
@@ -155,11 +187,15 @@ export default function AccountScreen() {
             style={styles.banner}
           >
             <View style={styles.bannerIcon}>
-              <Ionicons name="sparkles" size={22} color="#fff" />
+              <Ionicons name={loggedIn ? 'sparkles' : 'cloud-upload'} size={22} color="#fff" />
             </View>
             <View style={styles.bannerText}>
-              <Text style={styles.bannerTitle}>Upgrade to Trove Pro</Text>
-              <Text style={styles.bannerSub}>Unlimited AI organize · advanced search</Text>
+              <Text style={styles.bannerTitle}>
+                {loggedIn ? 'Upgrade to Trove Pro' : 'Create a free account'}
+              </Text>
+              <Text style={styles.bannerSub}>
+                {loggedIn ? 'Unlimited AI organize · advanced search' : 'Sync & back up your saves to the cloud'}
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#fff" />
           </LinearGradient>
@@ -167,8 +203,14 @@ export default function AccountScreen() {
 
         {/* settings */}
         <SettingGroup title="Account">
-          <SettingRow icon="mail-outline" label="Email" value={email} onPress={() => {}} />
-          <SettingRow icon="lock-closed-outline" label="Change password" onPress={() => router.push('/change-password')} />
+          {loggedIn ? (
+            <>
+              <SettingRow icon="mail-outline" label="Email" value={email} onPress={() => {}} />
+              <SettingRow icon="lock-closed-outline" label="Change password" onPress={() => router.push('/change-password')} />
+            </>
+          ) : (
+            <SettingRow icon="log-in-outline" label="Sign in or create account" onPress={() => router.push('/(auth)/')} />
+          )}
           <SettingRow icon="sparkles-outline" label="AI preferences" onPress={() => router.push('/ai-preferences')} last />
         </SettingGroup>
 
@@ -183,6 +225,11 @@ export default function AccountScreen() {
           <SettingRow icon="folder-outline" label="Default collection" value="Read Later" onPress={() => {}} last />
         </SettingGroup>
 
+        <SettingGroup title="Data">
+          <SettingRow icon="cloud-upload-outline" label="Export data" onPress={handleExport} />
+          <SettingRow icon="cloud-download-outline" label="Import data" onPress={handleImport} last />
+        </SettingGroup>
+
         <SettingGroup title="Support">
           <SettingRow icon="help-circle-outline" label="Help & FAQ" onPress={() => WebBrowser.openBrowserAsync(HELP_URL)} />
           <SettingRow
@@ -193,9 +240,11 @@ export default function AccountScreen() {
           />
         </SettingGroup>
 
-        <SettingGroup>
-          <SettingRow icon="log-out-outline" label="Sign out" danger onPress={handleSignOut} last />
-        </SettingGroup>
+        {loggedIn && (
+          <SettingGroup>
+            <SettingRow icon="log-out-outline" label="Sign out" danger onPress={handleSignOut} last />
+          </SettingGroup>
+        )}
 
         <Text style={styles.footer}>Trove v1.0 · made with care</Text>
       </ScrollView>

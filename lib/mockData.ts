@@ -1,11 +1,11 @@
 import { Save, Collection } from '../types'
 
 export const MOCK_COLLECTIONS: Collection[] = [
-  { id: 'c1', user_id: 'mock', name: 'Design Inspiration', emoji: '✦', color: '#c0613c', description: 'Visual references and design systems', created_at: '2024-01-01T00:00:00Z', save_count: 14 },
-  { id: 'c2', user_id: 'mock', name: 'Long Reads', emoji: '◎', color: '#5c7a6e', description: 'Essays and in-depth articles', created_at: '2024-01-02T00:00:00Z', save_count: 27 },
-  { id: 'c3', user_id: 'mock', name: 'Dev Tools', emoji: '⌘', color: '#4a5568', description: 'Libraries, tools, and references', created_at: '2024-01-03T00:00:00Z', save_count: 9 },
-  { id: 'c4', user_id: 'mock', name: 'Recipes', emoji: '◈', color: '#b87333', description: 'Food and cooking references', created_at: '2024-01-04T00:00:00Z', save_count: 6 },
-  { id: 'c5', user_id: 'mock', name: 'Read Later', emoji: '○', color: '#7c6d8a', description: 'Things to get back to', created_at: '2024-01-05T00:00:00Z', save_count: 31 },
+  { id: 'c1', user_id: 'mock', name: 'Design Inspiration', icon: 'color-palette-outline', color: '#c0613c', description: 'Visual references and design systems', created_at: '2024-01-01T00:00:00Z', save_count: 14 },
+  { id: 'c2', user_id: 'mock', name: 'Long Reads', icon: 'book-outline', color: '#5c7a6e', description: 'Essays and in-depth articles', created_at: '2024-01-02T00:00:00Z', save_count: 27 },
+  { id: 'c3', user_id: 'mock', name: 'Dev Tools', icon: 'code-slash-outline', color: '#4a5568', description: 'Libraries, tools, and references', created_at: '2024-01-03T00:00:00Z', save_count: 9 },
+  { id: 'c4', user_id: 'mock', name: 'Recipes', icon: 'restaurant-outline', color: '#b87333', description: 'Food and cooking references', created_at: '2024-01-04T00:00:00Z', save_count: 6 },
+  { id: 'c5', user_id: 'mock', name: 'Read Later', icon: 'bookmark-outline', color: '#7c6d8a', description: 'Things to get back to', created_at: '2024-01-05T00:00:00Z', save_count: 31 },
 ]
 
 export const MOCK_SAVES: Save[] = [

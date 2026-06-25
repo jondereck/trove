@@ -126,6 +126,47 @@ export default function LibraryScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Filter chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipScroll}
+          contentContainerStyle={styles.chipRow}
+        >
+          {CHIPS.map(c => {
+            const on = filter === c.id
+            return (
+              <TouchableOpacity
+                key={c.id}
+                style={[styles.chip, on && styles.chipOn]}
+                onPress={() => setFilter(c.id)}
+                activeOpacity={0.7}
+              >
+                {c.icon && <Ionicons name={c.icon} size={15} color={on ? '#fff' : COLORS.text} />}
+                <Text style={[styles.chipText, on && styles.chipTextOn]}>{c.label}</Text>
+              </TouchableOpacity>
+            )
+          })}
+        </ScrollView>
+
+        {/* Inbox banner */}
+        {inboxSaves.length > 0 && (
+          <View style={styles.banner}>
+            <View style={styles.bannerOrb}>
+              <Ionicons name="sparkles" size={20} color="#fff" />
+            </View>
+            <View style={styles.bannerText}>
+              <Text style={styles.bannerTitle}>
+                {inboxSaves.length} {inboxSaves.length === 1 ? 'save' : 'saves'} waiting to be sorted
+              </Text>
+              <Text style={styles.bannerSub}>Let AI file them into collections</Text>
+            </View>
+            <TouchableOpacity style={styles.bannerBtn} onPress={() => setAiVisible(true)} activeOpacity={0.85}>
+              <Text style={styles.bannerBtnText}>Organize</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {shown.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>◇</Text>

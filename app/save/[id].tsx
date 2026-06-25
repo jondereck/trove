@@ -5,7 +5,9 @@ import {
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
 import { Save, Collection } from '../../types'
 import { fetchSaveById, updateSave, deleteSave, fetchCollections } from '../../lib/db'
 
@@ -197,8 +199,13 @@ export default function SaveDetailScreen() {
                 onPress={() => setSelectedCollection(c.id)}
                 activeOpacity={0.7}
               >
+                <Ionicons
+                  name={(c.icon as IoniconName) ?? DEFAULT_COLLECTION_ICON}
+                  size={14}
+                  color={selectedCollection === c.id ? COLORS.accent : c.color}
+                />
                 <Text style={[styles.colChipText, selectedCollection === c.id && styles.colChipTextActive]}>
-                  {c.emoji} {c.name}
+                  {c.name}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -206,7 +213,16 @@ export default function SaveDetailScreen() {
         ) : (
           <View style={styles.colDisplay}>
             {currentCollection
-              ? <Text style={styles.colName}>{currentCollection.emoji} {currentCollection.name}</Text>
+              ? (
+                <View style={styles.colNameRow}>
+                  <Ionicons
+                    name={(currentCollection.icon as IoniconName) ?? DEFAULT_COLLECTION_ICON}
+                    size={15}
+                    color={currentCollection.color}
+                  />
+                  <Text style={styles.colName}>{currentCollection.name}</Text>
+                </View>
+              )
               : <Text style={styles.colNone}>No collection</Text>
             }
           </View>
@@ -283,10 +299,12 @@ const styles = StyleSheet.create({
   },
   sectionLabel: { fontSize: 10, fontFamily: FONTS.sansSemi, color: COLORS.muted, letterSpacing: 1, marginTop: SPACING.sm },
   colDisplay: { marginTop: SPACING.xs },
+  colNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   colName: { fontSize: 14, fontFamily: FONTS.sansMed, color: COLORS.text },
   colNone: { fontSize: 14, fontFamily: FONTS.sans, color: COLORS.muted, fontStyle: 'italic' },
   colPicker: { marginTop: SPACING.xs },
   colChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
     borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, marginRight: SPACING.sm,
   },

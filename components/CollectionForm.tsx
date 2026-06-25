@@ -15,13 +15,14 @@ import {
   Alert,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
+import { COLLECTION_ICONS, DEFAULT_COLLECTION_ICON, IoniconName } from '../constants/icons'
 import { Collection } from '../types'
 import { createCollection, updateCollection, deleteCollection } from '../lib/db'
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window')
 
-const EMOJI_OPTS = ['📁', '📚', '🎨', '💡', '🎬', '🍳', '✈️', '💼', '🎵', '🧠', '❤️', '🔖', '🌱', '⭐', '🛠️', '📷']
 const COLOR_OPTS = ['#c0613c', '#3c7dc0', '#3cc06f', '#9b3cc0', '#c0a13c', '#c03c5e', '#3cb5c0', '#6b6b6b']
 
 interface CollectionFormProps {
@@ -40,7 +41,7 @@ export default function CollectionForm({ visible, onClose, onSaved, collection }
   const isEdit = !!collection
 
   const [name, setName] = useState('')
-  const [emoji, setEmoji] = useState(EMOJI_OPTS[0])
+  const [icon, setIcon] = useState<IoniconName>(DEFAULT_COLLECTION_ICON)
   const [color, setColor] = useState(COLOR_OPTS[0])
   const [description, setDescription] = useState('')
   const [saving, setSaving] = useState(false)
@@ -49,7 +50,7 @@ export default function CollectionForm({ visible, onClose, onSaved, collection }
   useEffect(() => {
     if (visible) {
       setName(collection?.name ?? '')
-      setEmoji(collection?.emoji ?? EMOJI_OPTS[0])
+      setIcon((collection?.icon as IoniconName) ?? DEFAULT_COLLECTION_ICON)
       setColor(collection?.color ?? COLOR_OPTS[0])
       setDescription(collection?.description ?? '')
       setSaving(false)
@@ -70,8 +71,8 @@ export default function CollectionForm({ visible, onClose, onSaved, collection }
     if (!trimmed) return
     setSaving(true)
     const ok = isEdit
-      ? await updateCollection(collection!.id, { name: trimmed, emoji, color, description: description.trim() || undefined })
-      : !!(await createCollection({ name: trimmed, emoji, color, description: description.trim() || undefined }))
+      ? await updateCollection(collection!.id, { name: trimmed, icon, color, description: description.trim() || undefined })
+      : !!(await createCollection({ name: trimmed, icon, color, description: description.trim() || undefined }))
     setSaving(false)
     if (ok) {
       onSaved()
@@ -117,7 +118,7 @@ export default function CollectionForm({ visible, onClose, onSaved, collection }
             {/* Preview */}
             <View style={styles.preview}>
               <View style={[styles.previewStrip, { backgroundColor: color }]} />
-              <Text style={styles.previewEmoji}>{emoji}</Text>
+              <Ionicons name={icon} size={22} color={color} style={styles.previewIcon} />
               <Text style={styles.previewName}>{name.trim() || 'Collection name'}</Text>
             </View>
 
@@ -133,16 +134,19 @@ export default function CollectionForm({ visible, onClose, onSaved, collection }
 
             <Text style={styles.label}>Icon</Text>
             <View style={styles.optionGrid}>
-              {EMOJI_OPTS.map(e => (
-                <TouchableOpacity
-                  key={e}
-                  style={[styles.emojiOpt, emoji === e && styles.emojiOptActive]}
-                  onPress={() => setEmoji(e)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.emojiOptText}>{e}</Text>
-                </TouchableOpacity>
-              ))}
+              {COLLECTION_ICONS.map(name => {
+                const active = icon === name
+                return (
+                  <TouchableOpacity
+                    key={name}
+                    style={[styles.iconOpt, active && styles.iconOptActive]}
+                    onPress={() => setIcon(name)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name={name} size={20} color={active ? color : COLORS.textSub} />
+                  </TouchableOpacity>
+                )
+              })}
             </View>
 
             <Text style={styles.label}>Color</Text>
@@ -216,7 +220,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden', paddingRight: SPACING.md, marginBottom: SPACING.lg, minHeight: 56,
   },
   previewStrip: { width: 5, alignSelf: 'stretch' },
-  previewEmoji: { fontSize: 22, marginLeft: SPACING.md },
+  previewIcon: { marginLeft: SPACING.md },
   previewName: { flex: 1, fontSize: 16, fontFamily: FONTS.sansSemi, color: COLORS.text },
 
   label: {
@@ -231,12 +235,11 @@ const styles = StyleSheet.create({
   descInput: { minHeight: 64 },
 
   optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  emojiOpt: {
+  iconOpt: {
     width: 44, height: 44, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center',
     backgroundColor: COLORS.card, borderWidth: 1.5, borderColor: COLORS.border,
   },
-  emojiOptActive: { borderColor: COLORS.accent, backgroundColor: '#fdf0eb' },
-  emojiOptText: { fontSize: 20 },
+  iconOptActive: { borderColor: COLORS.accent, backgroundColor: '#fdf0eb' },
   colorOpt: { width: 36, height: 36, borderRadius: 18, borderWidth: 3, borderColor: 'transparent' },
   colorOptActive: { borderColor: COLORS.text },
 

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { View, Text, ScrollView, RefreshControl, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
 import { Save, Collection } from '../../types'
 import { fetchCollectionById, fetchSavesByCollection } from '../../lib/db'
 import SaveCard from '../../components/SaveCard'
@@ -43,8 +45,11 @@ export default function CollectionDetailScreen() {
         </TouchableOpacity>
         {collection && (
           <View style={styles.headerCenter}>
-            <View style={[styles.colorDot, { backgroundColor: collection.color }]} />
-            <Text style={styles.emoji}>{collection.emoji}</Text>
+            <Ionicons
+              name={(collection.icon as IoniconName) ?? DEFAULT_COLLECTION_ICON}
+              size={18}
+              color={collection.color}
+            />
             <Text style={styles.name} numberOfLines={1}>{collection.name}</Text>
           </View>
         )}
@@ -71,7 +76,12 @@ export default function CollectionDetailScreen() {
         >
           {saves.length === 0 ? (
             <View style={styles.empty}>
-              <Text style={styles.emptyIcon}>{collection?.emoji ?? '◈'}</Text>
+              <Ionicons
+                name={(collection?.icon as IoniconName) ?? DEFAULT_COLLECTION_ICON}
+                size={44}
+                color={COLORS.border}
+                style={styles.emptyIcon}
+              />
               <Text style={styles.emptyTitle}>No saves yet</Text>
               <Text style={styles.emptySubtitle}>Use AI Organize or set collection in a save to add items here.</Text>
             </View>
@@ -105,8 +115,6 @@ const styles = StyleSheet.create({
   backBtn: { padding: SPACING.xs, marginRight: SPACING.sm },
   backText: { fontSize: 22, color: COLORS.text },
   headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  colorDot: { width: 8, height: 8, borderRadius: 4 },
-  emoji: { fontSize: 20 },
   name: { fontSize: 18, fontFamily: FONTS.serif, color: COLORS.text, flex: 1 },
   headerRight: { marginLeft: SPACING.sm },
   countBadge: { borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3, minWidth: 28, alignItems: 'center' },

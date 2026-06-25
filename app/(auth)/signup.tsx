@@ -13,7 +13,7 @@ import {
 import { Link, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { supabase } from '../../lib/supabase'
-import { updateProfile } from '../../lib/db'
+import { updateProfile } from '../../lib/cloudDb'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 
 export default function SignupScreen() {

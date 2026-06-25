@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
+import { DEFAULT_COLLECTION_ICON, IoniconName } from '../constants/icons'
 import { SaveType, OGMetadata, AISuggestion, Collection } from '../types'
 import { fetchOGMetadata, suggestForSave } from '../lib/ai'
 import { fetchCollections, findSaveByUrl } from '../lib/db'
@@ -252,7 +253,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
     const sugg = draft?.collection?.trim()
     const suggIsNew = !!sugg && sugg.toLowerCase() !== 'read later' && !existing.has(sugg.toLowerCase())
 
-    const opts: { id: string; label: string; emoji?: string; isNew?: boolean; recommended?: boolean }[] = [
+    const opts: { id: string; label: string; icon?: IoniconName; color?: string; isNew?: boolean; recommended?: boolean }[] = [
       { id: '', label: 'Inbox' },
     ]
     if (suggIsNew) opts.push({ id: sugg!, label: sugg!, isNew: true, recommended: true })
@@ -260,7 +261,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
       opts.push({ id: customColl, label: customColl, isNew: true })
     }
     collections.forEach(c =>
-      opts.push({ id: c.name, label: c.name, emoji: c.emoji, recommended: sugg?.toLowerCase() === c.name.toLowerCase() })
+      opts.push({ id: c.name, label: c.name, icon: c.icon as IoniconName, color: c.color, recommended: sugg?.toLowerCase() === c.name.toLowerCase() })
     )
     return opts
   }, [collections, draft?.collection, customColl])
@@ -388,7 +389,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
           {step === 'loading' && (
             <View style={styles.loadingWrap}>
               <View style={styles.loadingOrb}>
-                <Text style={styles.loadingOrbIcon}>✦</Text>
+                <Ionicons name="sparkles" size={20} color="#fff" />
               </View>
               <Text style={styles.loadingTitle}>Analyzing</Text>
               <Text style={styles.loadingStatus}>{loadingStatus}</Text>
@@ -436,10 +437,10 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                     >
                       {opt.id === '' ? (
                         <Ionicons name="file-tray-outline" size={14} color={on ? '#fff' : COLORS.textSub} />
-                      ) : opt.emoji ? (
-                        <Text style={styles.collChipEmoji}>{opt.emoji}</Text>
+                      ) : opt.icon ? (
+                        <Ionicons name={opt.icon} size={14} color={on ? '#fff' : (opt.color ?? COLORS.textSub)} />
                       ) : null}
-                      {opt.recommended && <Text style={[styles.collStar, on && styles.collChipTextOn]}>✦</Text>}
+                      {opt.recommended && <Ionicons name="sparkles" size={12} color={on ? '#fff' : COLORS.accent} />}
                       <Text style={[styles.collChipText, on && styles.collChipTextOn]}>{opt.label}</Text>
                     </TouchableOpacity>
                   )
@@ -652,10 +653,6 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  loadingOrbIcon: {
-    fontSize: 20,
-    color: '#fff',
-  },
   loadingTitle: {
     fontSize: 18,
     fontFamily: FONTS.serif,
@@ -734,8 +731,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accent,
     borderColor: COLORS.accent,
   },
-  collChipEmoji: { fontSize: 13 },
-  collStar: { fontSize: 12, color: COLORS.accent },
   collChipText: { fontSize: 13, fontFamily: FONTS.sansMed, color: COLORS.text },
   collChipTextOn: { color: '#fff' },
   collChipNew: {

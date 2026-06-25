@@ -18,13 +18,24 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
+import { LinearGradient } from 'expo-linear-gradient'
+import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { COLLECTION_ICONS, DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
 import { Collection } from '../../types'
 import { fetchCollections, createCollection } from '../../lib/db'
 
+// Appends an alpha byte to a #rrggbb hex so a saturated collection color reads
+// as a soft pastel when layered over the cream cover base.
+function tint(hex: string, alpha: number): string {
+  const a = Math.round(Math.min(1, Math.max(0, alpha)) * 255)
+    .toString(16)
+    .padStart(2, '0')
+  return `${hex}${a}`
+}
+
 const { height: SCREEN_HEIGHT } = Dimensions.get('window')
 
-const EMOJI_OPTIONS = ['📁','📌','🎨','💻','📚','🎵','🌿','⭐','🔬','💡','🍳','✈','💪','🎯','🧠']
 const COLOR_OPTIONS = ['#c0613c','#5c7a6e','#4a5568','#7c6d8a','#b87333','#2d6a9f']
 
 export default function CollectionsScreen() {
@@ -38,7 +49,7 @@ export default function CollectionsScreen() {
   // Create modal state
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
-  const [newEmoji, setNewEmoji] = useState('📁')
+  const [newIcon, setNewIcon] = useState<IoniconName>(DEFAULT_COLLECTION_ICON)
   const [newColor, setNewColor] = useState(COLORS.accent)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
@@ -74,7 +85,7 @@ export default function CollectionsScreen() {
     ]).start(() => {
       setShowCreate(false)
       setNewName('')
-      setNewEmoji('📁')
+      setNewIcon(DEFAULT_COLLECTION_ICON)
       setNewColor(COLORS.accent)
       setCreateError('')
     })
@@ -87,7 +98,7 @@ export default function CollectionsScreen() {
 
     const result = await createCollection({
       name: newName.trim(),
-      emoji: newEmoji,
+      icon: newIcon,
       color: newColor,
     })
 
@@ -114,7 +125,10 @@ export default function CollectionsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Collections</Text>
+          <View style={styles.headerText}>
+            <Text style={styles.kicker}>{collections.length} COLLECTIONS</Text>
+            <Text style={styles.title}>Collections</Text>
+          </View>
           <TouchableOpacity style={styles.newBtn} onPress={openCreate} activeOpacity={0.75}>
             <Text style={styles.newBtnText}>New +</Text>
           </TouchableOpacity>
@@ -129,10 +143,17 @@ export default function CollectionsScreen() {
             <Text style={styles.emptySubtitle}>Tap "New +" to create your first collection.</Text>
           </View>
         ) : (
-          <View style={styles.list}>
-            {collections.map(col => (
-              <CollectionCard key={col.id} collection={col} onPress={() => router.push(`/collection/${col.id}`)} />
-            ))}
+          <View style={styles.grid}>
+            <View style={styles.col}>
+              {collections.filter((_, i) => i % 2 === 0).map(col => (
+                <CollectionCard key={col.id} collection={col} onPress={() => router.push(`/collection/${col.id}`)} />
+              ))}
+            </View>
+            <View style={styles.col}>
+              {collections.filter((_, i) => i % 2 === 1).map(col => (
+                <CollectionCard key={col.id} collection={col} onPress={() => router.push(`/collection/${col.id}`)} />
+              ))}
+            </View>
           </View>
         )}
       </ScrollView>
@@ -163,19 +184,22 @@ export default function CollectionsScreen() {
 
             {createError ? <Text style={styles.errorText}>{createError}</Text> : null}
 
-            {/* Emoji */}
-            <Text style={styles.label}>EMOJI</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.emojiRow}>
-              {EMOJI_OPTIONS.map(e => (
-                <TouchableOpacity
-                  key={e}
-                  style={[styles.emojiBtn, newEmoji === e && styles.emojiBtnActive]}
-                  onPress={() => setNewEmoji(e)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.emojiText}>{e}</Text>
-                </TouchableOpacity>
-              ))}
+            {/* Icon */}
+            <Text style={styles.label}>ICON</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.iconRow}>
+              {COLLECTION_ICONS.map(name => {
+                const active = newIcon === name
+                return (
+                  <TouchableOpacity
+                    key={name}
+                    style={[styles.iconBtn, active && styles.iconBtnActive]}
+                    onPress={() => setNewIcon(name)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name={name} size={20} color={active ? newColor : COLORS.textSub} />
+                  </TouchableOpacity>
+                )
+              })}
             </ScrollView>
 
             {/* Color */}
@@ -193,7 +217,7 @@ export default function CollectionsScreen() {
 
             {/* Preview */}
             <View style={[styles.preview, { borderLeftColor: newColor }]}>
-              <Text style={styles.previewEmoji}>{newEmoji}</Text>
+              <Ionicons name={newIcon} size={20} color={newColor} />
               <Text style={styles.previewName}>{newName || 'Collection Name'}</Text>
             </View>
 
@@ -216,26 +240,50 @@ export default function CollectionsScreen() {
   )
 }
 
+// A cover tile: shows a recent save's thumbnail when one exists, otherwise a
+// color-tinted placeholder derived from the collection color.
+function CoverTile({ url, color, alpha, radius, style }: {
+  url?: string
+  color: string
+  alpha: number
+  radius: number
+  style?: object
+}) {
+  if (url) {
+    return <Image source={{ uri: url }} style={[{ borderRadius: radius }, style]} resizeMode="cover" />
+  }
+  return <View style={[{ borderRadius: radius, backgroundColor: tint(color, alpha) }, style]} />
+}
+
 function CollectionCard({ collection, onPress }: { collection: Collection; onPress: () => void }) {
+  const covers = collection.cover_urls ?? []
+  const color = collection.color || COLORS.accent
+  const count = collection.save_count ?? 0
+
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
-      <View style={[styles.colorStrip, { backgroundColor: collection.color }]} />
-      <View style={styles.cardContent}>
-        <View style={styles.cardLeft}>
-          <Text style={styles.emoji}>{collection.emoji}</Text>
-          <View style={styles.cardText}>
-            <Text style={styles.cardName}>{collection.name}</Text>
-            {collection.description
-              ? <Text style={styles.cardDesc} numberOfLines={1}>{collection.description}</Text>
-              : null}
-          </View>
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
+      {/* Collage of recent-save thumbnails */}
+      <View style={styles.cover}>
+        {covers[0] ? (
+          <Image source={{ uri: covers[0] }} style={styles.coverBig} resizeMode="cover" />
+        ) : (
+          <LinearGradient
+            colors={[tint(color, 0.9), tint(color, 0.55)]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.coverBig}
+          />
+        )}
+        <View style={styles.coverColumn}>
+          <CoverTile url={covers[1]} color={color} alpha={0.34} radius={8} style={styles.coverSmall} />
+          <CoverTile url={covers[2]} color={color} alpha={0.2} radius={8} style={styles.coverSmall} />
         </View>
-        <View style={styles.cardRight}>
-          <View style={[styles.countBadge, { backgroundColor: COLORS.cream }]}>
-            <Text style={[styles.countText, { color: collection.color }]}>{collection.save_count ?? 0}</Text>
-          </View>
-          <Text style={styles.chevron}>›</Text>
-        </View>
+      </View>
+
+      {/* Meta */}
+      <View style={styles.cardBody}>
+        <Text style={styles.cardName} numberOfLines={1}>{collection.name}</Text>
+        <Text style={styles.cardMeta}>{count} {count === 1 ? 'item' : 'items'}</Text>
       </View>
     </TouchableOpacity>
   )
@@ -248,26 +296,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
     paddingTop: SPACING.md, paddingBottom: SPACING.lg,
   },
+  headerText: { flex: 1 },
   kicker: { fontSize: 11, fontFamily: FONTS.mono, color: COLORS.muted, letterSpacing: 1, marginBottom: 4 },
   title: { fontSize: 38, fontFamily: FONTS.serif, color: COLORS.text, letterSpacing: -0.5, lineHeight: 40 },
   newBtn: { backgroundColor: COLORS.accent, borderRadius: 999, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
   newBtnText: { fontSize: 13, fontFamily: FONTS.sansSemi, color: '#fff' },
   loader: { marginTop: SPACING.xl * 3 },
-  list: { gap: SPACING.sm },
+
+  // 2-column grid
+  grid: { flexDirection: 'row', gap: 14 },
+  col: { flex: 1, gap: 14 },
 
   // Collection card
-  card: { backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', overflow: 'hidden' },
-  colorStrip: { width: 4 },
-  cardContent: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: SPACING.md, gap: SPACING.md },
-  cardLeft: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, flex: 1 },
-  emoji: { fontSize: 22, width: 32, textAlign: 'center' },
-  cardText: { flex: 1, gap: 2 },
-  cardName: { fontSize: 16, fontFamily: FONTS.sansSemi, color: COLORS.text },
-  cardDesc: { fontSize: 12, fontFamily: FONTS.sans, color: COLORS.muted },
-  cardRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  countBadge: { borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3, minWidth: 28, alignItems: 'center' },
-  countText: { fontSize: 12, fontFamily: FONTS.sansBold },
-  chevron: { fontSize: 20, color: COLORS.muted, fontFamily: FONTS.sans, marginRight: 4 },
+  card: {
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+    shadowColor: '#281e14',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 14,
+    elevation: 2,
+  },
+  cover: { flexDirection: 'row', gap: 3, height: 96, padding: 8, backgroundColor: COLORS.cream },
+  coverBig: { flex: 2, height: '100%', borderRadius: 10 },
+  coverColumn: { flex: 1, gap: 3 },
+  coverSmall: { flex: 1, width: '100%' },
+  cardBody: { paddingHorizontal: 14, paddingTop: 4, paddingBottom: 14 },
+  cardName: { fontSize: 15, fontFamily: FONTS.sansBold, color: COLORS.text },
+  cardMeta: { fontSize: 12, fontFamily: FONTS.sans, color: COLORS.muted, marginTop: 3 },
 
   // Empty
   empty: { alignItems: 'center', paddingTop: SPACING.xl * 4, gap: SPACING.md },
@@ -292,13 +351,12 @@ const styles = StyleSheet.create({
     fontSize: 15, fontFamily: FONTS.sans, color: COLORS.text,
   },
   errorText: { fontSize: 12, fontFamily: FONTS.sans, color: '#dc2626', marginTop: SPACING.xs },
-  emojiRow: { marginBottom: SPACING.sm },
-  emojiBtn: {
+  iconRow: { marginBottom: SPACING.sm },
+  iconBtn: {
     width: 40, height: 40, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: 'transparent', marginRight: SPACING.sm,
   },
-  emojiBtnActive: { borderColor: COLORS.accent, backgroundColor: '#fdf0eb' },
-  emojiText: { fontSize: 20 },
+  iconBtnActive: { borderColor: COLORS.accent, backgroundColor: '#fdf0eb' },
   colorRow: { flexDirection: 'row', gap: SPACING.md, marginBottom: SPACING.md },
   colorSwatch: { width: 32, height: 32, borderRadius: 16 },
   colorSwatchActive: { borderWidth: 3, borderColor: COLORS.text },
@@ -307,7 +365,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card, borderRadius: RADIUS.md, borderLeftWidth: 4,
     padding: SPACING.md, marginBottom: SPACING.lg,
   },
-  previewEmoji: { fontSize: 20 },
   previewName: { fontSize: 15, fontFamily: FONTS.sansMed, color: COLORS.text, flex: 1 },
   createBtn: { borderRadius: RADIUS.md, paddingVertical: SPACING.md + 2, alignItems: 'center' },
   createBtnDisabled: { opacity: 0.45 },

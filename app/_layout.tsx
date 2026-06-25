@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Alert } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
@@ -22,6 +23,9 @@ import {
 } from '@expo-google-fonts/spline-sans-mono'
 import { COLORS } from '../constants/theme'
 import { supabase } from '../lib/supabase'
+import { isOnboardingDismissed, subscribeOnboarding } from '../lib/firstLaunch'
+import { hasLocalData } from '../lib/localDb'
+import { migrateLocalToCloud } from '../lib/migrateLocal'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -39,6 +43,10 @@ export default function RootLayout() {
 
   // undefined = still checking, null = no session, Session = logged in
   const [session, setSession] = useState<Session | null | undefined>(undefined)
+  // undefined = still checking the local store, boolean = known
+  const [hasData, setHasData] = useState<boolean | undefined>(undefined)
+  // In-memory: true once the intro is dismissed this session.
+  const [dismissed, setDismissed] = useState(isOnboardingDismissed())
 
   const segments = useSegments()
   const router = useRouter()
@@ -49,37 +57,64 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError])
 
+  // Whether the device has any local saves/collections, kept in sync so
+  // dismissing the intro updates routing without a redirect loop.
+  useEffect(() => {
+    hasLocalData().then(setHasData)
+    return subscribeOnboarding(() => setDismissed(isOnboardingDismissed()))
+  }, [])
+
   // Fetch initial session and subscribe to auth changes
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
+      // First sign-in: lift any device-local saves into the cloud account.
+      if (event === 'SIGNED_IN') {
+        hasLocalData().then(has => {
+          if (!has) return
+          migrateLocalToCloud().then(({ saves, collections }) => {
+            if (saves || collections) {
+              Alert.alert('Synced to your account', `Moved ${saves} saves and ${collections} collections to the cloud.`)
+            }
+          })
+        })
+      }
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
-  // Redirect based on auth state
+  // Routing: no forced login. Show the intro on every launch while the library
+  // is empty and signed-out; otherwise land in the app.
   useEffect(() => {
-    if (session === undefined) return // still loading
+    if (session === undefined || hasData === undefined) return // still loading
     if (!fontsLoaded && !fontError) return // fonts not ready
 
     const inAuthGroup = segments[0] === '(auth)'
+    const inOnboarding = segments[0] === 'onboarding'
 
-    if (!session && !inAuthGroup) {
-      // Not logged in — go to welcome
-      router.replace('/(auth)/')
+    // Don't force the intro over screens the user navigated to on purpose (the
+    // auth flow), otherwise tapping "Sign in" from the intro bounces back.
+    const showOnboarding = !session && !hasData && !dismissed && !inAuthGroup
+    if (showOnboarding) {
+      if (!inOnboarding) router.replace('/onboarding')
+      return
+    }
+
+    // Has data, signed in, or intro dismissed — never sit on the intro/auth screens.
+    if (inOnboarding) {
+      router.replace('/(tabs)')
     } else if (session && inAuthGroup) {
-      // Logged in — go to app
       router.replace('/(tabs)')
     }
-  }, [session, fontsLoaded, fontError, segments])
+  }, [session, hasData, dismissed, fontsLoaded, fontError, segments])
 
-  // Hold render until fonts AND session check are done
-  if ((!fontsLoaded && !fontError) || session === undefined) {
+  // Hold render until fonts, session, and the local-store check are all known
+  if ((!fontsLoaded && !fontError) || session === undefined || hasData === undefined) {
     return null
   }
 
@@ -88,6 +123,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <StatusBar style="dark" />
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.bg } }}>
+          <Stack.Screen name="onboarding" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="save/[id]" options={{ animation: 'slide_from_right' }} />
