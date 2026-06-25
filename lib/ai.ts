@@ -1,4 +1,5 @@
 import { Save, Collection, AISuggestion, OrganizeSuggestion } from '../types'
+import { getSettings } from './settings'
 
 const OPENAI_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? ''
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''
@@ -96,6 +97,12 @@ export async function suggestForSave(
   metadata: OGMetadata,
   collections: Collection[]
 ): Promise<AISuggestion> {
+  const { aiSuggestTags, aiSuggestCollections } = await getSettings()
+  // Both off → skip the model entirely and return inert defaults.
+  if (!aiSuggestTags && !aiSuggestCollections) {
+    return { collection: 'Read Later', tags: [] }
+  }
+
   const colList = collections.map(c => c.name).join(', ') || 'none yet'
   const prompt = `Item to organize:
 Title: ${metadata.title}
@@ -109,8 +116,8 @@ JSON only: {"collection": "Name", "tags": ["tag1", "tag2", "tag3"]}`
   const text = await callGPT(prompt)
   const json = parseJSON<{ collection?: string; tags?: string[] }>(text, {})
   return {
-    collection: json.collection ?? 'Read Later',
-    tags: [...new Set(Array.isArray(json.tags) ? json.tags.slice(0, 3) : [])],
+    collection: aiSuggestCollections ? (json.collection ?? 'Read Later') : 'Read Later',
+    tags: aiSuggestTags ? [...new Set(Array.isArray(json.tags) ? json.tags.slice(0, 3) : [])] : [],
   }
 }
 
@@ -121,6 +128,16 @@ export async function organizeInboxItems(
   collections: Collection[]
 ): Promise<OrganizeSuggestion[]> {
   if (saves.length === 0) return []
+
+  const { aiSuggestTags, aiSuggestCollections } = await getSettings()
+  if (!aiSuggestTags && !aiSuggestCollections) {
+    return saves.map(save => ({
+      save,
+      suggested_collection: 'Read Later',
+      suggested_tags: [],
+      confidence: 0,
+    }))
+  }
 
   const colList = collections.map(c => c.name).join(', ') || 'none yet'
   const items = saves
@@ -140,10 +157,15 @@ JSON array, same order as input:
   const text = await callGPT(prompt)
   const arr = parseJSON<Array<{ collection?: string; tags?: string[] }>>(text, [])
 
-  return saves.map((save, i) => ({
-    save,
-    suggested_collection: arr[i]?.collection ?? 'Read Later',
-    suggested_tags: [...new Set(Array.isArray(arr[i]?.tags) ? arr[i].tags as string[] : [])],
-    confidence: arr[i]?.collection ? 0.85 : 0,
-  }))
+  return saves.map((save, i) => {
+    const collection = aiSuggestCollections ? (arr[i]?.collection ?? 'Read Later') : 'Read Later'
+    return {
+      save,
+      suggested_collection: collection,
+      suggested_tags: aiSuggestTags
+        ? [...new Set(Array.isArray(arr[i]?.tags) ? (arr[i].tags as string[]) : [])]
+        : [],
+      confidence: aiSuggestCollections && arr[i]?.collection ? 0.85 : 0,
+    }
+  })
 }

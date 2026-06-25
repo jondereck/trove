@@ -22,6 +22,7 @@ import { SaveType, OGMetadata, AISuggestion, Collection } from '../types'
 import { fetchOGMetadata, suggestForSave } from '../lib/ai'
 import { fetchCollections, findSaveByUrl } from '../lib/db'
 import { uploadMedia } from '../lib/storage'
+import { getSettings } from '../lib/settings'
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window')
 
@@ -57,6 +58,8 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current
   const backdropOpacity = useRef(new Animated.Value(0)).current
   const didAutoFetch = useRef(false)
+  // Read via ref so the value is current inside doFetchAndSuggest's closure.
+  const autoOrganizeRef = useRef(true)
 
   const [collections, setCollections] = useState<Collection[]>([])
   const [step, setStep] = useState<Step>('input')
@@ -76,6 +79,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   // Load real collections once on mount for AI suggestions
   useEffect(() => {
     fetchCollections().then(setCollections)
+    getSettings().then(s => { autoOrganizeRef.current = s.autoOrganize })
   }, [])
 
   // Core fetch+suggest logic — accepts an explicit URL so it can be called
@@ -119,6 +123,14 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
       collection: suggestion.collection,
       tags: suggestion.tags,
     })
+
+    // Auto-organize: pre-select the AI-suggested collection so the save files
+    // straight into it. Off (or a "Read Later" default) leaves it in the Inbox.
+    const suggested = suggestion.collection?.trim()
+    if (autoOrganizeRef.current && suggested && suggested.toLowerCase() !== 'read later') {
+      setSelectedCollection(suggested)
+    }
+
     setStep('preview')
   }, [])
 
@@ -127,6 +139,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   useEffect(() => {
     if (visible) {
       fetchCollections().then(setCollections)
+      getSettings().then(s => { autoOrganizeRef.current = s.autoOrganize })
       Animated.parallel([
         Animated.spring(translateY, { toValue: 0, damping: 22, mass: 0.85, stiffness: 200, useNativeDriver: true }),
         Animated.timing(backdropOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),

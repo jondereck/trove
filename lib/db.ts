@@ -277,6 +277,7 @@ export async function fetchSavesByCollection(collectionId: string): Promise<Save
 export interface Profile {
   id: string
   first_name: string | null
+  last_name: string | null
   avatar_url: string | null
 }
 
@@ -285,7 +286,7 @@ export async function fetchProfile(): Promise<Profile | null> {
   if (!user) return null
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, first_name, avatar_url')
+    .select('id, first_name, last_name, avatar_url')
     .eq('id', user.id)
     .maybeSingle()
   if (error) { console.error('fetchProfile:', error.message); return null }
@@ -293,7 +294,7 @@ export async function fetchProfile(): Promise<Profile | null> {
 }
 
 export async function updateProfile(
-  updates: Partial<Pick<Profile, 'first_name' | 'avatar_url'>>
+  updates: Partial<Pick<Profile, 'first_name' | 'last_name' | 'avatar_url'>>
 ): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return false
@@ -303,4 +304,13 @@ export async function updateProfile(
     .eq('id', user.id)
   if (error) { console.error('updateProfile:', error.message); return false }
   return true
+}
+
+// Lightweight head counts for the Account stats row.
+export async function fetchCounts(): Promise<{ saves: number; collections: number }> {
+  const [s, c] = await Promise.all([
+    supabase.from('saves').select('*', { count: 'exact', head: true }),
+    supabase.from('collections').select('*', { count: 'exact', head: true }),
+  ])
+  return { saves: s.count ?? 0, collections: c.count ?? 0 }
 }

@@ -6,7 +6,6 @@ import {
   RefreshControl,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -18,7 +17,6 @@ import SaveCard from '../../components/SaveCard'
 import AIOrganize from '../../components/AIOrganize'
 import { fetchLibrarySaves, fetchInboxSaves, fetchCollections, fetchProfile } from '../../lib/db'
 import { applyOrganizeSuggestions } from '../../lib/organize'
-import { supabase } from '../../lib/supabase'
 
 type FilterId = 'all' | 'fav' | 'link' | 'image' | 'video' | 'note'
 
@@ -37,13 +35,6 @@ function getGreeting(): string {
   if (h >= 12 && h < 17) return 'Good afternoon'
   if (h >= 17 && h < 21) return 'Good evening'
   return 'Good night'
-}
-
-function handleSignOut() {
-  Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Sign Out', style: 'destructive', onPress: () => supabase.auth.signOut() },
-  ])
 }
 
 export default function LibraryScreen() {
@@ -130,7 +121,7 @@ export default function LibraryScreen() {
               <Text style={styles.kickerAccent}>{dateLabel}</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.avatar} onPress={handleSignOut} activeOpacity={0.75}>
+          <TouchableOpacity style={styles.avatar} onPress={() => router.push('/account')} activeOpacity={0.75}>
             <Text style={styles.avatarText}>{userName ? userName.charAt(0).toUpperCase() : '?'}</Text>
           </TouchableOpacity>
         </View>
