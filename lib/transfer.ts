@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
 import * as DocumentPicker from 'expo-document-picker'
+import { Platform } from 'react-native'
 import { Save, Collection } from '../types'
 import * as db from './db'
 
@@ -26,16 +27,34 @@ export async function exportData(): Promise<{ saves: number; collections: number
   const saves = [...library, ...inbox]
 
   const payload: Backup = { version: VERSION, exportedAt: new Date().toISOString(), saves, collections }
-  const uri = `${FileSystem.cacheDirectory}trove-backup-${Date.now()}.json`
-  await FileSystem.writeAsStringAsync(uri, JSON.stringify(payload, null, 2))
+  const filename = `trove-backup-${Date.now()}.json`
+  const json = JSON.stringify(payload, null, 2)
 
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(uri, {
-      mimeType: 'application/json',
-      dialogTitle: 'Export Trove data',
-      UTI: 'public.json',
-    })
+  if (Platform.OS === 'android') {
+    // On Android, use SAF to let the user pick a folder and save directly there
+    // (no Share sheet — the file lands in the chosen directory).
+    const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync()
+    if (!permissions.granted) return { saves: saves.length, collections: collections.length }
+
+    const destUri = await FileSystem.StorageAccessFramework.createFileAsync(
+      permissions.directoryUri,
+      filename,
+      'application/json',
+    )
+    await FileSystem.writeAsStringAsync(destUri, json, { encoding: FileSystem.EncodingType.UTF8 })
+  } else {
+    // On iOS, the Share sheet is the native way to "Save to Files".
+    const cacheUri = `${FileSystem.cacheDirectory}${filename}`
+    await FileSystem.writeAsStringAsync(cacheUri, json)
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(cacheUri, {
+        mimeType: 'application/json',
+        dialogTitle: 'Save Trove backup',
+        UTI: 'public.json',
+      })
+    }
   }
+
   return { saves: saves.length, collections: collections.length }
 }
 
@@ -47,7 +66,7 @@ export async function importData(): Promise<{ saves: number; collections: number
   })
   if (res.canceled || !res.assets?.length) return null
 
-  const raw = await FileSystem.readAsStringAsync(res.assets[0].uri)
+  const raw = await fetch(res.assets[0].uri).then(r => r.text())
   let parsed: Partial<Backup>
   try {
     parsed = JSON.parse(raw)

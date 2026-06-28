@@ -20,7 +20,7 @@ import * as ImagePicker from 'expo-image-picker'
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
 import { DEFAULT_COLLECTION_ICON, IoniconName } from '../constants/icons'
 import { SaveType, OGMetadata, AISuggestion, Collection } from '../types'
-import { fetchOGMetadata, suggestForSave } from '../lib/ai'
+import { fetchOGMetadata, suggestForSave, suggestNoteTitle } from '../lib/ai'
 import { fetchCollections, findSaveByUrl } from '../lib/db'
 import { uploadMedia } from '../lib/storage'
 import { getSettings } from '../lib/settings'
@@ -76,6 +76,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   const [showNewColl, setShowNewColl] = useState(false)
   const [newColl, setNewColl] = useState('')
   const [customColl, setCustomColl] = useState<string | null>(null)
+  const [suggestingTitle, setSuggestingTitle] = useState(false)
 
   // Load real collections once on mount for AI suggestions
   useEffect(() => {
@@ -133,7 +134,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
     }
 
     setStep('preview')
-  }, [])
+  }, [collections])
 
   // Slide the sheet in/out. When opening with initialUrl, skip the input step
   // and go straight to loading so the user sees the spinner immediately.
@@ -228,16 +229,50 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   const handleDirectSave = () => {
     if (!input.trim()) return
     const d: Draft = {
-      url: '',
+      url: input.trim(),
       type,
-      title: type === 'note' ? input.trim().slice(0, 80) : input.trim(),
-      description: type === 'note' ? input.trim() : '',
+      title: input.trim(),
+      description: '',
       collection: '',
       tags: [],
     }
-    if (type !== 'note') d.url = input.trim()
     onSave?.(d)
     onClose()
+  }
+
+  // Note-specific flow: AI suggests a title, then show preview step.
+  const handleNotePreview = async () => {
+    if (!input.trim()) return
+    setError('')
+    setStep('loading')
+    setLoadingStatus('Thinking of a title…')
+
+    let title = ''
+    try {
+      title = await suggestNoteTitle(input.trim())
+    } catch { /* fall through to empty */ }
+
+    setDraft({
+      url: '',
+      type: 'note',
+      title: title || input.trim().slice(0, 60),
+      description: input.trim(),
+      imageUrl: undefined,
+      collection: 'Read Later',
+      tags: [],
+    })
+    setStep('preview')
+  }
+
+  // Re-suggest title for the current draft note.
+  const handleResuggestTitle = async () => {
+    if (!draft?.description || suggestingTitle) return
+    setSuggestingTitle(true)
+    try {
+      const title = await suggestNoteTitle(draft.description)
+      if (title) setDraft(d => d ? { ...d, title } : d)
+    } catch { /* keep current */ }
+    setSuggestingTitle(false)
   }
 
   const handleSaveDraft = () => {
@@ -371,11 +406,13 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                   ) : (
                     <TouchableOpacity
                       style={[styles.primaryBtn, !input.trim() && styles.btnDisabled]}
-                      onPress={handleDirectSave}
+                      onPress={type === 'note' ? handleNotePreview : handleDirectSave}
                       disabled={!input.trim()}
                       activeOpacity={0.85}
                     >
-                      <Text style={styles.primaryBtnText}>Save to Inbox</Text>
+                      <Text style={styles.primaryBtnText}>
+                        {type === 'note' ? 'Preview & Title  →' : 'Save to Inbox'}
+                      </Text>
                     </TouchableOpacity>
                   )}
                 </>
@@ -410,14 +447,31 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                 </View>
               ) : null}
 
-              {/* Editable title */}
-              <TextInput
-                style={styles.previewTitle}
-                value={draft.title}
-                onChangeText={v => setDraft(d => d ? { ...d, title: v } : d)}
-                multiline
-                numberOfLines={2}
-              />
+              {/* Editable title + AI suggest button (notes only) */}
+              <View style={styles.titleRow}>
+                <TextInput
+                  style={[styles.previewTitle, styles.previewTitleFlex]}
+                  value={draft.title}
+                  onChangeText={v => setDraft(d => d ? { ...d, title: v } : d)}
+                  multiline
+                  numberOfLines={2}
+                  placeholder="Add a title…"
+                  placeholderTextColor={COLORS.muted}
+                />
+                {draft.type === 'note' && (
+                  <TouchableOpacity
+                    onPress={handleResuggestTitle}
+                    style={styles.suggestTitleBtn}
+                    activeOpacity={0.7}
+                    disabled={suggestingTitle}
+                  >
+                    {suggestingTitle
+                      ? <ActivityIndicator size="small" color={COLORS.accent} />
+                      : <Ionicons name="sparkles" size={16} color={COLORS.accent} />
+                    }
+                  </TouchableOpacity>
+                )}
+              </View>
 
               {draft.description ? (
                 <Text style={styles.previewDesc} numberOfLines={2}>{draft.description}</Text>
@@ -686,13 +740,25 @@ const styles = StyleSheet.create({
     color: COLORS.textSub,
     letterSpacing: 0.3,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
   previewTitle: {
     fontSize: 18,
     fontFamily: FONTS.serif,
     color: COLORS.text,
     lineHeight: 24,
-    marginBottom: SPACING.sm,
     paddingVertical: 0,
+  },
+  previewTitleFlex: {
+    flex: 1,
+  },
+  suggestTitleBtn: {
+    marginTop: 3,
+    padding: 4,
   },
   previewDesc: {
     fontSize: 13,

@@ -7,6 +7,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
@@ -15,7 +16,7 @@ import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save, Collection, OrganizeSuggestion } from '../../types'
 import SaveCard from '../../components/SaveCard'
 import AIOrganize from '../../components/AIOrganize'
-import { fetchLibrarySaves, fetchInboxSaves, fetchCollections, fetchProfile } from '../../lib/db'
+import { fetchLibrarySaves, fetchInboxSaves, fetchCollections, fetchProfile, deleteSave } from '../../lib/db'
 import { applyOrganizeSuggestions } from '../../lib/organize'
 
 type FilterId = 'all' | 'fav' | 'link' | 'image' | 'video' | 'note'
@@ -48,6 +49,10 @@ export default function LibraryScreen() {
   const [userName, setUserName] = useState<string | null>(null)
   const [filter, setFilter] = useState<FilterId>('all')
   const [aiVisible, setAiVisible] = useState(false)
+
+  // Bulk selection
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const loadData = useCallback(async () => {
     const [lib, inbox, cols] = await Promise.all([
@@ -83,6 +88,48 @@ export default function LibraryScreen() {
     await loadData()
   }, [loadData])
 
+  // ── Selection helpers ──────────────────────────────────────────────────────
+
+  const enterSelection = (saveId: string) => {
+    setSelectionMode(true)
+    setSelectedIds(new Set([saveId]))
+  }
+
+  const toggleSelect = (saveId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(saveId)) next.delete(saveId)
+      else next.add(saveId)
+      return next
+    })
+  }
+
+  const cancelSelection = () => {
+    setSelectionMode(false)
+    setSelectedIds(new Set())
+  }
+
+  const handleBulkDelete = () => {
+    Alert.alert(
+      `Delete ${selectedIds.size} ${selectedIds.size === 1 ? 'save' : 'saves'}?`,
+      'This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await Promise.all([...selectedIds].map(id => deleteSave(id)))
+            setSaves(prev => prev.filter(s => !selectedIds.has(s.id)))
+            cancelSelection()
+          },
+        },
+      ]
+    )
+  }
+
+  // ── Derived state ──────────────────────────────────────────────────────────
+
   const shown = useMemo(
     () =>
       saves.filter(s => {
@@ -101,30 +148,50 @@ export default function LibraryScreen() {
     .toUpperCase()
 
   return (
-    <>
+    <View style={[styles.wrapper, { paddingTop: insets.top }]}>
+      {/* Selection action bar — floats above content when active */}
+      {selectionMode && (
+        <View style={styles.selectionBar}>
+          <TouchableOpacity onPress={cancelSelection} style={styles.selBarBtn} activeOpacity={0.7}>
+            <Text style={styles.selBarCancel}>Cancel</Text>
+          </TouchableOpacity>
+          <Text style={styles.selBarCount}>{selectedIds.size} selected</Text>
+          <TouchableOpacity
+            onPress={handleBulkDelete}
+            style={[styles.selBarBtn, selectedIds.size === 0 && styles.selBarBtnDisabled]}
+            disabled={selectedIds.size === 0}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="trash-outline" size={20} color={selectedIds.size > 0 ? '#e53e3e' : COLORS.muted} />
+          </TouchableOpacity>
+        </View>
+      )}
+
       <ScrollView
-        style={[styles.container, { paddingTop: insets.top }]}
+        style={styles.container}
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} colors={[COLORS.accent]} />
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Greeting header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.greetingTop}>{getGreeting()},</Text>
-            <Text style={styles.greetingName} numberOfLines={1}>{userName ?? 'there'}.</Text>
-            <View style={styles.subRow}>
-              <Text style={styles.kicker}>{saves.length} SAVED</Text>
-              <View style={styles.dot} />
-              <Text style={styles.kickerAccent}>{dateLabel}</Text>
+        {/* Greeting header — hidden in selection mode */}
+        {!selectionMode && (
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <Text style={styles.greetingTop}>{getGreeting()},</Text>
+              <Text style={styles.greetingName} numberOfLines={1}>{userName ?? 'there'}.</Text>
+              <View style={styles.subRow}>
+                <Text style={styles.kicker}>{saves.length} SAVED</Text>
+                <View style={styles.dot} />
+                <Text style={styles.kickerAccent}>{dateLabel}</Text>
+              </View>
             </View>
+            <TouchableOpacity style={styles.avatar} onPress={() => router.push('/account')} activeOpacity={0.75}>
+              <Text style={styles.avatarText}>{userName ? userName.charAt(0).toUpperCase() : '?'}</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.avatar} onPress={() => router.push('/account')} activeOpacity={0.75}>
-            <Text style={styles.avatarText}>{userName ? userName.charAt(0).toUpperCase() : '?'}</Text>
-          </TouchableOpacity>
-        </View>
+        )}
 
         {/* Filter chips */}
         <ScrollView
@@ -150,7 +217,7 @@ export default function LibraryScreen() {
         </ScrollView>
 
         {/* Inbox banner */}
-        {inboxSaves.length > 0 && (
+        {!selectionMode && inboxSaves.length > 0 && (
           <View style={styles.banner}>
             <View style={styles.bannerOrb}>
               <Ionicons name="sparkles" size={20} color="#fff" />
@@ -167,7 +234,9 @@ export default function LibraryScreen() {
           </View>
         )}
 
-        {shown.length === 0 ? (
+        {loading ? (
+          <ActivityIndicator color={COLORS.accent} style={styles.loader} />
+        ) : shown.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>◇</Text>
             <Text style={styles.emptyTitle}>Nothing saved yet</Text>
@@ -176,10 +245,26 @@ export default function LibraryScreen() {
         ) : (
           <View style={styles.grid}>
             <View style={styles.col}>
-              {leftCol.map(save => <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />)}
+              {leftCol.map(save => (
+                <SaveCard
+                  key={save.id}
+                  save={save}
+                  selected={selectionMode ? selectedIds.has(save.id) : undefined}
+                  onPress={() => selectionMode ? toggleSelect(save.id) : router.push(`/save/${save.id}`)}
+                  onLongPress={() => !selectionMode && enterSelection(save.id)}
+                />
+              ))}
             </View>
             <View style={styles.col}>
-              {rightCol.map(save => <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />)}
+              {rightCol.map(save => (
+                <SaveCard
+                  key={save.id}
+                  save={save}
+                  selected={selectionMode ? selectedIds.has(save.id) : undefined}
+                  onPress={() => selectionMode ? toggleSelect(save.id) : router.push(`/save/${save.id}`)}
+                  onLongPress={() => !selectionMode && enterSelection(save.id)}
+                />
+              ))}
             </View>
           </View>
         )}
@@ -192,14 +277,28 @@ export default function LibraryScreen() {
         collections={collections}
         onApply={handleApply}
       />
-    </>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
+  wrapper: { flex: 1, backgroundColor: COLORS.bg },
+  container: { flex: 1 },
   content: { paddingBottom: SPACING.xl * 2 },
 
+  // Selection bar
+  selectionBar: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.bg,
+  },
+  selBarBtn: { padding: SPACING.xs },
+  selBarBtnDisabled: { opacity: 0.4 },
+  selBarCancel: { fontSize: 15, fontFamily: FONTS.sansMed, color: COLORS.accent },
+  selBarCount: { flex: 1, textAlign: 'center', fontSize: 15, fontFamily: FONTS.sansSemi, color: COLORS.text },
+
+  // Greeting header
   header: {
     flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between',
     paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, paddingBottom: SPACING.lg,

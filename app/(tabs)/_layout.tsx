@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import * as Clipboard from 'expo-clipboard'
 import { Tabs } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useShareIntentContext } from 'expo-share-intent'
@@ -114,11 +115,24 @@ export default function TabsLayout() {
     })
   }
 
+  const handleQuickSave = async () => {
+    try {
+      const text = await Clipboard.getStringAsync()
+      const isUrl = /^https?:\/\//i.test(text.trim())
+      if (isUrl) {
+        setSharedUrl(text.trim())
+      }
+    } catch {
+      // clipboard unavailable — open normally
+    }
+    setQuickSaveVisible(true)
+  }
+
   return (
     <>
       <Tabs
         tabBar={(props) => (
-          <CustomTabBar {...props} onQuickSave={() => setQuickSaveVisible(true)} />
+          <CustomTabBar {...props} onQuickSave={handleQuickSave} />
         )}
         screenOptions={{ headerShown: false }}
       >

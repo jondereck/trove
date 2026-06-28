@@ -57,6 +57,19 @@ function parseJSON<T>(text: string, fallback: T): T {
   }
 }
 
+// ── Note title suggestion ─────────────────────────────────────────────────────
+
+export async function suggestNoteTitle(content: string): Promise<string> {
+  const prompt = `Give this note a short, descriptive title — max 8 words, title case, no quotes, no punctuation at the end:
+
+"${content.slice(0, 600)}"
+
+Reply with just the title, nothing else.`
+
+  const text = await callGPT(prompt)
+  return text.trim().replace(/^["']|["']$/g, '') || ''
+}
+
 // ── OG Metadata ───────────────────────────────────────────────────────────────
 
 export interface OGMetadata {

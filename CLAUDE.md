@@ -2,6 +2,10 @@
 
 # Trove — Claude Code Instructions
 
+## Dev Log
+All changes, bug fixes, and decisions are tracked in `DEVLOG.md` at the project root.
+**Always update `DEVLOG.md`** when making any fix or adding any feature — add a new dated entry at the top.
+
 ## What this app is
 Trove is a personal curation app — a beautiful place to save links, notes, images, and videos. Think of it as a private, organized "second brain" with AI-assisted organization. Built with Expo SDK 56 + React Native + Supabase.
 
