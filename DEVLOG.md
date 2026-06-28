@@ -4,6 +4,63 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Added: Google sign-in, email-based account linking & profile avatars
+**Files:** `lib/supabase.ts`, `lib/auth.ts` (new), `lib/storage.ts`, `components/Avatar.tsx`,
+`app/_layout.tsx`, `app/(auth)/login.tsx`, `app/(auth)/signup.tsx`, `app/account.tsx`
+
+**Google OAuth (browser-based, PKCE).** Added "Continue with Google" to the login and signup
+screens. `lib/auth.ts` `signInWithGoogle()` uses `supabase.auth.signInWithOAuth` with
+`skipBrowserRedirect`, opens the URL via `WebBrowser.openAuthSessionAsync`, parses the returned
+`code` with `Linking.parse`, and calls `exchangeCodeForSession`. Enabled `flowType: 'pkce'` in
+`lib/supabase.ts` for the mobile code-exchange flow. The existing root-layout `onAuthStateChange`
+handles the redirect + local→cloud migration, so no extra routing was needed. Apple deferred
+(iOS-only; can't build on Windows yet).
+
+**Account linking by email.** Relies on Supabase's automatic identity linking by *verified* email —
+a Google sign-in attaches to an existing email/password user instead of creating a duplicate. This
+is a Supabase dashboard setting, not app code. (Note: this links identities into one user; it does
+not merge two separately-created accounts' data.)
+
+**Avatars.** `Avatar.tsx` now renders an `<Image>` when `imageUrl` is set (gradient initials remain
+the fallback). On sign-in, `syncProviderProfile()` copies the provider's name/photo into the
+`profiles` row, but only fills blanks — never overwrites a user-set name or avatar. Manual upload via
+`lib/storage.ts` `pickAndUploadAvatar()`: square crop, quality 0.6, hard-capped at 2 MB (rejects
+oversize with `AvatarTooLargeError`), uploaded to the existing `media` bucket at
+`${user.id}/avatar.jpg` (reused to avoid a new bucket/policy), cache-busted public URL stored on the
+profile. The Account-page camera badge is now a real button wired to this.
+
+**Forgot password.** Login screen has a "Forgot password?" link → `sendPasswordReset()`
+(`resetPasswordForEmail` with a `trove://change-password` deep link). Root layout routes
+`PASSWORD_RECOVERY` events to the existing change-password screen.
+
+**Account-page cleanup.** Name edits now check the `updateProfile` result and alert on failure; the
+previously dead **Email** row is now read-only (no misleading chevron); `avatar_url` is loaded from
+the profile (was discarded).
+
+**Requires out-of-app setup before it works:** Google OAuth client in Google Cloud + Supabase Google
+provider config, `trove://` redirect URLs, automatic email-linking enabled, and `media` bucket RLS
+allowing per-user writes (already in place for media uploads).
+
+---
+
+### Changed: Library header avatar — guest vs logged-in states
+**File:** `app/(tabs)/index.tsx`
+
+The top-right avatar used to render a flat accent circle with the first initial,
+falling back to a literal "?" — which a guest (no profile name) always saw, looking
+broken.
+
+- **Logged in:** now reuses the gradient `components/Avatar.tsx` (terracotta→plum,
+  serif initials), falling back to "T" instead of "?".
+- **Guest (not logged in):** outlined neutral circle with a muted `person-outline`
+  icon, signaling "tap to sign in". Tap still routes to `/account`, whose guest view
+  funnels to `/(auth)/` via "Sign in or create account".
+- **Reactivity:** folded the profile fetch + `isLoggedIn()` check into the existing
+  `useFocusEffect`/`loadData` (removed the old mount-only `useEffect`), so the avatar
+  switches between states after sign-in/out without an app restart.
+
+---
+
 ### Fixed: Duplicate tags + stale screens not auto-refreshing
 **Files:** `components/QuickSave.tsx`, `app/save/[id].tsx`, `app/(tabs)/collections.tsx`, `app/collection/[id].tsx`
 

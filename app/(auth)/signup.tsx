@@ -12,8 +12,10 @@ import {
 } from 'react-native'
 import { Link, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../lib/supabase'
 import { updateProfile } from '../../lib/cloudDb'
+import { signInWithGoogle } from '../../lib/auth'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 
 export default function SignupScreen() {
@@ -28,6 +30,16 @@ export default function SignupScreen() {
   const [success, setSuccess] = useState(false)
   const [focused, setFocused] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
+
+  const handleGoogle = async () => {
+    setError('')
+    setGoogleLoading(true)
+    const { error } = await signInWithGoogle()
+    setGoogleLoading(false)
+    if (error) setError(error)
+    // On success the root layout's onAuthStateChange redirects to (tabs)
+  }
 
   const handleSignUp = async () => {
     setError('')
@@ -105,6 +117,29 @@ export default function SignupScreen() {
           <Text style={styles.logoStar}>✦</Text>
           <Text style={styles.wordmark}>Create account</Text>
           <Text style={styles.tagline}>Join Trove today.</Text>
+        </View>
+
+        {/* Google */}
+        <TouchableOpacity
+          style={[styles.googleBtn, googleLoading && styles.btnDisabled]}
+          onPress={handleGoogle}
+          disabled={googleLoading || loading}
+          activeOpacity={0.85}
+        >
+          {googleLoading ? (
+            <ActivityIndicator color={COLORS.text} />
+          ) : (
+            <>
+              <Ionicons name="logo-google" size={18} color={COLORS.text} />
+              <Text style={styles.googleBtnText}>Continue with Google</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
         </View>
 
         {/* Form */}
@@ -260,6 +295,40 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.serifItal,
     color: COLORS.muted,
     marginTop: SPACING.xs,
+  },
+
+  // Google + divider
+  googleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    paddingVertical: SPACING.md + 2,
+  },
+  googleBtnText: {
+    fontSize: 16,
+    fontFamily: FONTS.sansSemi,
+    color: COLORS.text,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginVertical: SPACING.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: COLORS.border,
+  },
+  dividerText: {
+    fontSize: 13,
+    fontFamily: FONTS.sans,
+    color: COLORS.muted,
   },
 
   // Form

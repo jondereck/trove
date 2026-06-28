@@ -17,5 +17,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // PKCE is required for the mobile OAuth code-exchange flow (lib/auth.ts).
+    flowType: 'pkce',
   },
 })

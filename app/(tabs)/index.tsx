@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   View,
   Text,
@@ -16,7 +16,9 @@ import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { Save, Collection, OrganizeSuggestion } from '../../types'
 import SaveCard from '../../components/SaveCard'
 import AIOrganize from '../../components/AIOrganize'
+import Avatar from '../../components/Avatar'
 import { fetchLibrarySaves, fetchInboxSaves, fetchCollections, fetchProfile, deleteSave } from '../../lib/db'
+import { isLoggedIn } from '../../lib/session'
 import { applyOrganizeSuggestions } from '../../lib/organize'
 
 type FilterId = 'all' | 'fav' | 'link' | 'image' | 'video' | 'note'
@@ -47,6 +49,7 @@ export default function LibraryScreen() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [userName, setUserName] = useState<string | null>(null)
+  const [loggedIn, setLoggedIn] = useState(isLoggedIn())
   const [filter, setFilter] = useState<FilterId>('all')
   const [aiVisible, setAiVisible] = useState(false)
 
@@ -55,18 +58,17 @@ export default function LibraryScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const loadData = useCallback(async () => {
-    const [lib, inbox, cols] = await Promise.all([
+    const [lib, inbox, cols, profile] = await Promise.all([
       fetchLibrarySaves(),
       fetchInboxSaves(),
       fetchCollections(),
+      fetchProfile(),
     ])
     setSaves(lib)
     setInboxSaves(inbox)
     setCollections(cols)
-  }, [])
-
-  useEffect(() => {
-    fetchProfile().then(p => setUserName(p?.first_name ?? null))
+    setUserName(profile?.first_name ?? null)
+    setLoggedIn(isLoggedIn())
   }, [])
 
   useFocusEffect(
@@ -187,8 +189,14 @@ export default function LibraryScreen() {
                 <Text style={styles.kickerAccent}>{dateLabel}</Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.avatar} onPress={() => router.push('/account')} activeOpacity={0.75}>
-              <Text style={styles.avatarText}>{userName ? userName.charAt(0).toUpperCase() : '?'}</Text>
+            <TouchableOpacity onPress={() => router.push('/account')} activeOpacity={0.75} style={styles.avatarBtn}>
+              {loggedIn ? (
+                <Avatar firstName={userName} size={36} />
+              ) : (
+                <View style={styles.guestAvatar}>
+                  <Ionicons name="person-outline" size={18} color={COLORS.muted} />
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         )}
@@ -310,11 +318,12 @@ const styles = StyleSheet.create({
   kicker: { fontSize: 11, fontFamily: FONTS.mono, color: COLORS.muted, letterSpacing: 1 },
   kickerAccent: { fontSize: 11, fontFamily: FONTS.monoMed, color: COLORS.accent, letterSpacing: 1 },
   dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: COLORS.muted },
-  avatar: {
-    width: 34, height: 34, borderRadius: 17, backgroundColor: COLORS.accent,
-    alignItems: 'center', justifyContent: 'center', marginTop: SPACING.sm,
+  avatarBtn: { marginTop: SPACING.sm },
+  guestAvatar: {
+    width: 36, height: 36, borderRadius: 18,
+    borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.card,
+    alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { fontSize: 14, fontFamily: FONTS.sansBold, color: '#fff' },
 
   chipScroll: { marginBottom: SPACING.lg },
   chipRow: { paddingHorizontal: SPACING.lg, gap: SPACING.sm },

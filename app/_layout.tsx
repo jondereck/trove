@@ -26,6 +26,7 @@ import { supabase } from '../lib/supabase'
 import { isOnboardingDismissed, subscribeOnboarding } from '../lib/firstLaunch'
 import { hasLocalData } from '../lib/localDb'
 import { migrateLocalToCloud } from '../lib/migrateLocal'
+import { syncProviderProfile } from '../lib/auth'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -72,8 +73,10 @@ export default function RootLayout() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
-      // First sign-in: lift any device-local saves into the cloud account.
+      // First sign-in: lift any device-local saves into the cloud account and
+      // pull the provider's name/photo into the profile.
       if (event === 'SIGNED_IN') {
+        syncProviderProfile()
         hasLocalData().then(has => {
           if (!has) return
           migrateLocalToCloud().then(({ saves, collections }) => {
@@ -82,6 +85,10 @@ export default function RootLayout() {
             }
           })
         })
+      }
+      // Reset-email deep link: drop the user on the change-password screen.
+      if (event === 'PASSWORD_RECOVERY') {
+        router.replace('/change-password')
       }
     })
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  ActivityIndicator,
   Alert,
   Keyboard,
   ScrollView,
@@ -22,6 +23,7 @@ import { getSettings, patchSettings } from '../lib/settings'
 import { supabase } from '../lib/supabase'
 import { isLoggedIn } from '../lib/session'
 import { exportData, importData } from '../lib/transfer'
+import { AvatarTooLargeError, pickAndUploadAvatar } from '../lib/storage'
 
 // TODO: replace with the real marketing/legal URLs once they exist.
 const HELP_URL = 'https://trove.app/help'
@@ -48,6 +50,8 @@ export default function AccountScreen() {
   const [first, setFirst] = useState('')
   const [last, setLast] = useState('')
   const [email, setEmail] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [counts, setCounts] = useState({ saves: 0, collections: 0 })
   const [autoOrganize, setAutoOrganize] = useState(true)
 
@@ -57,11 +61,26 @@ export default function AccountScreen() {
       fetchProfile().then(p => {
         setFirst(p?.first_name ?? '')
         setLast(p?.last_name ?? '')
+        setAvatarUrl(p?.avatar_url ?? null)
       })
     }
     fetchCounts().then(setCounts)
     getSettings().then(s => setAutoOrganize(s.autoOrganize))
   }, [loggedIn])
+
+  const handleChangeAvatar = useCallback(async () => {
+    if (uploadingAvatar) return
+    setUploadingAvatar(true)
+    try {
+      const url = await pickAndUploadAvatar()
+      if (url) setAvatarUrl(url)
+    } catch (e: any) {
+      const msg = e instanceof AvatarTooLargeError ? e.message : e?.message ?? String(e)
+      Alert.alert('Could not update photo', msg)
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }, [uploadingAvatar])
 
   const handleExport = useCallback(async () => {
     try {
@@ -85,7 +104,11 @@ export default function AccountScreen() {
   const toggleEditing = useCallback(async () => {
     if (editing) {
       Keyboard.dismiss()
-      await updateProfile({ first_name: first.trim(), last_name: last.trim() })
+      const ok = await updateProfile({ first_name: first.trim(), last_name: last.trim() })
+      if (!ok) {
+        Alert.alert('Could not save', 'Your profile changes were not saved. Please try again.')
+        return
+      }
     }
     setEditing(e => !e)
   }, [editing, first, last])
@@ -131,11 +154,20 @@ export default function AccountScreen() {
         {/* profile */}
         <View style={styles.profile}>
           <View>
-            <Avatar firstName={first} lastName={last} size={92} ring />
+            <Avatar firstName={first} lastName={last} imageUrl={avatarUrl} size={92} ring />
             {editing && (
-              <View style={styles.cameraBadge}>
-                <Ionicons name="camera" size={15} color="#fff" />
-              </View>
+              <TouchableOpacity
+                style={styles.cameraBadge}
+                onPress={handleChangeAvatar}
+                disabled={uploadingAvatar}
+                activeOpacity={0.7}
+              >
+                {uploadingAvatar ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="camera" size={15} color="#fff" />
+                )}
+              </TouchableOpacity>
             )}
           </View>
 
@@ -205,7 +237,7 @@ export default function AccountScreen() {
         <SettingGroup title="Account">
           {loggedIn ? (
             <>
-              <SettingRow icon="mail-outline" label="Email" value={email} onPress={() => {}} />
+              <SettingRow icon="mail-outline" label="Email" value={email} />
               <SettingRow icon="lock-closed-outline" label="Change password" onPress={() => router.push('/change-password')} />
             </>
           ) : (

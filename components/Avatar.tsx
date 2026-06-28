@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native'
+import { Image, StyleSheet, Text, View } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { COLORS, FONTS } from '../constants/theme'
 
@@ -8,11 +8,13 @@ const GRADIENT = [COLORS.accent, '#8a5a86'] as const
 export default function Avatar({
   firstName,
   lastName,
+  imageUrl,
   size = 44,
   ring = false,
 }: {
   firstName?: string | null
   lastName?: string | null
+  imageUrl?: string | null
   size?: number
   ring?: boolean
 }) {
@@ -22,14 +24,21 @@ export default function Avatar({
 
   const circle = (
     <View style={styles.shadow}>
-      <LinearGradient
-        colors={GRADIENT}
-        start={{ x: 0.1, y: 0 }}
-        end={{ x: 0.9, y: 1 }}
-        style={[styles.fill, { width: size, height: size, borderRadius: size / 2 }]}
-      >
-        <Text style={[styles.initials, { fontSize: size * 0.42 }]}>{initials}</Text>
-      </LinearGradient>
+      {imageUrl ? (
+        <Image
+          source={{ uri: imageUrl }}
+          style={[styles.fill, { width: size, height: size, borderRadius: size / 2 }]}
+        />
+      ) : (
+        <LinearGradient
+          colors={GRADIENT}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={[styles.fill, { width: size, height: size, borderRadius: size / 2 }]}
+        >
+          <Text style={[styles.initials, { fontSize: size * 0.42 }]}>{initials}</Text>
+        </LinearGradient>
+      )}
     </View>
   )
 

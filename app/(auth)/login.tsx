@@ -12,7 +12,9 @@ import {
 } from 'react-native'
 import { Link } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../lib/supabase'
+import { signInWithGoogle, sendPasswordReset } from '../../lib/auth'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 
 export default function LoginScreen() {
@@ -24,6 +26,8 @@ export default function LoginScreen() {
   const [emailFocused, setEmailFocused] = useState(false)
   const [passwordFocused, setPasswordFocused] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
 
   const handleSignIn = async () => {
     if (!email.trim() || !password) return
@@ -38,6 +42,26 @@ export default function LoginScreen() {
     setLoading(false)
     if (error) setError(error.message)
     // On success the root layout's onAuthStateChange fires and redirects to (tabs)
+  }
+
+  const handleGoogle = async () => {
+    setError('')
+    setGoogleLoading(true)
+    const { error } = await signInWithGoogle()
+    setGoogleLoading(false)
+    if (error) setError(error)
+    // On success the root layout's onAuthStateChange redirects to (tabs)
+  }
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      setError('Enter your email above, then tap "Forgot password?".')
+      return
+    }
+    setError('')
+    const { error } = await sendPasswordReset(email)
+    if (error) setError(error)
+    else setResetSent(true)
   }
 
   return (
@@ -55,6 +79,29 @@ export default function LoginScreen() {
           <Text style={styles.logoStar}>✦</Text>
           <Text style={styles.wordmark}>Trove</Text>
           <Text style={styles.tagline}>Your personal library.</Text>
+        </View>
+
+        {/* Google */}
+        <TouchableOpacity
+          style={[styles.googleBtn, googleLoading && styles.btnDisabled]}
+          onPress={handleGoogle}
+          disabled={googleLoading || loading}
+          activeOpacity={0.85}
+        >
+          {googleLoading ? (
+            <ActivityIndicator color={COLORS.text} />
+          ) : (
+            <>
+              <Ionicons name="logo-google" size={18} color={COLORS.text} />
+              <Text style={styles.googleBtnText}>Continue with Google</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
         </View>
 
         {/* Form */}
@@ -102,6 +149,10 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
           </View>
+
+          <TouchableOpacity onPress={handleForgotPassword} activeOpacity={0.7} style={styles.forgotBtn}>
+            <Text style={styles.forgotText}>{resetSent ? 'Reset link sent — check your email' : 'Forgot password?'}</Text>
+          </TouchableOpacity>
 
           {error ? (
             <View style={styles.errorWrap}>
@@ -171,10 +222,53 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
 
+  // Google + divider
+  googleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    paddingVertical: SPACING.md + 2,
+  },
+  googleBtnText: {
+    fontSize: 16,
+    fontFamily: FONTS.sansSemi,
+    color: COLORS.text,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginVertical: SPACING.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: COLORS.border,
+  },
+  dividerText: {
+    fontSize: 13,
+    fontFamily: FONTS.sans,
+    color: COLORS.muted,
+  },
+
   // Form
   form: {
     gap: SPACING.md,
     marginBottom: SPACING.xl,
+  },
+  forgotBtn: {
+    alignSelf: 'flex-end',
+    marginTop: -SPACING.xs,
+  },
+  forgotText: {
+    fontSize: 13,
+    fontFamily: FONTS.sansMed,
+    color: COLORS.accent,
   },
   field: {
     gap: SPACING.xs,
