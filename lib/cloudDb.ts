@@ -126,6 +126,8 @@ export async function createSave(input: {
   collection_id?: string
   tags?: string[]
   is_inbox?: boolean
+  is_favorite?: boolean
+  created_at?: string
 }): Promise<Save | null> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -206,6 +208,7 @@ export async function createCollection(input: {
   icon?: string
   color?: string
   description?: string
+  created_at?: string
 }): Promise<Collection | null> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null

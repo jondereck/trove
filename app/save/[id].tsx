@@ -80,7 +80,7 @@ export default function SaveDetailScreen() {
 
   const addTag = () => {
     const t = tagInput.trim().toLowerCase().replace(/\s+/g, '-')
-    if (t && !tags.includes(t)) setTags(prev => [...prev, t])
+    if (t) setTags(prev => (prev.includes(t) ? prev : [...prev, t]))
     setTagInput('')
   }
 

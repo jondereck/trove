@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   View, Text, ScrollView, RefreshControl, StyleSheet,
   TouchableOpacity, ActivityIndicator, Alert, Modal, FlatList,
 } from 'react-native'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
@@ -34,7 +34,11 @@ export default function CollectionDetailScreen() {
     setSaves(items)
   }, [id])
 
-  useEffect(() => { load().finally(() => setLoading(false)) }, [load])
+  useFocusEffect(
+    useCallback(() => {
+      load().finally(() => setLoading(false))
+    }, [load])
+  )
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)

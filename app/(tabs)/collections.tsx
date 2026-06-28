@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   View,
   Text,
@@ -62,7 +62,11 @@ export default function CollectionsScreen() {
     setCollections(data)
   }, [])
 
-  useEffect(() => { loadCollections().finally(() => setLoading(false)) }, [loadCollections])
+  useFocusEffect(
+    useCallback(() => {
+      loadCollections().finally(() => setLoading(false))
+    }, [loadCollections])
+  )
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)

@@ -97,6 +97,7 @@ export async function importData(): Promise<{ saves: number; collections: number
         icon: c.icon,
         color: c.color,
         description: c.description,
+        created_at: c.created_at,
       })
       if (!created) continue
       targetId = created.id
@@ -119,6 +120,8 @@ export async function importData(): Promise<{ saves: number; collections: number
       collection_id: s.collection_id ? idMap[s.collection_id] : undefined,
       tags: s.tags,
       is_inbox: s.is_inbox,
+      is_favorite: s.is_favorite,
+      created_at: s.created_at,
     })
     if (created) importedSaves++
   }

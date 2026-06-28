@@ -316,8 +316,12 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
 
   const addTag = () => {
     const t = editingTag.trim().toLowerCase().replace(/\s+/g, '-')
-    if (t && draft && !draft.tags.includes(t) && draft.tags.length < 5) {
-      setDraft(d => d ? { ...d, tags: [...d.tags, t] } : d)
+    if (t) {
+      setDraft(d =>
+        d && !d.tags.includes(t) && d.tags.length < 5
+          ? { ...d, tags: [...d.tags, t] }
+          : d
+      )
     }
     setEditingTag('')
     setShowTagInput(false)

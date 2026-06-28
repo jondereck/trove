@@ -123,6 +123,8 @@ export async function createSave(input: {
   collection_id?: string
   tags?: string[]
   is_inbox?: boolean
+  is_favorite?: boolean
+  created_at?: string
 }): Promise<Save | null> {
   const url = input.url ? normalizeUrl(input.url) : undefined
   if (url) {
@@ -142,7 +144,8 @@ export async function createSave(input: {
     collection_id: input.collection_id,
     tags: input.tags ?? [],
     is_inbox: input.is_inbox ?? true,
-    created_at: new Date().toISOString(),
+    is_favorite: input.is_favorite ?? false,
+    created_at: input.created_at ?? new Date().toISOString(),
   }
   await persistSaves([save, ...saves])
   return save
@@ -201,6 +204,7 @@ export async function createCollection(input: {
   icon?: string
   color?: string
   description?: string
+  created_at?: string
 }): Promise<Collection | null> {
   const cols = await loadCollections()
   const col: Collection = {
@@ -210,7 +214,7 @@ export async function createCollection(input: {
     icon: input.icon ?? 'folder-outline',
     color: input.color ?? '#c0613c',
     description: input.description,
-    created_at: new Date().toISOString(),
+    created_at: input.created_at ?? new Date().toISOString(),
   }
   await persistCollections([...cols, col])
   return col

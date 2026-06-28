@@ -4,6 +4,46 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Fixed: Duplicate tags + stale screens not auto-refreshing
+**Files:** `components/QuickSave.tsx`, `app/save/[id].tsx`, `app/(tabs)/collections.tsx`, `app/collection/[id].tsx`
+
+**Duplicate tags:** Manually adding a tag could insert it twice. In QuickSave the
+`addTag` handler was wired to *both* `onSubmitEditing` and `onBlur`, so pressing
+"done" fired it twice; the dedup guard (`!draft.tags.includes(t)`) read stale closure
+state and missed the duplicate. Fixed by moving the dedup *inside* the functional
+state updater in both QuickSave and the save detail screen, making `addTag`
+idempotent regardless of how many times it fires.
+
+**Stale screens:** Edits weren't showing until a manual pull-to-refresh. The
+Collections tab (`collections.tsx`) and the collection detail screen
+(`collection/[id].tsx`) loaded data with a mount-only `useEffect`, so navigating
+back after a change didn't refetch. Switched both to `useFocusEffect` (matching the
+Library and Inbox screens) so they reload every time they regain focus.
+
+---
+
+### Fixed: Backup/restore now preserves favorites and original dates
+**Files:** `lib/transfer.ts`, `lib/cloudDb.ts`, `lib/localDb.ts`
+
+The export already wrote every save (Library + Inbox) and every collection with full
+fields to JSON, but `importData()` was dropping two fields on restore:
+- **`is_favorite`** — favorites were lost; `createSave` didn't even accept the field.
+- **`created_at`** — every restored item got a fresh "now" timestamp, scrambling
+  chronological order.
+
+Changes:
+- Added optional `is_favorite` + `created_at` to `createSave` (cloud + local) and
+  `created_at` to `createCollection` (cloud + local). When omitted (normal QuickSave
+  use) behavior is unchanged — DB/local defaults apply.
+- `importData()` now passes `is_favorite` and `created_at` for saves and `created_at`
+  for collections.
+- Restore stays **skip-duplicates**: existing same-name collections are reused and
+  same-URL saves are skipped, so re-importing is idempotent.
+
+This makes the JSON backup a true full restore of all saves and collections.
+
+---
+
 ## 2026-06-28 (session 5)
 
 ### Changed: SaveCard — brand icons + natural tag row clipping
