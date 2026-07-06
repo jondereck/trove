@@ -96,12 +96,25 @@ serve(async (req) => {
 
     const jsonLd = isTikTok ? extractJsonLd(html) : {}
 
-    const result = {
+    let result = {
       url,
       title: og(html, 'title') ?? meta(html, 'twitter:title') ?? jsonLd.title ?? titleTag ?? hostname,
       description: og(html, 'description') ?? meta(html, 'description') ?? meta(html, 'twitter:description') ?? jsonLd.description ?? null,
       image: og(html, 'image') ?? meta(html, 'twitter:image') ?? jsonLd.image ?? null,
       siteName: og(html, 'site_name') ?? hostname,
+    }
+
+    // Meta (Facebook/Instagram) increasingly serves a generic login-wall page
+    // instead of the real og: tags to non-residential IPs, even with the
+    // crawler UA. That page still has *some* meta tags, so it looks like a
+    // success — but the title/description are about logging in, not the
+    // shared content. Detect it and fall back to "no metadata" so the app
+    // shows the bare URL instead of a misleading "Login • Instagram" card.
+    const isLoginWall =
+      /^Log ?in/i.test(result.title) ||
+      /welcome back to instagram|log in to (see|check out)|you must log in/i.test(result.description ?? '')
+    if (isLoginWall) {
+      result = { url, title: hostname, description: null, image: null, siteName: hostname }
     }
 
     return new Response(JSON.stringify(result), {

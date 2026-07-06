@@ -4,6 +4,50 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Fixed: Image/video saves broke when signed out; Instagram OG scrape showed a login wall
+**Files:** `lib/storage.ts`, `lib/migrateLocal.ts`, `supabase/functions/fetch-og/index.ts`
+
+**Local-first audit.** Went through the data layer to confirm the app is usable with zero
+Supabase account (cloud sync should be opt-in, not required). `lib/db.ts` already routes
+transparently between `cloudDb.ts`/`localDb.ts` based on session, no screen is auth-gated, and
+`lib/ai.ts`'s organize/tag/collection suggestions never check login. One real gap found:
+
+- **`uploadMedia()`** (`lib/storage.ts`) always uploaded gallery-picked images/videos to Supabase
+  Storage. Signed out, `supabase.auth.getUser()` is `null`, so it returned `null` and QuickSave
+  showed "Upload failed" — Image/Video save types were unusable without an account. Fixed by
+  adding `saveMediaLocally()`: signed-out picks are written to `${documentDirectory}media/` and
+  the local `file://` URI is used as the save's `image_url`/`url`, same as a cloud URL would be.
+- **`migrateLocalToCloud()`** (`lib/migrateLocal.ts`) now re-uploads any local `file://` media it
+  finds to cloud storage during the local→cloud migration on sign-in, via the same `uploadMedia()`
+  (now running signed-in, so it takes the upload branch). Otherwise a migrated save would keep
+  pointing at a path that only resolves on the original device.
+
+**Meta OG-scrape regression.** Manual test showed Instagram/Facebook thumbnails no longer
+scraping (previously fixed in the 2026-06-28 session-1 entry). Root cause is external, not a
+code bug: Meta has tightened bot detection specifically against the Supabase Edge Function's
+(Deno Deploy) egress IPs —
+- **Facebook** now times out entirely for that IP range (8s `AbortSignal.timeout` fires every
+  time), even though the same URL resolves in under a second from a normal residential IP.
+- **Instagram** returns HTTP 200 but with a generic **login-wall page** ("Login • Instagram",
+  "Welcome back to Instagram...") instead of the real profile/post page — so the scrape looked
+  successful but saved wrong metadata.
+- **Threads** (same company, different domain/edge) is unaffected and still scrapes correctly.
+
+No code fix can bypass an IP-based block from outside our infra. What was fixed: `fetch-og`
+now detects the Instagram login-wall pattern (title starting with "Log in", or description
+containing "welcome back to instagram" / "log in to check out") and falls back to the bare
+hostname (same graceful degrade QuickSave already does on a hard fetch error), instead of
+saving misleading login-page text as the item's title/description. Facebook's timeout already
+degraded gracefully (QuickSave catches the error and falls back to hostname) — no change needed
+there beyond noting it. Deployed via `npx supabase functions deploy fetch-og`.
+
+**Known limitation (updated):** Facebook link previews will have no thumbnail/description for
+the foreseeable future — this is Meta blocking the hosting IP range, not fixable short of moving
+the scraper off Supabase Edge Functions (Deno Deploy) to different infra, which is a bigger call
+to make later if it matters enough.
+
+---
+
 ### Added: Google sign-in, email-based account linking & profile avatars
 **Files:** `lib/supabase.ts`, `lib/auth.ts` (new), `lib/storage.ts`, `components/Avatar.tsx`,
 `app/_layout.tsx`, `app/(auth)/login.tsx`, `app/(auth)/signup.tsx`, `app/account.tsx`

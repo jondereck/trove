@@ -6,17 +6,36 @@ import { updateProfile } from './cloudDb'
 
 const BUCKET = 'media'
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024 // 2 MB cap on avatar uploads
+const LOCAL_MEDIA_DIR = `${FileSystem.documentDirectory}media/`
 
-// Uploads a gallery-picked image/video (base64) to the public `media` bucket
-// and returns its public URL, or null on failure. Files are namespaced under
-// the user's id so the storage RLS policy can scope writes per user.
+// Persists a gallery-picked image/video to on-device storage for signed-out
+// (local-only) use, returning a file:// URI to store as the save's image_url.
+async function saveMediaLocally(base64: string, ext: string): Promise<string | null> {
+  try {
+    const dirInfo = await FileSystem.getInfoAsync(LOCAL_MEDIA_DIR)
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(LOCAL_MEDIA_DIR, { intermediates: true })
+    }
+    const path = `${LOCAL_MEDIA_DIR}${Date.now()}.${ext}`
+    await FileSystem.writeAsStringAsync(path, base64, { encoding: 'base64' })
+    return path
+  } catch (e) {
+    console.error('saveMediaLocally:', e)
+    return null
+  }
+}
+
+// Signed in: uploads a gallery-picked image/video (base64) to the public
+// `media` bucket, namespaced under the user's id so the storage RLS policy
+// can scope writes per user. Signed out: saves it on-device instead, so
+// image/video saves work fully offline without an account.
 export async function uploadMedia(
   base64: string,
   ext: string,
   contentType: string
 ): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  if (!user) return saveMediaLocally(base64, ext)
 
   const path = `${user.id}/${Date.now()}.${ext}`
   const { error } = await supabase.storage
