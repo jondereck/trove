@@ -4,6 +4,27 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Released: v1.1.0 (versionCode 2) — first production-signed APK (2026-07-06)
+**Files:** `app.json` (version 1.1.0, versionCode 2), `app/account.tsx` (footer version now read from
+`Constants.expoConfig` via new `expo-constants` dep)
+
+Built `android/app/build/outputs/apk/release/app-release.apk` (85 MB) and copied to
+`Desktop/trove-v1.1.0-release.apk`. Verified with apksigner: **V2 signer CN=Trove** (production
+keystore, no longer the debug key); aapt confirms `versionCode='2' versionName='1.1.0'`.
+
+- Gotcha #1: the first keystore was created with an empty password (a PowerShell inline
+  password-generation one-liner silently produced ''), so Gradle failed with "keystore password was
+  incorrect" at `:app:packageRelease`. Regenerated the keystore with a step-verified password
+  (keytool -list must pass before the props file is written). If signing ever fails this way again,
+  check `~/.gradle/gradle.properties` for an empty `TROVE_UPLOAD_STORE_PASSWORD=` line first.
+- Gotcha #2: `keytool -printcert -jarfile` says "Not a signed jar file" for this APK — that's
+  expected (v2/v3 signature scheme only, no legacy v1). Use
+  `apksigner verify --print-certs <apk>` instead.
+- Note: this build still embeds `EXPO_PUBLIC_OPENAI_API_KEY` because `ai-proxy` isn't deployed yet
+  (see manual steps below). After deploying, remove the key from `.env.local` and rebuild.
+
+---
+
 ### Added: Zip backups with media, thumbnail repair, upload limits, secure AI key, release signing (2026-07-06)
 **Files:** `lib/transfer.ts` (rewrite), `lib/storage.ts`, `lib/thumbnailRepair.ts` (new), `lib/ai.ts`,
 `lib/migrateLocal.ts`, `components/QuickSave.tsx`, `components/SaveCard.tsx`, `components/AIOrganize.tsx`,

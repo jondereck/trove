@@ -13,6 +13,7 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
+import Constants from 'expo-constants'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme'
@@ -278,7 +279,7 @@ export default function AccountScreen() {
           </SettingGroup>
         )}
 
-        <Text style={styles.footer}>Trove v1.0 · made with care</Text>
+        <Text style={styles.footer}>Trove v{Constants.expoConfig?.version ?? '1.1.0'} · made with care</Text>
       </ScrollView>
     </View>
   )
