@@ -22,7 +22,7 @@ import { DEFAULT_COLLECTION_ICON, IoniconName } from '../constants/icons'
 import { SaveType, OGMetadata, AISuggestion, Collection } from '../types'
 import { fetchOGMetadata, suggestForSave, suggestNoteTitle } from '../lib/ai'
 import { fetchCollections, findSaveByUrl } from '../lib/db'
-import { uploadMedia } from '../lib/storage'
+import { prepareMediaForUpload, uploadMedia } from '../lib/storage'
 import { getSettings } from '../lib/settings'
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window')
@@ -196,17 +196,19 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
     if (result.canceled || !result.assets?.length) return
 
     const asset = result.assets[0]
-    if (!asset.base64) {
-      setError('Could not read the selected file.')
+    setStep('loading')
+    setLoadingStatus('Preparing media…')
+
+    let publicUrl: string | null = null
+    try {
+      const media = await prepareMediaForUpload(asset, kind === 'video' ? 'video' : 'image')
+      setLoadingStatus('Uploading to your library…')
+      publicUrl = await uploadMedia(media.base64, media.ext, media.mime)
+    } catch (e: any) {
+      setError(e?.message ?? 'Could not read the selected file.')
+      setStep('input')
       return
     }
-
-    setStep('loading')
-    setLoadingStatus('Uploading to your library…')
-
-    const mime = asset.mimeType ?? (kind === 'video' ? 'video/mp4' : 'image/jpeg')
-    const ext = mime.split('/')[1] ?? (kind === 'video' ? 'mp4' : 'jpg')
-    const publicUrl = await uploadMedia(asset.base64, ext, mime)
 
     if (!publicUrl) {
       setError('Upload failed. Please try again.')

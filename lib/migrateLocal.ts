@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy'
 import * as cloud from './cloudDb'
 import { clearLocalData, loadLocalData } from './localDb'
-import { uploadMedia } from './storage'
+import { LOCAL_MEDIA_DIR, uploadMedia } from './storage'
 
 // One-shot upload of device-local saves/collections into the freshly signed-in
 // user's cloud account. Called from app/_layout.tsx on the SIGNED_IN event.
@@ -9,8 +9,6 @@ import { uploadMedia } from './storage'
 // Collections are created first to build a localId → cloudId map, then saves are
 // recreated with their collection_id remapped. createSave dedupes by URL, so a
 // re-run can't duplicate links. On success the local store is cleared.
-
-const LOCAL_MEDIA_DIR = `${FileSystem.documentDirectory}media/`
 
 // Image/video saves made while signed out point at a file:// URI in on-device
 // storage (see lib/storage.ts saveMediaLocally). That path is only valid on

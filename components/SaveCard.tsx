@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { View, Text, Image, Animated, Pressable, TouchableOpacity, StyleSheet } from 'react-native'
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
 import { Save } from '../types'
 import { updateSave } from '../lib/db'
+import { repairThumbnail } from '../lib/thumbnailRepair'
 
 function getDomain(url?: string): string {
   if (!url) return ''
@@ -201,11 +202,27 @@ export default function SaveCard({ save, onPress, onLongPress, selected, onFavor
 function LinkCard({ save }: { save: Save }) {
   const domain = getDomain(save.url)
   const [imgError, setImgError] = useState(false)
+  const [imageUrl, setImageUrl] = useState(save.image_url)
+
+  // Self-heal a missing or broken thumbnail with one throttled OG refetch
+  // (repairThumbnail no-ops if this save was already attempted in the last 24h).
+  useEffect(() => {
+    if (imageUrl && !imgError) return
+    let alive = true
+    repairThumbnail(save).then(url => {
+      if (alive && url) {
+        setImageUrl(url)
+        setImgError(false)
+      }
+    })
+    return () => { alive = false }
+  }, [imgError, imageUrl])
+
   return (
     <>
-      {save.image_url && !imgError && (
+      {imageUrl && !imgError && (
         <Image
-          source={{ uri: save.image_url }}
+          source={{ uri: imageUrl }}
           style={styles.heroImage}
           resizeMode="cover"
           onError={() => setImgError(true)}

@@ -196,7 +196,7 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
                 </Animated.View>
               </View>
               <Text style={styles.loadingTitle}>Analyzing your inbox</Text>
-              <Text style={styles.loadingSubtitle}>Asking Claude to suggest collections and tags…</Text>
+              <Text style={styles.loadingSubtitle}>Finding the right collections and tags…</Text>
               <ActivityIndicator color={COLORS.accent} style={{ marginTop: SPACING.md }} />
             </View>
           )}

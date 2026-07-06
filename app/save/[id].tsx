@@ -10,6 +10,7 @@ import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
 import { Save, Collection } from '../../types'
 import { fetchSaveById, updateSave, deleteSave, fetchCollections } from '../../lib/db'
+import { repairThumbnail } from '../../lib/thumbnailRepair'
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
@@ -39,6 +40,7 @@ export default function SaveDetailScreen() {
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
   const [selectedCollection, setSelectedCollection] = useState<string | undefined>()
+  const [refreshingPreview, setRefreshingPreview] = useState(false)
 
   const load = useCallback(async () => {
     const [s, cols] = await Promise.all([fetchSaveById(id), fetchCollections()])
@@ -76,6 +78,18 @@ export default function SaveDetailScreen() {
         },
       },
     ])
+  }
+
+  const handleRefreshPreview = async () => {
+    if (!save || refreshingPreview) return
+    setRefreshingPreview(true)
+    const url = await repairThumbnail(save, { force: true })
+    setRefreshingPreview(false)
+    if (url) {
+      setSave(prev => prev ? { ...prev, image_url: url } : prev)
+    } else {
+      Alert.alert('No preview found', 'This page did not offer a preview image.')
+    }
   }
 
   const addTag = () => {
@@ -148,6 +162,21 @@ export default function SaveDetailScreen() {
           {save.url && (
             <TouchableOpacity onPress={() => save.url && Linking.openURL(save.url)} activeOpacity={0.7}>
               <Text style={styles.domain}>{getDomain(save.url)} ↗</Text>
+            </TouchableOpacity>
+          )}
+          {!editing && save.type === 'link' && !!save.url && (
+            <TouchableOpacity
+              onPress={handleRefreshPreview}
+              disabled={refreshingPreview}
+              style={styles.refreshBtn}
+              activeOpacity={0.7}
+            >
+              {refreshingPreview ? (
+                <ActivityIndicator size="small" color={COLORS.accent} />
+              ) : (
+                <Ionicons name="refresh-outline" size={14} color={COLORS.accent} />
+              )}
+              <Text style={styles.refreshText}>Refresh preview</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -286,6 +315,8 @@ const styles = StyleSheet.create({
   typeBadge: { borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3 },
   typeBadgeText: { fontSize: 10, fontFamily: FONTS.sansBold, letterSpacing: 0.8 },
   domain: { fontSize: 13, fontFamily: FONTS.sans, color: COLORS.accent },
+  refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' },
+  refreshText: { fontSize: 12, fontFamily: FONTS.sansMed, color: COLORS.accent },
   title: { fontSize: 22, fontFamily: FONTS.serif, color: COLORS.text, lineHeight: 30 },
   titleInput: {
     fontSize: 22, fontFamily: FONTS.serif, color: COLORS.text, lineHeight: 30,

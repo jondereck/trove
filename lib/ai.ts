@@ -1,5 +1,7 @@
 import { Save, Collection, AISuggestion, OrganizeSuggestion } from '../types'
 import { getSettings } from './settings'
+import { supabase } from './supabase'
+import { isLoggedIn } from './session'
 
 const OPENAI_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? ''
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''
@@ -19,8 +21,18 @@ RESPONSE FORMAT — JSON only, no markdown, no explanation:
 - Single item: {"collection": "Name", "tags": ["tag1", "tag2"]}
 - Multiple items: [{"collection": "Name", "tags": ["tag1", "tag2"]}, ...]`
 
+// Dev builds with EXPO_PUBLIC_OPENAI_API_KEY call OpenAI directly. Release
+// builds leave it unset so signed-in users route through the ai-proxy Edge
+// Function (key stays server-side) and guests degrade to inert defaults.
 async function callGPT(userPrompt: string): Promise<string> {
-  if (!OPENAI_KEY) return ''
+  if (!OPENAI_KEY) {
+    if (!isLoggedIn()) return ''
+    const { data, error } = await supabase.functions.invoke('ai-proxy', {
+      body: { system: SYSTEM_PROMPT, user: userPrompt, max_tokens: 512 },
+    })
+    if (error) throw new Error(`ai-proxy: ${error.message}`)
+    return data?.content ?? ''
+  }
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',

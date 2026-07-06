@@ -1,12 +1,16 @@
 import * as ImagePicker from 'expo-image-picker'
 import * as FileSystem from 'expo-file-system/legacy'
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator'
 import { decode } from 'base64-arraybuffer'
 import { supabase } from './supabase'
 import { updateProfile } from './cloudDb'
+import { isLoggedIn } from './session'
 
 const BUCKET = 'media'
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024 // 2 MB cap on avatar uploads
-const LOCAL_MEDIA_DIR = `${FileSystem.documentDirectory}media/`
+export const MAX_VIDEO_BYTES = 10 * 1024 * 1024
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+export const LOCAL_MEDIA_DIR = `${FileSystem.documentDirectory}media/`
 
 // Persists a gallery-picked image/video to on-device storage for signed-out
 // (local-only) use, returning a file:// URI to store as the save's image_url.
@@ -47,6 +51,82 @@ export async function uploadMedia(
   }
 
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
+}
+
+export class MediaTooLargeError extends Error {
+  constructor(kind: 'image' | 'video', actualBytes: number, maxBytes: number) {
+    const actual = (actualBytes / (1024 * 1024)).toFixed(1)
+    const max = Math.round(maxBytes / (1024 * 1024))
+    super(
+      kind === 'video'
+        ? `Videos up to ${max} MB can be saved (this one is ${actual} MB). Try a shorter or trimmed clip.`
+        : `Photos up to ${max} MB can be saved (this one is still ${actual} MB after compression). Try a smaller photo.`
+    )
+    this.name = 'MediaTooLargeError'
+  }
+}
+
+// Validates and normalizes a gallery pick before upload: videos over the cap
+// are rejected outright (checked from fileSize before the bytes are read into
+// memory), oversized photos get downscaled to 1920px JPEG and only rejected if
+// they still exceed the cap.
+export async function prepareMediaForUpload(
+  asset: ImagePicker.ImagePickerAsset,
+  kind: 'image' | 'video'
+): Promise<{ base64: string; ext: string; mime: string }> {
+  const mime = asset.mimeType ?? (kind === 'video' ? 'video/mp4' : 'image/jpeg')
+  const ext = mime.split('/')[1] ?? (kind === 'video' ? 'mp4' : 'jpg')
+
+  if (kind === 'video') {
+    if (asset.fileSize && asset.fileSize > MAX_VIDEO_BYTES) {
+      throw new MediaTooLargeError('video', asset.fileSize, MAX_VIDEO_BYTES)
+    }
+    const base64 =
+      asset.base64 ?? (await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' }))
+    const bytes = asset.fileSize ?? base64.length * 0.75
+    if (bytes > MAX_VIDEO_BYTES) throw new MediaTooLargeError('video', bytes, MAX_VIDEO_BYTES)
+    return { base64, ext, mime }
+  }
+
+  const base64 =
+    asset.base64 ?? (await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' }))
+  const bytes = asset.fileSize ?? base64.length * 0.75
+  if (bytes <= MAX_IMAGE_BYTES) return { base64, ext, mime }
+
+  const context = ImageManipulator.manipulate(asset.uri)
+  context.resize({ width: 1920, height: null })
+  const rendered = await context.renderAsync()
+  const result = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: 0.7, base64: true })
+  const resizedBytes = (result.base64?.length ?? 0) * 0.75
+  if (!result.base64 || resizedBytes > MAX_IMAGE_BYTES) {
+    throw new MediaTooLargeError('image', resizedBytes || bytes, MAX_IMAGE_BYTES)
+  }
+  return { base64: result.base64, ext: 'jpg', mime: 'image/jpeg' }
+}
+
+// Brings a media file from an extracted backup into the active backend:
+// signed out it's copied into the local media dir (no base64 round-trip),
+// signed in the bytes are uploaded to Storage so the restored save never
+// points at a dead file:// path.
+export async function importMediaFile(srcUri: string, filename: string): Promise<string | null> {
+  try {
+    if (isLoggedIn()) {
+      const base64 = await FileSystem.readAsStringAsync(srcUri, { encoding: 'base64' })
+      const ext = filename.split('.').pop() ?? 'jpg'
+      const contentType = ext === 'mp4' ? 'video/mp4' : `image/${ext}`
+      return await uploadMedia(base64, ext, contentType)
+    }
+    const dirInfo = await FileSystem.getInfoAsync(LOCAL_MEDIA_DIR)
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(LOCAL_MEDIA_DIR, { intermediates: true })
+    }
+    const dest = `${LOCAL_MEDIA_DIR}${Date.now()}-${filename}`
+    await FileSystem.copyAsync({ from: srcUri, to: dest })
+    return dest
+  } catch (e) {
+    console.error('importMediaFile:', e)
+    return null
+  }
 }
 
 export class AvatarTooLargeError extends Error {

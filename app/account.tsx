@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Keyboard,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +15,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
-import * as WebBrowser from 'expo-web-browser'
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme'
 import Avatar from '../components/Avatar'
 import { SettingGroup, SettingRow } from '../components/Settings'
@@ -25,9 +25,7 @@ import { isLoggedIn } from '../lib/session'
 import { exportData, importData } from '../lib/transfer'
 import { AvatarTooLargeError, pickAndUploadAvatar } from '../lib/storage'
 
-// TODO: replace with the real marketing/legal URLs once they exist.
-const HELP_URL = 'https://trove.app/help'
-const PRIVACY_URL = 'https://trove.app/privacy'
+const SUPPORT_EMAIL = 'mailto:jonderecknifas@gmail.com?subject=Trove%20support'
 
 const FAINT = '#bdb9b0'
 const UPGRADE_GRADIENT = [COLORS.accent, '#7a4f86'] as const
@@ -94,7 +92,10 @@ export default function AccountScreen() {
     try {
       const res = await importData()
       if (!res) return
-      Alert.alert('Import complete', `Added ${res.saves} saves and ${res.collections} collections.`)
+      const thumbs = res.thumbnailsRepaired
+        ? ` Refetched ${res.thumbnailsRepaired} link preview${res.thumbnailsRepaired === 1 ? '' : 's'}.`
+        : ''
+      Alert.alert('Import complete', `Added ${res.saves} saves and ${res.collections} collections.${thumbs}`)
       fetchCounts().then(setCounts)
     } catch (e: any) {
       Alert.alert('Import failed', e?.message ?? String(e))
@@ -263,11 +264,10 @@ export default function AccountScreen() {
         </SettingGroup>
 
         <SettingGroup title="Support">
-          <SettingRow icon="help-circle-outline" label="Help & FAQ" onPress={() => WebBrowser.openBrowserAsync(HELP_URL)} />
           <SettingRow
-            icon="shield-checkmark-outline"
-            label="Privacy policy"
-            onPress={() => WebBrowser.openBrowserAsync(PRIVACY_URL)}
+            icon="help-circle-outline"
+            label="Contact support"
+            onPress={() => Linking.openURL(SUPPORT_EMAIL).catch(() => {})}
             last
           />
         </SettingGroup>

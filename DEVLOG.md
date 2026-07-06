@@ -4,6 +4,76 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Added: Zip backups with media, thumbnail repair, upload limits, secure AI key, release signing (2026-07-06)
+**Files:** `lib/transfer.ts` (rewrite), `lib/storage.ts`, `lib/thumbnailRepair.ts` (new), `lib/ai.ts`,
+`lib/migrateLocal.ts`, `components/QuickSave.tsx`, `components/SaveCard.tsx`, `components/AIOrganize.tsx`,
+`app/save/[id].tsx`, `app/account.tsx`, `app.json`, `plugins/withReleaseSigning.js` (new), `CLAUDE.md`
+**Deleted:** `lib/mockData.ts`, `supabase/functions/og-scrape/` (both dead code)
+**Packages:** `react-native-zip-archive` (native zip/unzip), `expo-image-manipulator` (image downscale)
+
+- **Backup format v2 (zip).** `exportData()` now produces `trove-backup-<ts>.zip` containing
+  `backup.json` (`{version: 2, exportedAt, saves, collections}`) plus a `media/` folder with every
+  device-local (`file://`) image/video. Bundled refs are rewritten to the `trove-media://<filename>`
+  sentinel; cloud `https://` Storage URLs pass through untouched (the account itself is the cloud
+  backup). Export stages in `cacheDirectory` with native `copyAsync` (no base64 round-trips of media),
+  zips natively via `react-native-zip-archive`, then SAF (Android) / share sheet (iOS).
+- **Import** accepts v2 zips AND old v1 plain-JSON backups (byte-for-byte the old path). Zips are
+  detected by name/mime plus a `PK` magic-byte sniff. Bundled media is restored via
+  `importMediaFile()`: signed-out → copied into `LOCAL_MEDIA_DIR`; signed-in → uploaded to Storage so
+  cloud rows never hold dead `file://` paths. Missing zip entries import the save without media.
+  Known limitation: re-importing the same backup duplicates image/video saves (URL dedupe only
+  covers links).
+- **Thumbnail repair** (`lib/thumbnailRepair.ts`). `repairThumbnail(save, {force})` re-runs
+  `fetchOGMetadata` for link saves with missing/broken images, throttled 24h per save via
+  AsyncStorage (`trove.thumbRepair.attempts`, recorded *before* the fetch so failures can't loop).
+  Hooks: link cards self-heal once on render/error (`SaveCard.tsx`), a "Refresh preview" action on
+  the save detail screen bypasses the throttle, and `importData()` runs a post-import pass
+  (`repairMissingThumbnails`, sequential, 25 max) whose count shows in the import alert.
+- **Upload limits.** `prepareMediaForUpload()` in `lib/storage.ts`: videos over **10 MB** are
+  rejected with the actual size in the message (checked from `fileSize` before reading bytes into
+  memory); photos over **5 MB** are downscaled to 1920px JPEG (new `expo-image-manipulator`
+  object API) and only rejected if still over the cap. Wired into QuickSave's `handlePickMedia`,
+  which also no longer requires `asset.base64` (videos are read from disk).
+- **Secure AI key.** `callGPT()` now invokes the `ai-proxy` Edge Function when
+  `EXPO_PUBLIC_OPENAI_API_KEY` is unset and the user is signed in; guests keep the silent
+  degrade. **Manual steps pending (CLI actions require explicit approval):**
+  `npx supabase functions deploy ai-proxy`, `npx supabase secrets set OPENAI_API_KEY=sk-...`,
+  `npx supabase functions delete og-scrape` (stale deployment), then remove
+  `EXPO_PUBLIC_OPENAI_API_KEY` from `.env.local` before release builds — that's what actually
+  stops the key shipping in the APK.
+- **Release signing.** Generated `C:/Users/user/keystores/trove-release.keystore` (RSA 2048,
+  alias `trove`, valid ~27 yrs); credentials live in `~/.gradle/gradle.properties`
+  (`TROVE_UPLOAD_*`, not in the repo). New `plugins/withReleaseSigning.js` config plugin injects
+  `signingConfigs.release` (guarded by `project.hasProperty`, debug fallback) so it survives
+  `prebuild --clean`. **Back up the keystore file + password** — losing them means losing the
+  ability to update a published app.
+- **Polish:** AIOrganize copy no longer says "Asking Claude" (backend is OpenAI); Account's fake
+  Help/Privacy URLs replaced by a "Contact support" mailto row (Privacy row removed until a real
+  page exists); `LOCAL_MEDIA_DIR` exported from `lib/storage.ts` instead of duplicated in
+  `migrateLocal.ts`.
+
+---
+
+### Built: First standalone release APK (2026-07-06)
+**Files:** none (build artifact only)
+
+Produced the first standalone Android APK via a local Gradle release build:
+`cd android && ./gradlew assembleRelease` (Java 17, `ANDROID_HOME` set, no `eas.json` —
+built off the prebuilt `/android` folder). Output:
+`android/app/build/outputs/apk/release/app-release.apk` (~97 MB universal, all ABIs),
+copied to `Desktop/trove-v1.0.0-release.apk`.
+
+- **Standalone confirmed:** APK embeds `assets/index.android.bundle` (4.3 MB) + Hermes
+  (`libhermesvm.so`) for arm64-v8a, armeabi-v7a, x86, x86_64 — runs without Metro.
+- **Signing caveat:** `release` buildType still uses the **debug keystore**
+  (`android/app/build.gradle` line 115). Fine for sideloading/personal install; NOT
+  acceptable for Play Store. A real production keystore + `signingConfigs.release` is
+  still TODO if/when we publish.
+- Size note: universal APK bundles all 4 ABIs. Can shrink with per-ABI splits
+  (`android.enableSeparateBuildPerCPUArchitecture`) or an AAB later.
+
+---
+
 ### Fixed: Image/video saves broke when signed out; Instagram OG scrape showed a login wall
 **Files:** `lib/storage.ts`, `lib/migrateLocal.ts`, `supabase/functions/fetch-og/index.ts`
 

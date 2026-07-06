@@ -52,8 +52,11 @@ constants/
   theme.ts             ← COLORS, FONTS, RADIUS, SPACING
 lib/
   supabase.ts          ← Supabase client with SecureStore adapter
-  ai.ts                ← AI stubs (proxied via Supabase Edge Functions)
-  mockData.ts          ← MOCK_SAVES and MOCK_COLLECTIONS for dev
+  ai.ts                ← AI calls (direct OpenAI in dev, ai-proxy Edge Function in prod)
+  db.ts                ← data router → cloudDb.ts (signed in) / localDb.ts (signed out)
+  storage.ts           ← media upload (Supabase Storage / local FS) + size limits
+  transfer.ts          ← zip backup export/import (v2) with bundled local media
+  thumbnailRepair.ts   ← re-fetch missing link thumbnails (throttled)
 types/
   index.ts             ← Save, Collection, OrganizeSuggestion interfaces
 ```
@@ -62,8 +65,8 @@ types/
 - `package.json` main = `expo-router/entry` (not `index.ts`)
 - `tsconfig.json` overrides `customConditions: []` — required because TS 6 bundler resolution breaks on RN packages that lack an `exports` field (react-native-safe-area-context, etc.)
 - npm installs use `--legacy-peer-deps` due to a react@19.2.3 vs 19.2.7 conflict from expo-router's web deps
-- AI calls hit the OpenAI API directly for now (`EXPO_PUBLIC_OPENAI_API_KEY`, `gpt-4o-mini`); production should proxy via Supabase Edge Function
-- Screens use `MOCK_SAVES` / `MOCK_COLLECTIONS` from `lib/mockData.ts` until Supabase is wired up
+- AI calls: if `EXPO_PUBLIC_OPENAI_API_KEY` is set (dev only) `lib/ai.ts` hits OpenAI directly; otherwise signed-in users route through the `ai-proxy` Edge Function (key stays server-side) and guests get inert defaults. Release builds must NOT set the public key.
+- All screens use real data via `lib/db.ts` (local AsyncStorage when signed out, Supabase when signed in)
 - Share intent: `ShareIntentProvider` wraps the root layout; `useShareIntentContext` in `(tabs)/_layout.tsx` opens QuickSave with `initialUrl` when a URL is shared from Chrome/Safari
 - `expo-share-intent` requires a **dev build** (not Expo Go) — run `npx expo run:android` or `npx expo run:ios` after prebuild
 - iOS native project (`/ios`) must be generated on macOS; on Windows only Android (`/android`) is produced by prebuild
