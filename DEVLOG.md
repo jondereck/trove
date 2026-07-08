@@ -4,6 +4,31 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Changed: AI works for guests via ai-proxy (2026-07-08)
+**Files:** `lib/ai.ts`, `supabase/functions/ai-proxy/index.ts`
+
+- Removed guest gate in `callGPT()` — guests no longer get silent empty responses.
+- Switched from `supabase.functions.invoke` to direct `fetch` + anon key (matches
+  `fetchOGMetadata` pattern).
+- Redeployed `ai-proxy` with `--no-verify-jwt` so unsigned users can reach it.
+  OpenAI key stays server-side; anon key is already public in the app binary.
+
+---
+
+### Deployed: ai-proxy + removed embedded OpenAI key (2026-07-08)
+**Files:** `.env.local` (removed `EXPO_PUBLIC_OPENAI_API_KEY`), `.env.example`, `app.json`
+(version 1.1.1, versionCode 3)
+
+- **`ai-proxy` redeployed** to Supabase (`xullagcvhnenwpschjig`). `OPENAI_API_KEY` secret was
+  already set (2026-07-06); function is ACTIVE with JWT verification.
+- **Removed `EXPO_PUBLIC_OPENAI_API_KEY`** from `.env.local` so release builds no longer bundle
+  the key. Signed-in users now hit `ai-proxy` via `lib/ai.ts`; guests get silent AI degrade.
+- **Release build v1.1.1 deferred** — version bumped in `app.json` (versionCode 3); APK rebuild
+  skipped for now (Windows Gradle path-length issues in Cursor). Next release build from a local
+  terminal will ship without the embedded key.
+
+---
+
 ### Released: v1.1.0 (versionCode 2) — first production-signed APK (2026-07-06)
 **Files:** `app.json` (version 1.1.0, versionCode 2), `app/account.tsx` (footer version now read from
 `Constants.expoConfig` via new `expo-constants` dep)

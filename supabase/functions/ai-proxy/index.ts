@@ -3,10 +3,9 @@
 // Deploy:   supabase functions deploy ai-proxy
 // Secret:   supabase secrets set OPENAI_API_KEY=sk-...
 //
-// The client (lib/ai.ts) calls this via supabase.functions.invoke('ai-proxy', …)
-// only when EXPO_PUBLIC_OPENAI_API_KEY is NOT set in the app build, so the key
-// never ships inside the binary. Requests carry the user's JWT (verify_jwt
-// defaults to true), so only signed-in users can reach it.
+// The client (lib/ai.ts) calls this via fetch + anon key (same as fetch-og)
+// when EXPO_PUBLIC_OPENAI_API_KEY is NOT set. Deploy with --no-verify-jwt so
+// guests can use AI without signing in.
 
 const OPENAI_KEY = Deno.env.get('OPENAI_API_KEY') ?? ''
 const MODEL = 'gpt-4o-mini'

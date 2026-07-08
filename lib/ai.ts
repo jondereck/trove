@@ -1,7 +1,5 @@
 import { Save, Collection, AISuggestion, OrganizeSuggestion } from '../types'
 import { getSettings } from './settings'
-import { supabase } from './supabase'
-import { isLoggedIn } from './session'
 
 const OPENAI_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? ''
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''
@@ -22,15 +20,23 @@ RESPONSE FORMAT — JSON only, no markdown, no explanation:
 - Multiple items: [{"collection": "Name", "tags": ["tag1", "tag2"]}, ...]`
 
 // Dev builds with EXPO_PUBLIC_OPENAI_API_KEY call OpenAI directly. Release
-// builds leave it unset so signed-in users route through the ai-proxy Edge
-// Function (key stays server-side) and guests degrade to inert defaults.
+// builds leave it unset so all users (guest + signed-in) route through ai-proxy
+// with the anon key — same pattern as fetch-og.
 async function callGPT(userPrompt: string): Promise<string> {
   if (!OPENAI_KEY) {
-    if (!isLoggedIn()) return ''
-    const { data, error } = await supabase.functions.invoke('ai-proxy', {
-      body: { system: SYSTEM_PROMPT, user: userPrompt, max_tokens: 512 },
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-proxy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ system: SYSTEM_PROMPT, user: userPrompt, max_tokens: 512 }),
     })
-    if (error) throw new Error(`ai-proxy: ${error.message}`)
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`ai-proxy ${res.status}: ${body}`)
+    }
+    const data = await res.json()
     return data?.content ?? ''
   }
 

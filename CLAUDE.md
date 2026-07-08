@@ -65,7 +65,7 @@ types/
 - `package.json` main = `expo-router/entry` (not `index.ts`)
 - `tsconfig.json` overrides `customConditions: []` — required because TS 6 bundler resolution breaks on RN packages that lack an `exports` field (react-native-safe-area-context, etc.)
 - npm installs use `--legacy-peer-deps` due to a react@19.2.3 vs 19.2.7 conflict from expo-router's web deps
-- AI calls: if `EXPO_PUBLIC_OPENAI_API_KEY` is set (dev only) `lib/ai.ts` hits OpenAI directly; otherwise signed-in users route through the `ai-proxy` Edge Function (key stays server-side) and guests get inert defaults. Release builds must NOT set the public key.
+- AI calls: if `EXPO_PUBLIC_OPENAI_API_KEY` is set (dev only) `lib/ai.ts` hits OpenAI directly; otherwise all users route through the `ai-proxy` Edge Function (key stays server-side). Release builds must NOT set the public key.
 - All screens use real data via `lib/db.ts` (local AsyncStorage when signed out, Supabase when signed in)
 - Share intent: `ShareIntentProvider` wraps the root layout; `useShareIntentContext` in `(tabs)/_layout.tsx` opens QuickSave with `initialUrl` when a URL is shared from Chrome/Safari
 - `expo-share-intent` requires a **dev build** (not Expo Go) — run `npx expo run:android` or `npx expo run:ios` after prebuild
@@ -110,7 +110,7 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=
 - [x] `app/collection/[id].tsx` — drill-down screen for a single collection
 - [x] `app/save/[id].tsx` — save detail/edit screen
 - [x] Create / edit / delete collections — `components/CollectionForm.tsx`
-- [x] Supabase Edge Function for AI (`supabase/functions/ai-proxy`) — written; deploy + `OPENAI_API_KEY` secret pending. `lib/ai.ts` auto-routes through it when `EXPO_PUBLIC_OPENAI_API_KEY` is unset
+- [x] Supabase Edge Function for AI (`supabase/functions/ai-proxy`) — deployed; `OPENAI_API_KEY` secret set. `lib/ai.ts` routes through it when `EXPO_PUBLIC_OPENAI_API_KEY` is unset
 - [x] Share extension / deep link handler — done via `expo-share-intent`
 - [x] Swipe-to-archive gesture on Inbox cards — `components/SwipeableCard.tsx` (PanResponder)
 
