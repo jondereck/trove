@@ -4,6 +4,19 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Cloud dev environment setup: web-preview deps (2026-07-11)
+**Files:** `package.json`, `package-lock.json`, `AGENTS.md`
+
+Added the Expo web-preview dependencies (`react-dom`, `react-native-web`, `@expo/metro-runtime`
+via `npx expo install`) so `npx expo start --web` runs in headless environments (e.g. Cursor
+Cloud) where native Android/iOS builds aren't possible (no KVM / no macOS). No product code
+changed. Documented cloud setup notes in `AGENTS.md` under "Cursor Cloud specific instructions":
+install with `npm install --legacy-peer-deps`, create a `.env.local` (placeholder Supabase values
+are enough for guest/local mode), and the web-only `expo-secure-store` crash caveat in
+`lib/supabase.ts` (needs a `Platform.OS === 'web'` localStorage fallback to preview on web).
+
+---
+
 ### Freemium tiers + RevenueCat billing (2026-07-11)
 **Files:** `constants/limits.ts`, `lib/entitlements.ts`, `lib/aiUsage.ts`, `lib/upgradeAlert.ts`,
 `lib/db.ts`, `lib/ai.ts`, `lib/storage.ts`, `lib/transfer.ts`, `lib/raindropImport.ts`,
