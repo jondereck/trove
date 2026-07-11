@@ -50,6 +50,13 @@ export default function AIPreferencesScreen() {
             onPress={() => toggle('autoOrganize')}
           />
           <SettingRow
+            icon="text-outline"
+            label="Suggest title and description"
+            toggle
+            on={!!settings?.aiSuggestTitleDescription}
+            onPress={() => toggle('aiSuggestTitleDescription')}
+          />
+          <SettingRow
             icon="pricetag-outline"
             label="Suggest tags"
             toggle
@@ -67,9 +74,11 @@ export default function AIPreferencesScreen() {
         </SettingGroup>
 
         <Text style={styles.explainer}>
-          When you save a link, Trove asks AI to suggest a collection and tags. Auto-organize files
-          new saves straight into the suggested collection; turn it off to review everything in your
-          Inbox first. There is no separate &quot;Read Later&quot; collection — that label means Inbox.
+          When you save a link, Trove fetches the page title and description, then asks AI to suggest
+          a collection and tags. For notes, AI can also suggest a short title from your text. Turn
+          any suggestion off to fill things in yourself. Auto-organize files new saves straight into
+          the suggested collection; turn it off to review everything in your Inbox first. There is no
+          separate &quot;Read Later&quot; collection — that label means Inbox.
         </Text>
       </ScrollView>
     </View>

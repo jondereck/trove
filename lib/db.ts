@@ -9,10 +9,39 @@ import { isLoggedIn } from './session'
 import * as cloud from './cloudDb'
 import * as local from './localDb'
 import { emitDataChange } from './dataEvents'
+import { getTier, hasCloud } from './entitlements'
+import { FREE_SAVE_CAP, FREE_COLLECTION_CAP } from '../constants/limits'
 
 export type { Profile } from './cloudDb'
 
-const pick = () => (isLoggedIn() ? cloud : local)
+// Cloud storage is part of the Cloud subscription: signed-in users without it
+// keep reading/writing the device-local store.
+const pick = () => (isLoggedIn() && hasCloud() ? cloud : local)
+
+// Thrown when a free-tier cap blocks a write. Callers surface it as an
+// upgrade prompt instead of a generic failure.
+export class LimitReachedError extends Error {
+  constructor(public readonly kind: 'saves' | 'collections', public readonly cap: number) {
+    super(
+      kind === 'saves'
+        ? `Free plan is limited to ${cap} saves.`
+        : `Free plan is limited to ${cap} collections.`
+    )
+    this.name = 'LimitReachedError'
+  }
+}
+
+async function assertSaveCapacity() {
+  if (getTier() !== 'free') return
+  const { saves } = await pick().fetchCounts()
+  if (saves >= FREE_SAVE_CAP) throw new LimitReachedError('saves', FREE_SAVE_CAP)
+}
+
+async function assertCollectionCapacity() {
+  if (getTier() !== 'free') return
+  const { collections } = await pick().fetchCounts()
+  if (collections >= FREE_COLLECTION_CAP) throw new LimitReachedError('collections', FREE_COLLECTION_CAP)
+}
 
 // ── Saves ─────────────────────────────────────────────────────────────────────
 export const fetchLibrarySaves = () => pick().fetchLibrarySaves()
@@ -26,6 +55,12 @@ export const searchCollections = (query: string) => pick().searchCollections(que
 export const fetchSearchSuggestions = () => pick().fetchSearchSuggestions()
 export const findSaveByUrl = (url: string) => pick().findSaveByUrl(url)
 export async function createSave(input: Parameters<typeof cloud.createSave>[0]) {
+  // URL saves that dedupe against an existing item shouldn't hit the cap.
+  if (input.url) {
+    const existing = await pick().findSaveByUrl(input.url)
+    if (existing) return existing
+  }
+  await assertSaveCapacity()
   const save = await pick().createSave(input)
   if (save) emitDataChange('saves')
   return save
@@ -46,6 +81,7 @@ export const fetchCollections = () => pick().fetchCollections()
 export const fetchCollection = (id: string) => pick().fetchCollection(id)
 export const fetchCollectionById = (id: string) => pick().fetchCollectionById(id)
 export async function createCollection(input: Parameters<typeof cloud.createCollection>[0]) {
+  await assertCollectionCapacity()
   const collection = await pick().createCollection(input)
   if (collection) emitDataChange('collections')
   return collection
@@ -61,12 +97,22 @@ export async function deleteCollection(id: string) {
   return deleted
 }
 export async function upsertCollectionByName(name: string) {
+  // Only creating a new collection counts against the cap — matching an
+  // existing one by name passes through.
+  if (getTier() === 'free') {
+    const existing = await pick().fetchCollections()
+    const match = existing.find(c => c.name.toLowerCase() === name.trim().toLowerCase())
+    if (!match) await assertCollectionCapacity()
+  }
   const id = await pick().upsertCollectionByName(name)
   if (id) emitDataChange('collections')
   return id
 }
 
 // ── Profile / stats ─────────────────────────────────────────────────────────────
-export const fetchProfile = () => pick().fetchProfile()
-export const updateProfile = (updates: Parameters<typeof cloud.updateProfile>[0]) => pick().updateProfile(updates)
+// Profile is account metadata (name, avatar, email), not library data — it
+// follows the login, not the Cloud subscription.
+const pickProfile = () => (isLoggedIn() ? cloud : local)
+export const fetchProfile = () => pickProfile().fetchProfile()
+export const updateProfile = (updates: Parameters<typeof cloud.updateProfile>[0]) => pickProfile().updateProfile(updates)
 export const fetchCounts = () => pick().fetchCounts()

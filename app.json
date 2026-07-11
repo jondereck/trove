@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "trove",
+    "name": "Trove: Save Anything",
     "slug": "trove",
     "scheme": "trove",
     "version": "1.1.1",
@@ -12,7 +12,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#faf9f5",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

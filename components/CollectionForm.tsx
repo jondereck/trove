@@ -21,6 +21,7 @@ import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
 import { COLLECTION_ICONS, DEFAULT_COLLECTION_ICON, IoniconName } from '../constants/icons'
 import { Collection } from '../types'
 import { createCollection, updateCollection, deleteCollection } from '../lib/db'
+import { isLimitError, showLimitAlert } from '../lib/upgradeAlert'
 import { pickAndUploadCollectionCover } from '../lib/storage'
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window')
@@ -95,9 +96,21 @@ export default function CollectionForm({ visible, onClose, onSaved, collection }
       description: description.trim() || undefined,
       cover_image_url: coverUrl,
     }
-    const ok = isEdit
-      ? await updateCollection(collection!.id, payload)
-      : !!(await createCollection(payload))
+    let ok = false
+    try {
+      ok = isEdit
+        ? await updateCollection(collection!.id, payload)
+        : !!(await createCollection(payload))
+    } catch (e) {
+      setSaving(false)
+      if (isLimitError(e)) {
+        onClose()
+        showLimitAlert(e)
+        return
+      }
+      Alert.alert('Error', `Could not ${isEdit ? 'update' : 'create'} the collection. Please try again.`)
+      return
+    }
     setSaving(false)
     if (ok) {
       onSaved()

@@ -1,7 +1,8 @@
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { COLORS, FONTS, SPACING } from '../../constants/theme'
+import { BRAND } from '../../constants/branding'
 
 const SW = Dimensions.get('window').width
 
@@ -57,12 +58,11 @@ export default function WelcomeScreen() {
         {/* Wordmark */}
         <View>
           <View style={styles.logoRow}>
-            <Text style={styles.wordmark}>Trove</Text>
+            <Text style={styles.wordmark}>{BRAND.name}</Text>
             <Text style={styles.dot}>.</Text>
           </View>
-          <Text style={styles.tagline}>
-            Save anything. Let AI sort, tag, and{'\n'}surface it when you need it.
-          </Text>
+          <Text style={styles.tagline}>{BRAND.tagline}.</Text>
+          <Text style={styles.taglineDetail}>{BRAND.welcomeDetail}</Text>
         </View>
 
         {/* Buttons */}
@@ -86,7 +86,7 @@ export default function WelcomeScreen() {
 
         {/* Legal */}
         <Text style={styles.legal}>
-          By continuing you agree to Trove's{' '}
+          By continuing you agree to {BRAND.name}'s{' '}
           <Text style={styles.legalLink}>Terms</Text>
           {' & '}
           <Text style={styles.legalLink}>Privacy Policy</Text>.
@@ -134,11 +134,18 @@ const styles = StyleSheet.create({
     lineHeight: 58,
   },
   tagline: {
+    fontSize: 17,
+    fontFamily: FONTS.sansSemi,
+    color: COLORS.text,
+    lineHeight: 24,
+    marginTop: 6,
+  },
+  taglineDetail: {
     fontSize: 15,
     fontFamily: FONTS.sans,
     color: COLORS.textSub,
     lineHeight: 22,
-    marginTop: 6,
+    marginTop: 4,
   },
   actions: {
     gap: SPACING.sm,

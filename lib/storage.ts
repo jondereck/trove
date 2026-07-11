@@ -5,6 +5,7 @@ import { decode } from 'base64-arraybuffer'
 import { supabase } from './supabase'
 import { updateProfile } from './cloudDb'
 import { isLoggedIn } from './session'
+import { hasCloud } from './entitlements'
 
 const BUCKET = 'media'
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024 // 2 MB cap on avatar uploads
@@ -29,15 +30,16 @@ async function saveMediaLocally(base64: string, ext: string): Promise<string | n
   }
 }
 
-// Signed in: uploads a gallery-picked image/video (base64) to the public
-// `media` bucket, namespaced under the user's id so the storage RLS policy
-// can scope writes per user. Signed out: saves it on-device instead, so
-// image/video saves work fully offline without an account.
+// Cloud subscribers: uploads a gallery-picked image/video (base64) to the
+// public `media` bucket, namespaced under the user's id so the storage RLS
+// policy can scope writes per user. Everyone else (guest or signed-in without
+// the Cloud sub): saves it on-device, so media saves work fully offline.
 export async function uploadMedia(
   base64: string,
   ext: string,
   contentType: string
 ): Promise<string | null> {
+  if (!isLoggedIn() || !hasCloud()) return saveMediaLocally(base64, ext)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return saveMediaLocally(base64, ext)
 
@@ -105,12 +107,11 @@ export async function prepareMediaForUpload(
 }
 
 // Brings a media file from an extracted backup into the active backend:
-// signed out it's copied into the local media dir (no base64 round-trip),
-// signed in the bytes are uploaded to Storage so the restored save never
-// points at a dead file:// path.
+// local media dir by default (no base64 round-trip), Storage upload for
+// Cloud subscribers so the restored save never points at a dead file:// path.
 export async function importMediaFile(srcUri: string, filename: string): Promise<string | null> {
   try {
-    if (isLoggedIn()) {
+    if (isLoggedIn() && hasCloud()) {
       const base64 = await FileSystem.readAsStringAsync(srcUri, { encoding: 'base64' })
       const ext = filename.split('.').pop() ?? 'jpg'
       const contentType = ext === 'mp4' ? 'video/mp4' : `image/${ext}`

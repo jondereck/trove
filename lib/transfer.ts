@@ -5,6 +5,8 @@ import { Platform } from 'react-native'
 import { zip, unzip } from 'react-native-zip-archive'
 import { Save, Collection } from '../types'
 import * as db from './db'
+import { getTier } from './entitlements'
+import { FREE_IMPORT_CAP } from '../constants/limits'
 import { LOCAL_MEDIA_DIR, importMediaFile } from './storage'
 import { repairMissingThumbnails } from './thumbnailRepair'
 import { importRaindropCsv, isRaindropCsv } from './raindropImport'
@@ -128,6 +130,8 @@ export type ImportResult = {
   collections: number
   thumbnailsRepaired: number
   skipped?: number
+  /** Items not imported because of a free-tier cap (import or save limit). */
+  limited?: number
   source?: 'trove' | 'raindrop'
 }
 
@@ -198,13 +202,20 @@ export async function importData(): Promise<ImportResult | null> {
       const key = c.name.toLowerCase()
       let targetId = byName.get(key)
       if (!targetId) {
-        const created = await db.createCollection({
-          name: c.name,
-          icon: c.icon,
-          color: c.color,
-          description: c.description,
-          created_at: c.created_at,
-        })
+        let created
+        try {
+          created = await db.createCollection({
+            name: c.name,
+            icon: c.icon,
+            color: c.color,
+            description: c.description,
+            created_at: c.created_at,
+          })
+        } catch (e) {
+          // Free-tier collection cap: saves import without this collection.
+          if (e instanceof db.LimitReachedError) continue
+          throw e
+        }
         if (!created) continue
         targetId = created.id
         byName.set(key, targetId)
@@ -232,25 +243,40 @@ export async function importData(): Promise<ImportResult | null> {
     }
 
     let importedSaves = 0
+    let limited = 0
+    const importCap = getTier() === 'free' ? FREE_IMPORT_CAP : Infinity
     const createdSaves: Save[] = []
     for (const s of saves) {
       if (!s?.title) continue
-      const created = await db.createSave({
-        url: await resolveMedia(s.url),
-        title: s.title,
-        description: s.description,
-        type: s.type ?? 'link',
-        content: s.content,
-        image_url: await resolveMedia(s.image_url),
-        collection_id: s.collection_id ? idMap[s.collection_id] : undefined,
-        tags: s.tags,
-        is_inbox: s.is_inbox,
-        is_favorite: s.is_favorite,
-        created_at: s.created_at,
-      })
-      if (created) {
-        importedSaves++
-        createdSaves.push(created)
+      if (importedSaves >= importCap) {
+        limited++
+        continue
+      }
+      try {
+        const created = await db.createSave({
+          url: await resolveMedia(s.url),
+          title: s.title,
+          description: s.description,
+          type: s.type ?? 'link',
+          content: s.content,
+          image_url: await resolveMedia(s.image_url),
+          collection_id: s.collection_id ? idMap[s.collection_id] : undefined,
+          tags: s.tags,
+          is_inbox: s.is_inbox,
+          is_favorite: s.is_favorite,
+          created_at: s.created_at,
+        })
+        if (created) {
+          importedSaves++
+          createdSaves.push(created)
+        }
+      } catch (e) {
+        // Save cap reached mid-import: count the rest as limited.
+        if (e instanceof db.LimitReachedError) {
+          limited++
+          continue
+        }
+        throw e
       }
     }
 
@@ -260,6 +286,7 @@ export async function importData(): Promise<ImportResult | null> {
       saves: importedSaves,
       collections: importedCollections,
       thumbnailsRepaired,
+      limited: limited || undefined,
       source: 'trove',
     }
   } finally {

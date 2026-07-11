@@ -17,6 +17,8 @@ import { supabase } from '../../lib/supabase'
 import { updateProfile } from '../../lib/cloudDb'
 import { signInWithGoogle } from '../../lib/auth'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { BRAND } from '../../constants/branding'
+import BrandLogo from '../../components/BrandLogo'
 
 export default function SignupScreen() {
   const insets = useSafeAreaInsets()
@@ -79,7 +81,7 @@ export default function SignupScreen() {
   if (success) {
     return (
       <View style={[styles.root, styles.successWrap, { paddingTop: insets.top }]}>
-        <Text style={styles.successIcon}>✦</Text>
+        <BrandLogo size={48} style={styles.successLogo} />
         <Text style={styles.successTitle}>Check your email</Text>
         <Text style={styles.successBody}>
           We sent a confirmation link to{'\n'}
@@ -114,9 +116,9 @@ export default function SignupScreen() {
 
         {/* Logo */}
         <View style={styles.logoWrap}>
-          <Text style={styles.logoStar}>✦</Text>
+          <BrandLogo size={56} style={styles.logoImage} />
           <Text style={styles.wordmark}>Create account</Text>
-          <Text style={styles.tagline}>Join Trove today.</Text>
+          <Text style={styles.tagline}>{BRAND.signupSubtitle}</Text>
         </View>
 
         {/* Google */}
@@ -278,9 +280,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.xl * 2,
   },
-  logoStar: {
-    fontSize: 28,
-    color: COLORS.accent,
+  logoImage: {
     marginBottom: SPACING.sm,
   },
   wordmark: {
@@ -436,9 +436,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.xl,
     gap: SPACING.md,
   },
-  successIcon: {
-    fontSize: 40,
-    color: COLORS.accent,
+  successLogo: {
     marginBottom: SPACING.sm,
   },
   successTitle: {

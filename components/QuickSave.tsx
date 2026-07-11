@@ -61,6 +61,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   const didAutoFetch = useRef(false)
   // Read via ref so the value is current inside doFetchAndSuggest's closure.
   const autoOrganizeRef = useRef(true)
+  const [aiTitleDescriptionOn, setAiTitleDescriptionOn] = useState(true)
 
   const [collections, setCollections] = useState<Collection[]>([])
   const [step, setStep] = useState<Step>('input')
@@ -81,7 +82,10 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   // Load real collections once on mount for AI suggestions
   useEffect(() => {
     fetchCollections().then(setCollections)
-    getSettings().then(s => { autoOrganizeRef.current = s.autoOrganize })
+    getSettings().then(s => {
+      autoOrganizeRef.current = s.autoOrganize
+      setAiTitleDescriptionOn(s.aiSuggestTitleDescription)
+    })
   }, [])
 
   // Core fetch+suggest logic — accepts an explicit URL so it can be called
@@ -141,7 +145,10 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   useEffect(() => {
     if (visible) {
       fetchCollections().then(setCollections)
-      getSettings().then(s => { autoOrganizeRef.current = s.autoOrganize })
+      getSettings().then(s => {
+        autoOrganizeRef.current = s.autoOrganize
+        setAiTitleDescriptionOn(s.aiSuggestTitleDescription)
+      })
       Animated.parallel([
         Animated.spring(translateY, { toValue: 0, damping: 22, mass: 0.85, stiffness: 200, useNativeDriver: true }),
         Animated.timing(backdropOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
@@ -246,19 +253,24 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   const handleNotePreview = async () => {
     if (!input.trim()) return
     setError('')
-    setStep('loading')
-    setLoadingStatus('Thinking of a title…')
 
-    let title = ''
-    try {
-      title = await suggestNoteTitle(input.trim())
-    } catch { /* fall through to empty */ }
+    const content = input.trim()
+    let title = content.slice(0, 60)
+
+    if (aiTitleDescriptionOn) {
+      setStep('loading')
+      setLoadingStatus('Thinking of a title…')
+      try {
+        const suggested = await suggestNoteTitle(content)
+        if (suggested) title = suggested
+      } catch { /* fall through to truncated content */ }
+    }
 
     setDraft({
       url: '',
       type: 'note',
-      title: title || input.trim().slice(0, 60),
-      description: input.trim(),
+      title,
+      description: content,
       imageUrl: undefined,
       collection: 'Read Later',
       tags: [],
@@ -268,7 +280,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
 
   // Re-suggest title for the current draft note.
   const handleResuggestTitle = async () => {
-    if (!draft?.description || suggestingTitle) return
+    if (!draft?.description || suggestingTitle || !aiTitleDescriptionOn) return
     setSuggestingTitle(true)
     try {
       const title = await suggestNoteTitle(draft.description)
@@ -464,7 +476,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                   placeholder="Add a title…"
                   placeholderTextColor={COLORS.muted}
                 />
-                {draft.type === 'note' && (
+                {draft.type === 'note' && aiTitleDescriptionOn && (
                   <TouchableOpacity
                     onPress={handleResuggestTitle}
                     style={styles.suggestTitleBtn}

@@ -25,6 +25,7 @@ import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { COLLECTION_ICONS, DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
 import { Collection } from '../../types'
 import { fetchCollections, createCollection, deleteCollection } from '../../lib/db'
+import { isLimitError, showLimitAlert } from '../../lib/upgradeAlert'
 import { subscribeDataChanges } from '../../lib/dataEvents'
 
 // Appends an alpha byte to a #rrggbb hex so a saturated collection color reads
@@ -141,11 +142,23 @@ export default function CollectionsScreen() {
     setCreateError('')
     setCreating(true)
 
-    const result = await createCollection({
-      name: newName.trim(),
-      icon: newIcon,
-      color: newColor,
-    })
+    let result
+    try {
+      result = await createCollection({
+        name: newName.trim(),
+        icon: newIcon,
+        color: newColor,
+      })
+    } catch (e) {
+      setCreating(false)
+      if (isLimitError(e)) {
+        closeCreate(false)
+        showLimitAlert(e)
+        return
+      }
+      setCreateError('Could not create the collection. Please try again.')
+      return
+    }
 
     setCreating(false)
 

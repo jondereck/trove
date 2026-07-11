@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -22,6 +22,8 @@ import { SettingGroup, SettingRow } from '../components/Settings'
 import { fetchCounts, fetchProfile, updateProfile } from '../lib/db'
 import { supabase } from '../lib/supabase'
 import { isLoggedIn } from '../lib/session'
+import { getTier, subscribeTier } from '../lib/entitlements'
+import { PRICES } from '../constants/limits'
 import { exportData, importData } from '../lib/transfer'
 import { AvatarTooLargeError, pickAndUploadAvatar } from '../lib/storage'
 import { requestAuthFlow } from '../lib/authNavigation'
@@ -45,6 +47,7 @@ export default function AccountScreen() {
   const insets = useSafeAreaInsets()
 
   const [loggedIn, setLoggedIn] = useState(isLoggedIn())
+  const [tier, setTier] = useState(getTier())
   const [editing, setEditing] = useState(false)
   const [first, setFirst] = useState('')
   const [last, setLast] = useState('')
@@ -105,11 +108,22 @@ export default function AccountScreen() {
         res.skipped
           ? ` Skipped ${res.skipped} duplicate or empty row${res.skipped === 1 ? '' : 's'}.`
           : ''
+      const limited =
+        res.limited
+          ? ` ${res.limited} item${res.limited === 1 ? '' : 's'} not imported — free plan limit.`
+          : ''
       const message =
         res.source === 'raindrop'
-          ? `Imported ${res.saves} save${res.saves === 1 ? '' : 's'} from Raindrop (${res.collections} collection${res.collections === 1 ? '' : 's'}).${skipped}${thumbs}`
-          : `Added ${res.saves} saves and ${res.collections} collections.${thumbs}`
-      Alert.alert('Import complete', message)
+          ? `Imported ${res.saves} save${res.saves === 1 ? '' : 's'} from Raindrop (${res.collections} collection${res.collections === 1 ? '' : 's'}).${skipped}${limited}${thumbs}`
+          : `Added ${res.saves} saves and ${res.collections} collections.${limited}${thumbs}`
+      if (res.limited) {
+        Alert.alert('Import complete', message, [
+          { text: 'OK', style: 'cancel' },
+          { text: 'See plans', onPress: () => router.push('/upgrade') },
+        ])
+      } else {
+        Alert.alert('Import complete', message)
+      }
       fetchCounts().then(setCounts)
     } catch (e: any) {
       Alert.alert('Import failed', e?.message ?? String(e))
@@ -140,6 +154,10 @@ export default function AccountScreen() {
     requestAuthFlow()
     router.push('/(auth)/')
   }, [router])
+
+  useEffect(() => subscribeTier(setTier), [])
+
+  const planLabel = tier === 'cloud' ? 'Cloud' : tier === 'unlocked' ? 'Unlocked' : 'Free'
 
   return (
     <View style={styles.container}>
@@ -210,37 +228,41 @@ export default function AccountScreen() {
               <View style={styles.statDivider} />
               <Stat label="Collections" value={counts.collections} />
               <View style={styles.statDivider} />
-              <Stat label="Plan" value="Free" />
+              <Stat label="Plan" value={planLabel} />
             </View>
           )}
         </View>
 
-        {/* banner: upgrade (signed in) or create-account CTA (guest) */}
-        <TouchableOpacity
-          activeOpacity={0.9}
-          style={styles.bannerWrap}
-          onPress={loggedIn ? undefined : openAuth}
-        >
-          <LinearGradient
-            colors={UPGRADE_GRADIENT}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.banner}
+        {/* banner: plan upsell — hidden once the user is on Cloud */}
+        {tier !== 'cloud' && (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={styles.bannerWrap}
+            onPress={() => router.push('/upgrade')}
           >
-            <View style={styles.bannerIcon}>
-              <Ionicons name={loggedIn ? 'sparkles' : 'cloud-upload'} size={22} color="#fff" />
-            </View>
-            <View style={styles.bannerText}>
-              <Text style={styles.bannerTitle}>
-                {loggedIn ? 'Upgrade to Trove Pro' : 'Create a free account'}
-              </Text>
-              <Text style={styles.bannerSub}>
-                {loggedIn ? 'Unlimited AI organize · advanced search' : 'Sync & back up your saves to the cloud'}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#fff" />
-          </LinearGradient>
-        </TouchableOpacity>
+            <LinearGradient
+              colors={UPGRADE_GRADIENT}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.banner}
+            >
+              <View style={styles.bannerIcon}>
+                <Ionicons name={tier === 'unlocked' ? 'cloud-upload' : 'sparkles'} size={22} color="#fff" />
+              </View>
+              <View style={styles.bannerText}>
+                <Text style={styles.bannerTitle}>
+                  {tier === 'unlocked' ? 'Add Trove Cloud' : 'Unlock Trove'}
+                </Text>
+                <Text style={styles.bannerSub}>
+                  {tier === 'unlocked'
+                    ? `Sync across devices · ${PRICES.cloudMonthly}`
+                    : `Unlimited saves for ${PRICES.unlockedOneTime}, once`}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#fff" />
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
 
         {/* settings */}
         <SettingGroup title="Account">

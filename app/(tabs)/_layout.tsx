@@ -10,6 +10,7 @@ import QuickSave from '../../components/QuickSave'
 import SaveToast from '../../components/SaveToast'
 import { createSave, findSaveByUrl, updateSave, upsertCollectionByName } from '../../lib/db'
 import { fetchOGMetadata } from '../../lib/ai'
+import { isLimitError, showLimitAlert } from '../../lib/upgradeAlert'
 import type { Draft } from '../../components/QuickSave'
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name']
@@ -129,8 +130,12 @@ export default function TabsLayout() {
             image_url: metadata.image,
           }))
           .catch(() => {})
-      } catch {
-        setToast({ id: Date.now(), message: 'Could not save this link', tone: 'error' })
+      } catch (e) {
+        if (isLimitError(e)) {
+          showLimitAlert(e)
+        } else {
+          setToast({ id: Date.now(), message: 'Could not save this link', tone: 'error' })
+        }
       } finally {
         processingShare.current = false
       }
@@ -146,26 +151,39 @@ export default function TabsLayout() {
   }
 
   const handleSave = async (draft: Draft) => {
-    // A chosen collection name files the save directly; empty keeps it in Inbox.
-    const name = draft.collection?.trim()
-    let collectionId: string | undefined
-    let isInbox = true
-    if (name) {
-      collectionId = (await upsertCollectionByName(name)) ?? undefined
-      isInbox = false
-    }
+    try {
+      // A chosen collection name files the save directly; empty keeps it in Inbox.
+      const name = draft.collection?.trim()
+      let collectionId: string | undefined
+      let isInbox = true
+      if (name) {
+        try {
+          collectionId = (await upsertCollectionByName(name)) ?? undefined
+          isInbox = false
+        } catch (e) {
+          // Collection cap: still save the item, just into the Inbox.
+          if (!isLimitError(e)) throw e
+        }
+      }
 
-    await createSave({
-      url: draft.url || undefined,
-      title: draft.title,
-      description: draft.description || undefined,
-      type: draft.type,
-      content: draft.type === 'note' ? draft.description : undefined,
-      image_url: draft.imageUrl || undefined,
-      collection_id: collectionId,
-      tags: draft.tags,
-      is_inbox: isInbox,
-    })
+      await createSave({
+        url: draft.url || undefined,
+        title: draft.title,
+        description: draft.description || undefined,
+        type: draft.type,
+        content: draft.type === 'note' ? draft.description : undefined,
+        image_url: draft.imageUrl || undefined,
+        collection_id: collectionId,
+        tags: draft.tags,
+        is_inbox: isInbox,
+      })
+    } catch (e) {
+      if (isLimitError(e)) {
+        showLimitAlert(e)
+      } else {
+        setToast({ id: Date.now(), message: 'Could not save', tone: 'error' })
+      }
+    }
   }
 
   const handleQuickSave = async () => {

@@ -1,10 +1,29 @@
 import { Save, Collection, AISuggestion, OrganizeSuggestion } from '../types'
 import { getSettings } from './settings'
+import { getUserId } from './session'
+import { getInstallId, getTier } from './entitlements'
+import { AiLimitError, incrementAiUsage, isAiCapReached } from './aiUsage'
+import { showUpgradeAlert } from './upgradeAlert'
 
 const OPENAI_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? ''
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? ''
 const MODEL = 'gpt-4o-mini'
+
+// Show the AI-limit upgrade nudge at most once per app session so hitting the
+// cap doesn't spam an alert on every save.
+let nudgedThisSession = false
+function nudgeAiLimit() {
+  if (nudgedThisSession) return
+  nudgedThisSession = true
+  const upgradeHint = getTier() === 'free'
+    ? 'Unlock Trove or add Cloud for more.'
+    : 'Add Trove Cloud for a bigger monthly allowance.'
+  showUpgradeAlert(
+    'AI limit reached',
+    `You've used this month's AI suggestions on your plan. Saves still work — they'll land in your Inbox. ${upgradeHint}`
+  )
+}
 
 const SYSTEM_PROMPT = `You are the AI organizing assistant for Trove, a personal curation app.
 Analyze saved items and suggest collections and tags to help the user find things later.
@@ -22,21 +41,35 @@ RESPONSE FORMAT — JSON only, no markdown, no explanation:
 // Dev builds with EXPO_PUBLIC_OPENAI_API_KEY call OpenAI directly. Release
 // builds leave it unset so all users (guest + signed-in) route through ai-proxy
 // with the anon key — same pattern as fetch-og.
+//
+// Monthly AI caps: checked locally first (fast fail), then enforced
+// authoritatively by ai-proxy which returns 429 when the meter is exhausted.
 async function callGPT(userPrompt: string): Promise<string> {
+  if (await isAiCapReached()) throw new AiLimitError()
+
   if (!OPENAI_KEY) {
+    const installId = await getInstallId()
     const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-proxy`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
       },
-      body: JSON.stringify({ system: SYSTEM_PROMPT, user: userPrompt, max_tokens: 512 }),
+      body: JSON.stringify({
+        system: SYSTEM_PROMPT,
+        user: userPrompt,
+        max_tokens: 512,
+        user_id: getUserId(),
+        install_id: installId,
+      }),
     })
+    if (res.status === 429) throw new AiLimitError()
     if (!res.ok) {
       const body = await res.text()
       throw new Error(`ai-proxy ${res.status}: ${body}`)
     }
     const data = await res.json()
+    await incrementAiUsage()
     return data?.content ?? ''
   }
 
@@ -63,6 +96,7 @@ async function callGPT(userPrompt: string): Promise<string> {
   }
 
   const data = await res.json()
+  await incrementAiUsage()
   return data.choices?.[0]?.message?.content ?? ''
 }
 
@@ -78,13 +112,25 @@ function parseJSON<T>(text: string, fallback: T): T {
 // ── Note title suggestion ─────────────────────────────────────────────────────
 
 export async function suggestNoteTitle(content: string): Promise<string> {
+  const { aiSuggestTitleDescription } = await getSettings()
+  if (!aiSuggestTitleDescription) return ''
+
   const prompt = `Give this note a short, descriptive title — max 8 words, title case, no quotes, no punctuation at the end:
 
 "${content.slice(0, 600)}"
 
 Reply with just the title, nothing else.`
 
-  const text = await callGPT(prompt)
+  let text = ''
+  try {
+    text = await callGPT(prompt)
+  } catch (e) {
+    if (e instanceof AiLimitError) {
+      nudgeAiLimit()
+      return ''
+    }
+    throw e
+  }
   return text.trim().replace(/^["']|["']$/g, '') || ''
 }
 
@@ -144,7 +190,16 @@ Available collections: ${colList}
 
 JSON only: {"collection": "Name", "tags": ["tag1", "tag2", "tag3"]}`
 
-  const text = await callGPT(prompt)
+  let text = ''
+  try {
+    text = await callGPT(prompt)
+  } catch (e) {
+    if (e instanceof AiLimitError) {
+      nudgeAiLimit()
+      return { collection: 'Read Later', tags: [] }
+    }
+    throw e
+  }
   const json = parseJSON<{ collection?: string; tags?: string[] }>(text, {})
   return {
     collection: aiSuggestCollections ? (json.collection ?? 'Read Later') : 'Read Later',
@@ -185,7 +240,21 @@ Available collections: ${colList}
 JSON array, same order as input:
 [{"collection": "Name", "tags": ["tag1", "tag2"]}, ...]`
 
-  const text = await callGPT(prompt)
+  let text = ''
+  try {
+    text = await callGPT(prompt)
+  } catch (e) {
+    if (e instanceof AiLimitError) {
+      nudgeAiLimit()
+      return saves.map(save => ({
+        save,
+        suggested_collection: 'Read Later',
+        suggested_tags: [],
+        confidence: 0,
+      }))
+    }
+    throw e
+  }
   const arr = parseJSON<Array<{ collection?: string; tags?: string[] }>>(text, [])
 
   return saves.map((save, i) => {

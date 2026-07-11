@@ -4,6 +4,73 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Freemium tiers + RevenueCat billing (2026-07-11)
+**Files:** `constants/limits.ts`, `lib/entitlements.ts`, `lib/aiUsage.ts`, `lib/upgradeAlert.ts`,
+`lib/db.ts`, `lib/ai.ts`, `lib/storage.ts`, `lib/transfer.ts`, `lib/raindropImport.ts`,
+`lib/organize.ts`, `app/_layout.tsx`, `app/(tabs)/_layout.tsx`, `app/(tabs)/index.tsx`,
+`app/(tabs)/inbox.tsx`, `app/(tabs)/collections.tsx`, `app/account.tsx`, `app/upgrade.tsx`,
+`components/CollectionForm.tsx`, `supabase/limits.sql`, `supabase/functions/ai-proxy/index.ts`,
+`supabase/functions/rc-webhook/index.ts`, `docs/monetization-setup.md`
+
+Three tiers: **Free** (100 saves, 5 collections, 50-item import, 25 AI/mo),
+**Unlocked** ₱200 one-time (`trove_unlocked` — unlimited local, 300 AI/mo fair-use),
+**Cloud** ₱150/mo or ₱1,200/yr (`trove_cloud_monthly`/`_yearly` — sync, cloud media,
+1,000 AI/mo). Export stays unlimited on every tier.
+
+- `lib/entitlements.ts` mirrors the session.ts pattern: sync-readable `getTier()`
+  hydrated from `react-native-purchases`, plus a stable SecureStore `installId`.
+  Dev override: `EXPO_PUBLIC_FORCE_TIER`. SDK key: `EXPO_PUBLIC_REVENUECAT_ANDROID`.
+- **Sync is now gated on the Cloud entitlement**: `db.ts` `pick()` requires
+  `isLoggedIn() && hasCloud()` (profile still follows plain login), same for media
+  upload in `storage.ts`. Local→cloud migration runs on gaining the `cloud`
+  entitlement, not on sign-in.
+- Caps throw a typed `LimitReachedError` from `db.ts`; QuickSave/share-intent/
+  collection forms/AI-organize/import all catch it and show an upgrade prompt
+  (`lib/upgradeAlert.ts` → `/upgrade` paywall screen).
+- AI metering is two-layer: client counter (`lib/aiUsage.ts`, soft) and the
+  ai-proxy (authoritative) which resolves tier from the new `entitlements` table,
+  counts per-month in `ai_usage` (atomic `increment_ai_usage` RPC), and returns
+  429 at the cap. `rc-webhook` keeps `entitlements` in sync from RevenueCat
+  webhook events (fetches subscriber info from the RC REST API for truth).
+- New paywall `app/upgrade.tsx` (plan cards, monthly/yearly toggle, restore
+  purchases); Account banner now routes there and the Plan stat shows the tier.
+- **Run `supabase/limits.sql` once**, redeploy `ai-proxy`, deploy `rc-webhook`,
+  set `RC_WEBHOOK_SECRET` + `RC_API_KEY`. Play Console + RevenueCat dashboard
+  steps documented in `docs/monetization-setup.md`.
+- Native dep added (`react-native-purchases`): run `npx expo prebuild --no-install`
+  and rebuild the dev client. Purchases only testable from a Play internal-testing
+  build; use the force-tier env until then.
+- Also fixed a pre-existing TS error in `components/BrandLogo.tsx` (ImageStyle).
+
+---
+
+### Added: AI preference toggle for title and description (2026-07-11)
+**Files:** `lib/settings.ts`, `app/ai-preferences.tsx`, `lib/ai.ts`, `components/QuickSave.tsx`
+
+Added missing **Suggest title and description** toggle under Account → AI preferences.
+Controls AI title suggestions for notes in QuickSave (including the ✨ re-suggest button).
+When off, notes use the first 60 characters as the title instead of calling the model.
+Link title/description still come from page metadata (`fetch-og`); this toggle only gates AI.
+
+---
+**Files:** `assets/icon.png`, `assets/android-icon-*.png`, `assets/favicon.png`,
+`assets/splash-icon.png`, `constants/branding.ts`, `components/BrandLogo.tsx`,
+`app/(auth)/index.tsx`, `app/(auth)/login.tsx`, `app/(auth)/signup.tsx`, `app.json`,
+`docs/store-listings.md`
+
+Locked production branding for store release:
+- **Display name:** Trove: Save Anything
+- **Tagline:** Save anything (unified across welcome, login, signup)
+- **Icon:** Warm open treasure chest in burnt orange (`#c0613c`) on `#faf9f5` background —
+  literal "trove" metaphor with saved link/note cards inside
+- Android adaptive icon background changed from generic blue to warm off-white
+- `BRAND` constants + `BrandLogo` component replace scattered copy and ✦ placeholders
+- Store listing copy drafted in `docs/store-listings.md`
+
+Rebuild required after icon change: `npx expo prebuild --no-install` then `npx expo run:android`.
+
+---
+
 ### Smarter keyword search (2026-07-11)
 **Files:** `supabase/search-upgrade.sql`, `lib/cloudDb.ts`, `lib/localDb.ts`, `lib/db.ts`,
 `app/(tabs)/search.tsx`

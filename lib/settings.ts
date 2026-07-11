@@ -4,6 +4,7 @@ const KEY = 'trove.settings'
 
 export interface Settings {
   autoOrganize: boolean
+  aiSuggestTitleDescription: boolean
   aiSuggestTags: boolean
   aiSuggestCollections: boolean
   libraryView: 'grid' | 'list'
@@ -11,6 +12,7 @@ export interface Settings {
 
 const DEFAULTS: Settings = {
   autoOrganize: true,
+  aiSuggestTitleDescription: true,
   aiSuggestTags: true,
   aiSuggestCollections: true,
   libraryView: 'grid',

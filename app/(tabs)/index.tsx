@@ -19,6 +19,7 @@ import AIOrganize from '../../components/AIOrganize'
 import Avatar from '../../components/Avatar'
 import { fetchLibrarySaves, fetchInboxSaves, fetchCollections, fetchProfile, deleteSave } from '../../lib/db'
 import { applyOrganizeSuggestions } from '../../lib/organize'
+import { showUpgradeAlert } from '../../lib/upgradeAlert'
 import { subscribeDataChanges } from '../../lib/dataEvents'
 import { getSettings, patchSettings } from '../../lib/settings'
 
@@ -99,7 +100,13 @@ export default function LibraryScreen() {
   const handleApply = useCallback(async (accepted: OrganizeSuggestion[]) => {
     const acceptedIds = new Set(accepted.map(a => a.save.id))
     setInboxSaves(prev => prev.filter(s => !acceptedIds.has(s.id)))
-    await applyOrganizeSuggestions(accepted)
+    const { limited } = await applyOrganizeSuggestions(accepted)
+    if (limited > 0) {
+      showUpgradeAlert(
+        'Collection limit reached',
+        `${limited} ${limited === 1 ? 'item' : 'items'} could not be filed into new collections on the free plan.`
+      )
+    }
     await loadData()
   }, [loadData])
 

@@ -31,6 +31,7 @@
     "expo-web-browser": "~56.0.5",
     "react": "19.2.3",
     "react-native": "0.85.3",
+    "react-native-purchases": "^10.4.2",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-url-polyfill": "^3.0.0",
     "react-native-zip-archive": "^8.0.1"

@@ -22,6 +22,7 @@ import SwipeableCard from '../../components/SwipeableCard'
 import AIOrganize from '../../components/AIOrganize'
 import { fetchInboxSaves, fetchCollections, updateSave, deleteSave } from '../../lib/db'
 import { applyOrganizeSuggestions } from '../../lib/organize'
+import { showUpgradeAlert } from '../../lib/upgradeAlert'
 import { subscribeDataChanges } from '../../lib/dataEvents'
 
 export default function InboxScreen() {
@@ -62,7 +63,13 @@ export default function InboxScreen() {
   const handleApply = useCallback(async (accepted: OrganizeSuggestion[]) => {
     const acceptedIds = new Set(accepted.map(a => a.save.id))
     setSaves(prev => prev.filter(s => !acceptedIds.has(s.id)))
-    await applyOrganizeSuggestions(accepted)
+    const { limited } = await applyOrganizeSuggestions(accepted)
+    if (limited > 0) {
+      showUpgradeAlert(
+        'Collection limit reached',
+        `${limited} ${limited === 1 ? 'item' : 'items'} could not be filed into new collections on the free plan.`
+      )
+    }
     fetchCollections().then(setCollections)
   }, [])
 

@@ -28,8 +28,28 @@ import { hasLocalData } from '../lib/localDb'
 import { migrateLocalToCloud } from '../lib/migrateLocal'
 import { syncProviderProfile } from '../lib/auth'
 import { clearAuthFlow } from '../lib/authNavigation'
+import { isLoggedIn } from '../lib/session'
+import {
+  configurePurchases,
+  hasCloud,
+  logInPurchases,
+  logOutPurchases,
+  subscribeTier,
+} from '../lib/entitlements'
 
 SplashScreen.preventAutoHideAsync()
+
+// Local data lifts to the cloud only when the user is signed in AND has the
+// Cloud subscription — signing in alone keeps data on-device.
+async function maybeMigrateToCloud() {
+  if (!isLoggedIn() || !hasCloud()) return
+  const has = await hasLocalData()
+  if (!has) return
+  const { saves, collections } = await migrateLocalToCloud()
+  if (saves || collections) {
+    Alert.alert('Synced to your account', `Moved ${saves} saves and ${collections} collections to the cloud.`)
+  }
+}
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
@@ -78,19 +98,19 @@ export default function RootLayout() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
-      // First sign-in: lift any device-local saves into the cloud account and
-      // pull the provider's name/photo into the profile.
+      // First sign-in: link purchases to the account, pull the provider's
+      // name/photo into the profile, and (Cloud subscribers only) lift any
+      // device-local saves into the cloud account.
       if (event === 'SIGNED_IN') {
         clearAuthFlow()
         syncProviderProfile()
-        hasLocalData().then(has => {
-          if (!has) return
-          migrateLocalToCloud().then(({ saves, collections }) => {
-            if (saves || collections) {
-              Alert.alert('Synced to your account', `Moved ${saves} saves and ${collections} collections to the cloud.`)
-            }
-          })
-        })
+        const linkThenMigrate = session?.user.id
+          ? logInPurchases(session.user.id)
+          : Promise.resolve()
+        linkThenMigrate.then(() => maybeMigrateToCloud().catch(() => {}))
+      }
+      if (event === 'SIGNED_OUT') {
+        logOutPurchases()
       }
       // Reset-email deep link: drop the user on the change-password screen.
       if (event === 'PASSWORD_RECOVERY') {
@@ -99,6 +119,15 @@ export default function RootLayout() {
     })
 
     return () => subscription.unsubscribe()
+  }, [])
+
+  // RevenueCat: configure once, and when the Cloud entitlement is gained
+  // (purchase or restore) migrate local data for signed-in users.
+  useEffect(() => {
+    configurePurchases()
+    return subscribeTier(tier => {
+      if (tier === 'cloud') maybeMigrateToCloud().catch(() => {})
+    })
   }, [])
 
   // Routing: no forced login. Show the intro on every launch while the library
@@ -144,6 +173,7 @@ export default function RootLayout() {
           <Stack.Screen name="account" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="change-password" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="ai-preferences" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="upgrade" options={{ animation: 'slide_from_bottom' }} />
         </Stack>
       </SafeAreaProvider>
     </ShareIntentProvider>

@@ -1,5 +1,7 @@
 import { Save } from '../types'
 import * as db from './db'
+import { getTier } from './entitlements'
+import { FREE_IMPORT_CAP } from '../constants/limits'
 import { repairMissingThumbnails } from './thumbnailRepair'
 
 // Raindrop.io CSV export → Trove saves/collections.
@@ -13,6 +15,8 @@ export type RaindropImportResult = {
   collections: number
   skipped: number
   thumbnailsRepaired: number
+  /** Rows not imported because of a free-tier cap (import or save limit). */
+  limited?: number
   source: 'raindrop'
 }
 
@@ -142,7 +146,14 @@ export async function importRaindropCsv(text: string): Promise<RaindropImportRes
     const key = name.toLowerCase()
     let targetId = byName.get(key)
     if (!targetId) {
-      const created = await db.createCollection({ name })
+      let created
+      try {
+        created = await db.createCollection({ name })
+      } catch (e) {
+        // Free-tier collection cap: bookmarks from this folder land in the Inbox.
+        if (e instanceof db.LimitReachedError) continue
+        throw e
+      }
       if (!created) continue
       targetId = created.id
       byName.set(key, targetId)
@@ -153,6 +164,8 @@ export async function importRaindropCsv(text: string): Promise<RaindropImportRes
 
   let importedSaves = 0
   let skipped = 0
+  let limited = 0
+  const importCap = getTier() === 'free' ? FREE_IMPORT_CAP : Infinity
   const createdSaves: Save[] = []
 
   for (let r = 1; r < rows.length; r++) {
@@ -169,6 +182,11 @@ export async function importRaindropCsv(text: string): Promise<RaindropImportRes
       continue
     }
 
+    if (importedSaves >= importCap) {
+      limited++
+      continue
+    }
+
     const folder = get(row, iFolder)
     const unsorted = !folder || folder.toLowerCase() === UNSORTED
     const collectionId = unsorted ? undefined : folderToId.get(folder.toLowerCase())
@@ -179,19 +197,29 @@ export async function importRaindropCsv(text: string): Promise<RaindropImportRes
     const created = get(row, iCreated)
     const tags = parseTags(get(row, iTags))
 
-    const createdSave = await db.createSave({
-      url,
-      title,
-      description: excerpt || undefined,
-      type: 'link',
-      content: note || undefined,
-      image_url: cover || undefined,
-      collection_id: collectionId,
-      tags,
-      is_inbox: unsorted || !collectionId,
-      is_favorite: isFavorite(get(row, iFavorite)),
-      created_at: created || undefined,
-    })
+    let createdSave
+    try {
+      createdSave = await db.createSave({
+        url,
+        title,
+        description: excerpt || undefined,
+        type: 'link',
+        content: note || undefined,
+        image_url: cover || undefined,
+        collection_id: collectionId,
+        tags,
+        is_inbox: unsorted || !collectionId,
+        is_favorite: isFavorite(get(row, iFavorite)),
+        created_at: created || undefined,
+      })
+    } catch (e) {
+      // Save cap reached mid-import: count the rest as limited.
+      if (e instanceof db.LimitReachedError) {
+        limited++
+        continue
+      }
+      throw e
+    }
 
     if (createdSave) {
       importedSaves++
@@ -208,6 +236,7 @@ export async function importRaindropCsv(text: string): Promise<RaindropImportRes
     collections: importedCollections,
     skipped,
     thumbnailsRepaired,
+    limited: limited || undefined,
     source: 'raindrop',
   }
 }

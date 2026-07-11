@@ -16,6 +16,8 @@ import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../lib/supabase'
 import { signInWithGoogle, sendPasswordReset } from '../../lib/auth'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { BRAND } from '../../constants/branding'
+import BrandLogo from '../../components/BrandLogo'
 import { clearAuthFlow } from '../../lib/authNavigation'
 import { dismissOnboarding } from '../../lib/firstLaunch'
 
@@ -90,9 +92,9 @@ export default function LoginScreen() {
       >
         {/* Logo */}
         <View style={styles.logoWrap}>
-          <Text style={styles.logoStar}>✦</Text>
-          <Text style={styles.wordmark}>Trove</Text>
-          <Text style={styles.tagline}>Your personal library.</Text>
+          <BrandLogo size={56} style={styles.logoImage} />
+          <Text style={styles.wordmark}>{BRAND.name}</Text>
+          <Text style={styles.tagline}>{BRAND.tagline}.</Text>
         </View>
 
         {/* Google */}
@@ -189,7 +191,7 @@ export default function LoginScreen() {
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>New to Trove? </Text>
+          <Text style={styles.footerText}>New to {BRAND.name}? </Text>
           <Link href="/(auth)/signup" asChild>
             <TouchableOpacity activeOpacity={0.7}>
               <Text style={styles.footerLink}>Create an account</Text>
@@ -228,9 +230,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.xl * 2,
   },
-  logoStar: {
-    fontSize: 28,
-    color: COLORS.accent,
+  logoImage: {
     marginBottom: SPACING.sm,
   },
   wordmark: {
