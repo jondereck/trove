@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
 import { Save, Collection } from '../../types'
-import { fetchCollectionById, fetchSavesByCollection, fetchCollections, deleteSave, updateSave, deleteCollection } from '../../lib/db'
+import { fetchCollectionById, fetchSavesByCollection, fetchCollections, deleteSave, updateSave, deleteCollection, updateCollection } from '../../lib/db'
 import SaveCard from '../../components/SaveCard'
 import CollectionForm from '../../components/CollectionForm'
 
@@ -29,10 +29,12 @@ export default function CollectionDetailScreen() {
   const [showMoveModal, setShowMoveModal] = useState(false)
   const [allCollections, setAllCollections] = useState<Collection[]>([])
   const [editVisible, setEditVisible] = useState(false)
+  const [isPinned, setIsPinned] = useState(false)
 
   const load = useCallback(async () => {
     const [col, items] = await Promise.all([fetchCollectionById(id), fetchSavesByCollection(id)])
     setCollection(col)
+    setIsPinned(!!col?.is_pinned)
     setSaves(items)
   }, [id])
 
@@ -136,6 +138,15 @@ export default function CollectionDetailScreen() {
     )
   }
 
+  const togglePin = async () => {
+    if (!collection) return
+    const next = !isPinned
+    setIsPinned(next)
+    const ok = await updateCollection(collection.id, { is_pinned: next })
+    if (!ok) setIsPinned(!next)
+    else setCollection({ ...collection, is_pinned: next })
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const leftCol = saves.filter((_, i) => i % 2 === 0)
@@ -191,6 +202,15 @@ export default function CollectionDetailScreen() {
               </View>
             )}
             <View style={styles.headerRight}>
+              {!loading && collection && (
+                <TouchableOpacity onPress={togglePin} style={styles.selectBtn} activeOpacity={0.7}>
+                  <Ionicons
+                    name={isPinned ? 'pin' : 'pin-outline'}
+                    size={22}
+                    color={isPinned ? COLORS.accent : COLORS.muted}
+                  />
+                </TouchableOpacity>
+              )}
               {!loading && collection && (
                 <TouchableOpacity onPress={() => setEditVisible(true)} style={styles.selectBtn} activeOpacity={0.7}>
                   <Ionicons name="create-outline" size={22} color={COLORS.muted} />

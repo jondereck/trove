@@ -8,6 +8,8 @@ export interface Settings {
   aiSuggestTags: boolean
   aiSuggestCollections: boolean
   libraryView: 'grid' | 'list'
+  /** When true, OS shares open the QuickSave preview (with AI). When false, auto-save to Unsorted. */
+  shareReviewModal: boolean
 }
 
 const DEFAULTS: Settings = {
@@ -16,6 +18,7 @@ const DEFAULTS: Settings = {
   aiSuggestTags: true,
   aiSuggestCollections: true,
   libraryView: 'grid',
+  shareReviewModal: true,
 }
 
 export async function getSettings(): Promise<Settings> {

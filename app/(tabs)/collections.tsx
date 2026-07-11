@@ -24,7 +24,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { COLLECTION_ICONS, DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
 import { Collection } from '../../types'
-import { fetchCollections, createCollection, deleteCollection } from '../../lib/db'
+import { fetchCollections, createCollection, deleteCollection, updateCollection } from '../../lib/db'
 import { isLimitError, showLimitAlert } from '../../lib/upgradeAlert'
 import { subscribeDataChanges } from '../../lib/dataEvents'
 
@@ -239,6 +239,17 @@ export default function CollectionsScreen() {
     else router.push(`/collection/${col.id}`)
   }
 
+  const handlePinToggle = useCallback((colId: string, pinned: boolean) => {
+    setCollections(prev => {
+      const next = prev.map(c => c.id === colId ? { ...c, is_pinned: pinned } : c)
+      next.sort((a, b) => {
+        const pinDiff = Number(!!b.is_pinned) - Number(!!a.is_pinned)
+        return pinDiff !== 0 ? pinDiff : a.name.localeCompare(b.name)
+      })
+      return next
+    })
+  }, [])
+
   return (
     <View style={[styles.wrapper, { paddingTop: insets.top }]}>
       {selectionMode && (
@@ -296,6 +307,7 @@ export default function CollectionsScreen() {
                   selected={selectionMode ? selectedIds.has(col.id) : undefined}
                   onPress={() => onCardPress(col)}
                   onLongPress={() => !selectionMode && enterSelection(col.id)}
+                  onPinToggle={pinned => handlePinToggle(col.id, pinned)}
                 />
               ))}
             </View>
@@ -307,6 +319,7 @@ export default function CollectionsScreen() {
                   selected={selectionMode ? selectedIds.has(col.id) : undefined}
                   onPress={() => onCardPress(col)}
                   onLongPress={() => !selectionMode && enterSelection(col.id)}
+                  onPinToggle={pinned => handlePinToggle(col.id, pinned)}
                 />
               ))}
             </View>
@@ -418,16 +431,30 @@ function CollectionCard({
   onPress,
   onLongPress,
   selected,
+  onPinToggle,
 }: {
   collection: Collection
   onPress: () => void
   onLongPress?: () => void
   selected?: boolean
+  onPinToggle?: (pinned: boolean) => void
 }) {
   const covers = collection.cover_urls ?? []
   const color = collection.color || COLORS.accent
   const count = collection.save_count ?? 0
   const inSelectionMode = selected !== undefined
+  const [isPinned, setIsPinned] = useState(!!collection.is_pinned)
+
+  const handlePin = async () => {
+    const next = !isPinned
+    setIsPinned(next)
+    try {
+      await updateCollection(collection.id, { is_pinned: next })
+      onPinToggle?.(next)
+    } catch {
+      setIsPinned(!next)
+    }
+  }
 
   return (
     <TouchableOpacity
@@ -459,6 +486,16 @@ function CollectionCard({
         <Text style={styles.cardName} numberOfLines={1}>{collection.name}</Text>
         <Text style={styles.cardMeta}>{count} {count === 1 ? 'item' : 'items'}</Text>
       </View>
+
+      {!inSelectionMode && (
+        <TouchableOpacity style={styles.pinBtn} onPress={handlePin} activeOpacity={0.7}>
+          <Ionicons
+            name={isPinned ? 'pin' : 'pin-outline'}
+            size={15}
+            color={isPinned ? COLORS.accent : COLORS.muted}
+          />
+        </TouchableOpacity>
+      )}
 
       {inSelectionMode && (
         <View style={[styles.selectionOverlay, selected && styles.selectionOverlayActive]} pointerEvents="none">
@@ -526,6 +563,19 @@ const styles = StyleSheet.create({
   cardBody: { paddingHorizontal: 14, paddingTop: 4, paddingBottom: 14 },
   cardName: { fontSize: 15, fontFamily: FONTS.sansBold, color: COLORS.text },
   cardMeta: { fontSize: 12, fontFamily: FONTS.sans, color: COLORS.muted, marginTop: 3 },
+  pinBtn: {
+    position: 'absolute',
+    top: SPACING.sm,
+    right: SPACING.sm,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
 
   selectionOverlay: {
     ...StyleSheet.absoluteFill,

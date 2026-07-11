@@ -8,18 +8,18 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  Modal,
-  FlatList,
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
-import { DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
+import { UNSORTED_LABEL } from '../../constants/labels'
+import { ORGANIZE_BATCH_LIMIT } from '../../constants/organize'
 import { Save, Collection, OrganizeSuggestion } from '../../types'
 import SaveCard from '../../components/SaveCard'
 import SwipeableCard from '../../components/SwipeableCard'
 import AIOrganize from '../../components/AIOrganize'
+import MoveToCollectionModal from '../../components/MoveToCollectionModal'
 import { fetchInboxSaves, fetchCollections, updateSave, deleteSave } from '../../lib/db'
 import { applyOrganizeSuggestions } from '../../lib/organize'
 import { showUpgradeAlert } from '../../lib/upgradeAlert'
@@ -131,6 +131,8 @@ export default function InboxScreen() {
 
   const leftCol = saves.filter((_, i) => i % 2 === 0)
   const rightCol = saves.filter((_, i) => i % 2 === 1)
+  const organizeBatch = saves.slice(0, ORGANIZE_BATCH_LIMIT)
+  const organizeRemaining = Math.max(0, saves.length - ORGANIZE_BATCH_LIMIT)
 
   const renderCard = (save: Save) => {
     const card = (
@@ -212,7 +214,7 @@ export default function InboxScreen() {
         {!selectionMode && (
           <View style={styles.header}>
             <View style={styles.headerLeft}>
-              <Text style={styles.title}>Inbox</Text>
+              <Text style={styles.title}>{UNSORTED_LABEL}</Text>
               {saves.length > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{saves.length}</Text>
@@ -227,7 +229,7 @@ export default function InboxScreen() {
         ) : saves.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>○</Text>
-            <Text style={styles.emptyTitle}>Inbox is clear</Text>
+            <Text style={styles.emptyTitle}>{UNSORTED_LABEL} is clear</Text>
             <Text style={styles.emptySubtitle}>Everything is organized. Tap + to save something new.</Text>
           </View>
         ) : (
@@ -237,7 +239,11 @@ export default function InboxScreen() {
                 <View style={styles.aiOrb}><Ionicons name="sparkles" size={18} color="#fff" /></View>
                 <View style={styles.aiCtaText}>
                   <Text style={styles.aiCtaTitle}>AI Organize</Text>
-                  <Text style={styles.aiCtaSub}>Sort {saves.length} items into collections</Text>
+                  <Text style={styles.aiCtaSub}>
+                    {organizeRemaining > 0
+                      ? `Sort ${ORGANIZE_BATCH_LIMIT} of ${saves.length} items`
+                      : `Sort ${saves.length} items into collections`}
+                  </Text>
                 </View>
                 <Text style={styles.aiChevron}>›</Text>
               </TouchableOpacity>
@@ -251,54 +257,17 @@ export default function InboxScreen() {
         )}
       </ScrollView>
 
-      <Modal
+      <MoveToCollectionModal
         visible={showMoveModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowMoveModal(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <TouchableOpacity
-            style={StyleSheet.absoluteFill}
-            onPress={() => setShowMoveModal(false)}
-            activeOpacity={1}
-          />
-          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + SPACING.lg }]}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Move to…</Text>
-            <FlatList
-              data={collections}
-              keyExtractor={c => c.id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.collRow}
-                  onPress={() => handleBulkMove(item.id)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.collIcon, { backgroundColor: item.color + '22' }]}>
-                    <Ionicons
-                      name={(item.icon as IoniconName) ?? DEFAULT_COLLECTION_ICON}
-                      size={18}
-                      color={item.color}
-                    />
-                  </View>
-                  <Text style={styles.collRowName}>{item.name}</Text>
-                  <Ionicons name="chevron-forward" size={16} color={COLORS.muted} />
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <Text style={styles.modalEmpty}>No collections yet. Create one first.</Text>
-              }
-              showsVerticalScrollIndicator={false}
-            />
-          </View>
-        </View>
-      </Modal>
+        collections={collections}
+        onClose={() => setShowMoveModal(false)}
+        onSelect={handleBulkMove}
+      />
 
       <AIOrganize
         visible={aiVisible}
         onClose={() => setAiVisible(false)}
-        saves={saves}
+        saves={organizeBatch}
         collections={collections}
         onApply={handleApply}
       />
@@ -390,47 +359,5 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     textAlign: 'center',
     paddingHorizontal: SPACING.xl,
-  },
-
-  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.35)' },
-  modalSheet: {
-    backgroundColor: COLORS.cream,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.sm,
-    maxHeight: '60%',
-  },
-  modalHandle: {
-    alignSelf: 'center',
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: COLORS.border,
-    marginBottom: SPACING.lg,
-  },
-  modalTitle: { fontSize: 18, fontFamily: FONTS.serif, color: COLORS.text, marginBottom: SPACING.md },
-  collRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  collIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  collRowName: { flex: 1, fontSize: 15, fontFamily: FONTS.sansMed, color: COLORS.text },
-  modalEmpty: {
-    fontSize: 14,
-    fontFamily: FONTS.sans,
-    color: COLORS.muted,
-    textAlign: 'center',
-    paddingVertical: SPACING.xl,
   },
 })

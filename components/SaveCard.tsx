@@ -124,13 +124,15 @@ interface SaveCardProps {
   /** undefined = not in selection mode; true/false = selected state */
   selected?: boolean
   onFavoriteToggle?: (isFav: boolean) => void
+  onPinToggle?: (isPinned: boolean) => void
   layout?: 'grid' | 'list'
 }
 
-export default function SaveCard({ save, onPress, onLongPress, selected, onFavoriteToggle, layout = 'grid' }: SaveCardProps) {
+export default function SaveCard({ save, onPress, onLongPress, selected, onFavoriteToggle, onPinToggle, layout = 'grid' }: SaveCardProps) {
   const scale = useRef(new Animated.Value(1)).current
   const inSelectionMode = selected !== undefined
   const [isFav, setIsFav] = useState(!!save.is_favorite)
+  const [isPinned, setIsPinned] = useState(!!save.is_pinned)
   const [favAnimScale] = useState(new Animated.Value(1))
 
   const onPressIn = () =>
@@ -154,6 +156,17 @@ export default function SaveCard({ save, onPress, onLongPress, selected, onFavor
     }
   }
 
+  const handlePin = async () => {
+    const next = !isPinned
+    setIsPinned(next)
+    try {
+      await updateSave(save.id, { is_pinned: next })
+      onPinToggle?.(next)
+    } catch {
+      setIsPinned(!next)
+    }
+  }
+
   return (
     <Animated.View style={[
       styles.card,
@@ -174,22 +187,36 @@ export default function SaveCard({ save, onPress, onLongPress, selected, onFavor
         )}
       </Pressable>
 
-      {/* Favorite button — unchanged */}
+      {/* Pin + favorite */}
       {!inSelectionMode && (
-        <TouchableOpacity
-          style={styles.favBtn}
-          onPress={handleFav}
-          activeOpacity={0.7}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Animated.View style={{ transform: [{ scale: favAnimScale }] }}>
+        <View style={styles.actionBtns}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={handlePin}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
             <Ionicons
-              name={isFav ? 'heart' : 'heart-outline'}
+              name={isPinned ? 'pin' : 'pin-outline'}
               size={16}
-              color={isFav ? '#e53e3e' : COLORS.muted}
+              color={isPinned ? COLORS.accent : COLORS.muted}
             />
-          </Animated.View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={handleFav}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Animated.View style={{ transform: [{ scale: favAnimScale }] }}>
+              <Ionicons
+                name={isFav ? 'heart' : 'heart-outline'}
+                size={16}
+                color={isFav ? '#e53e3e' : COLORS.muted}
+              />
+            </Animated.View>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* Selection mode overlay */}
@@ -394,22 +421,23 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
 
-  // Favorite button — unchanged
-  favBtn: {
+  // Pin + favorite buttons
+  actionBtns: {
     position: 'absolute',
     top: SPACING.sm,
     right: SPACING.sm,
+    flexDirection: 'row',
+    gap: 4,
+  },
+  actionBtn: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.88)',
+    backgroundColor: 'rgba(255,255,255,0.92)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
 
   // Selection overlay

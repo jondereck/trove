@@ -1,5 +1,18 @@
 export type SaveType = 'link' | 'image' | 'video' | 'note'
 
+export type LibraryFilter = 'all' | 'fav' | SaveType
+
+export interface LibraryPageOptions {
+  limit: number
+  offset: number
+  filter: LibraryFilter
+}
+
+export interface LibraryPageResult {
+  saves: Save[]
+  total: number
+}
+
 export interface Save {
   id: string
   user_id: string
@@ -13,6 +26,7 @@ export interface Save {
   tags: string[]
   is_inbox: boolean
   is_favorite?: boolean
+  is_pinned?: boolean
   created_at: string
 }
 
@@ -25,6 +39,7 @@ export interface Collection {
   description?: string
   /** Custom cover set by the user; when set, it leads the collection card collage. */
   cover_image_url?: string | null
+  is_pinned?: boolean
   created_at: string
   save_count?: number
   cover_urls?: string[]

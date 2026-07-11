@@ -21,7 +21,7 @@ function nudgeAiLimit() {
     : 'Add Trove Cloud for a bigger monthly allowance.'
   showUpgradeAlert(
     'AI limit reached',
-    `You've used this month's AI suggestions on your plan. Saves still work — they'll land in your Inbox. ${upgradeHint}`
+    `You've used this month's AI suggestions on your plan. Saves still work — they'll land in Unsorted. ${upgradeHint}`
   )
 }
 
@@ -202,9 +202,16 @@ JSON only: {"collection": "Name", "tags": ["tag1", "tag2", "tag3"]}`
   }
   const json = parseJSON<{ collection?: string; tags?: string[] }>(text, {})
   return {
-    collection: aiSuggestCollections ? (json.collection ?? 'Read Later') : 'Read Later',
+    collection: aiSuggestCollections ? matchCollectionName(json.collection, collections) : 'Read Later',
     tags: aiSuggestTags ? [...new Set(Array.isArray(json.tags) ? json.tags.slice(0, 3) : [])] : [],
   }
+}
+
+function matchCollectionName(name: string | undefined, collections: Collection[]): string {
+  const trimmed = (name ?? '').trim()
+  if (!trimmed) return 'Read Later'
+  const match = collections.find(c => c.name.toLowerCase() === trimmed.toLowerCase())
+  return match?.name ?? trimmed
 }
 
 // ── Batch organize (AI Organize flow) ─────────────────────────────────────────
@@ -258,7 +265,8 @@ JSON array, same order as input:
   const arr = parseJSON<Array<{ collection?: string; tags?: string[] }>>(text, [])
 
   return saves.map((save, i) => {
-    const collection = aiSuggestCollections ? (arr[i]?.collection ?? 'Read Later') : 'Read Later'
+    const rawCollection = aiSuggestCollections ? (arr[i]?.collection ?? 'Read Later') : 'Read Later'
+    const collection = matchCollectionName(rawCollection, collections)
     return {
       save,
       suggested_collection: collection,

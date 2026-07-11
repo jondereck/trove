@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING } from '../constants/theme'
+import { UNSORTED_LABEL } from '../constants/labels'
 import { SettingGroup, SettingRow } from '../components/Settings'
 import { getSettings, patchSettings, Settings } from '../lib/settings'
 
@@ -41,6 +42,17 @@ export default function AIPreferencesScreen() {
         contentContainerStyle={{ paddingTop: SPACING.lg, paddingBottom: insets.bottom + SPACING.xl * 2 }}
         showsVerticalScrollIndicator={false}
       >
+        <SettingGroup title="Sharing">
+          <SettingRow
+            icon="share-outline"
+            label="Review when sharing"
+            toggle
+            on={!!settings?.shareReviewModal}
+            onPress={() => toggle('shareReviewModal')}
+            last
+          />
+        </SettingGroup>
+
         <SettingGroup title="AI suggestions">
           <SettingRow
             icon="flash-outline"
@@ -74,11 +86,18 @@ export default function AIPreferencesScreen() {
         </SettingGroup>
 
         <Text style={styles.explainer}>
-          When you save a link, Trove fetches the page title and description, then asks AI to suggest
-          a collection and tags. For notes, AI can also suggest a short title from your text. Turn
-          any suggestion off to fill things in yourself. Auto-organize files new saves straight into
-          the suggested collection; turn it off to review everything in your Inbox first. There is no
-          separate &quot;Read Later&quot; collection — that label means Inbox.
+          When you share a link from another app, Trove can show a preview with AI-suggested
+          collections and tags before saving. Turn &quot;Review when sharing&quot; off to save
+          straight to {UNSORTED_LABEL} with a quick confirmation instead. In-app Quick Save (the +
+          button) is not affected.
+        </Text>
+
+        <Text style={[styles.explainer, styles.explainerSecondary]}>
+          When you save a link inside Trove, AI can fetch the page title and description, then
+          suggest a collection and tags. For notes, AI can also suggest a short title from your
+          text. Turn any suggestion off to fill things in yourself. Auto-organize files new saves
+          straight into the suggested collection; turn it off to review everything in Unsorted
+          first. There is no separate &quot;Read Later&quot; collection — that label means Unsorted.
         </Text>
       </ScrollView>
     </View>
@@ -108,5 +127,8 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     marginHorizontal: SPACING.lg,
     marginTop: -SPACING.sm,
+  },
+  explainerSecondary: {
+    marginTop: SPACING.md,
   },
 })

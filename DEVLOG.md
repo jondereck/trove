@@ -4,6 +4,105 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Library perf, organize fixes, pin, move, UI polish (2026-07-11)
+**Files:** `app/(tabs)/index.tsx`, `app/(tabs)/inbox.tsx`, `app/(tabs)/collections.tsx`,
+`app/collection/[id].tsx`, `app/_layout.tsx`, `components/AIOrganize.tsx`,
+`components/SaveCard.tsx`, `components/MoveToCollectionModal.tsx`, `constants/organize.ts`,
+`lib/ai.ts`, `lib/localDb.ts`, `lib/cloudDb.ts`, `lib/organize.ts`, `types/index.ts`,
+`supabase/add-pinned.sql`
+
+**Library lag:** Replaced `ScrollView` + full render with virtualized `FlatList`
+(`initialNumToRender`, `windowSize`, `removeClippedSubviews`). Tab refocus no longer
+shows a full-screen spinner — only the first visit does.
+
+**Move saves:** Library selection bar now has Move (same sheet as Unsorted/Collection detail)
+via shared `MoveToCollectionModal`.
+
+**AI Organize limit:** Only the first 10 unsorted items go to AI per run
+(`ORGANIZE_BATCH_LIMIT`); banner/CTA copy reflects remaining count.
+
+**AI suggestions fix:** Stale `decisions` closure bug fixed with a ref; collection picker
+shows existing collections + “+ New”; AI collection names matched to existing collections;
+tags empty-state hint when none suggested.
+
+**Pin:** `is_pinned` on saves + collections (local + cloud SQL migration). Pin button on
+save cards, collection cards, and collection detail header. Pinned items sort to top.
+
+**UI:** Library top-right avatar → settings icon; greeting uses first + last name once profile
+loads (no “there” flash); logged-in users skip onboarding/auth intro routes on cold start.
+
+---
+
+### Lottie chest loader for auto-share (2026-07-11)
+**Files:** `components/ShareSaveAnimation.tsx`, `assets/lottie/chest-save.json`, `package.json`
+
+Upgraded the auto-share save loader from hand-built `Animated` Views to a Lottie animation
+(`lottie-react-native` ~7.3.4, Expo SDK 56 compatible). The animation (`assets/lottie/chest-save.json`,
+custom-authored vector, 96 frames @ 30fps, loops) shows a link card dropping into a treasure chest:
+lid opens, card falls in, lid snaps shut with a squash-and-stretch bounce, sparkles pop, ambient
+glow pulses — all in Trove brand colors (accent `#c0613c`, cream, warm neutrals). Component keeps
+the same `active` prop + `MIN_DISPLAY_MS` export, adds an animated ellipsis on "Stashing your
+link…". Native module — requires `npx expo run:android` rebuild.
+
+---
+
+### Chest save animation for auto-share (2026-07-11)
+**Files:** `components/ShareSaveAnimation.tsx`, `app/share.tsx`
+
+When **Review when sharing** is off, the blank share screen is replaced with a Trove-themed
+loading animation: a link chip drops into a treasure chest, the chest bounces and glows, then a
+sparkle plays before the existing snackbar. Minimum display time 900ms so fast saves don't flash.
+Pure React Native `Animated` — no new dependencies. QuickSave review path unchanged.
+
+---
+
+### Share review toggle — auto-save to Unsorted (2026-07-11)
+**Files:** `lib/settings.ts`, `lib/shareSave.ts`, `app/share.tsx`, `app/ai-preferences.tsx`
+
+New setting **Review when sharing** (`shareReviewModal`, default on) in AI preferences → Sharing.
+When **on**, OS shares open the QuickSave preview with AI suggestions (unchanged). When **off**,
+shared links save straight to Unsorted with a snackbar (`Saved to Unsorted`, `Already in Trove`, or
+an error), then return to the source app. OG metadata still fetched in the background. In-app `+`
+Quick Save is unaffected.
+
+---
+
+### Library pagination — UI + DB (2026-07-11)
+**Files:** `constants/library.ts`, `types/index.ts`, `lib/cloudDb.ts`, `lib/localDb.ts`,
+`lib/db.ts`, `app/(tabs)/index.tsx`
+
+**What:** Library no longer loads/renders all saves at once. Initial batch is 24 items;
+scrolling near the bottom loads 20 more. Filter chips (All, Favorites, Links, etc.) now
+query server-side via `fetchLibrarySavesPage` — Supabase uses `.range()` + `count: 'exact'`;
+local mode slices the in-memory cache. Header "X SAVED" uses `fetchLibraryCount()` for the
+full library total regardless of active filter.
+
+---
+
+### Share modal flow + Inbox → Unsorted rename (2026-07-11)
+**Files:** `lib/shareIntent.ts`, `constants/labels.ts`, `app/share.tsx`, `app/_layout.tsx`,
+`app/(tabs)/_layout.tsx`, `app/(tabs)/inbox.tsx`, `components/QuickSave.tsx`,
+`components/AIOrganize.tsx`, `app/ai-preferences.tsx`, `lib/ai.ts`
+
+**Share modal:** OS share intents (Facebook, Chrome, etc.) now route to a dedicated `/share`
+screen instead of opening the full app with tab bar. QuickSave modal opens immediately with the
+shared URL (fetch metadata + AI suggest preview). On save or dismiss, the app exits on Android
+(`BackHandler.exitApp()`) to return to the source app. Share handling removed from tabs layout;
+centered `+` QuickSave unchanged.
+
+**Unsorted rename:** All user-facing "Inbox" labels renamed to "Unsorted" (tab, screen title,
+QuickSave chips/buttons, AI Organize, AI preferences copy). Route file (`inbox.tsx`) and DB
+field (`is_inbox`) unchanged for backward compatibility. Single source of truth:
+`constants/labels.ts` → `UNSORTED_LABEL`.
+
+**Fix — stale share modal on reopen:** After share+exit, Android keeps the app process alive on
+the `/share` route with QuickSave state in memory. Reopening Trove from the launcher showed the
+modal again. `finishShare` now clears state, resets the intent, and `router.replace('/(tabs)')`
+before exit; `RootNavigator` redirects off `/share` when `!hasShareIntent`; share screen returns
+null unless a live share intent is active.
+
+---
+
 ### Cloud dev environment setup: web-preview deps (2026-07-11)
 **Files:** `package.json`, `package-lock.json`, `AGENTS.md`
 

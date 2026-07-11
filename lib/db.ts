@@ -11,6 +11,7 @@ import * as local from './localDb'
 import { emitDataChange } from './dataEvents'
 import { getTier, hasCloud } from './entitlements'
 import { FREE_SAVE_CAP, FREE_COLLECTION_CAP } from '../constants/limits'
+import type { LibraryPageOptions } from '../types'
 
 export type { Profile } from './cloudDb'
 
@@ -45,6 +46,8 @@ async function assertCollectionCapacity() {
 
 // ── Saves ─────────────────────────────────────────────────────────────────────
 export const fetchLibrarySaves = () => pick().fetchLibrarySaves()
+export const fetchLibrarySavesPage = (opts: LibraryPageOptions) => pick().fetchLibrarySavesPage(opts)
+export const fetchLibraryCount = () => pick().fetchLibraryCount()
 export const fetchInboxSaves = () => pick().fetchInboxSaves()
 export const fetchSave = (id: string) => pick().fetchSave(id)
 export const fetchSaveById = (id: string) => pick().fetchSaveById(id)

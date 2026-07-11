@@ -5,7 +5,7 @@ import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { useFonts } from 'expo-font'
 import * as SplashScreen from 'expo-splash-screen'
-import { ShareIntentProvider } from 'expo-share-intent'
+import { ShareIntentProvider, useShareIntentContext } from 'expo-share-intent'
 import type { Session } from '@supabase/supabase-js'
 import {
   InstrumentSerif_400Regular,
@@ -39,8 +39,6 @@ import {
 
 SplashScreen.preventAutoHideAsync()
 
-// Local data lifts to the cloud only when the user is signed in AND has the
-// Cloud subscription — signing in alone keeps data on-device.
 async function maybeMigrateToCloud() {
   if (!isLoggedIn() || !hasCloud()) return
   const has = await hasLocalData()
@@ -49,6 +47,74 @@ async function maybeMigrateToCloud() {
   if (saves || collections) {
     Alert.alert('Synced to your account', `Moved ${saves} saves and ${collections} collections to the cloud.`)
   }
+}
+
+interface RootNavigatorProps {
+  session: Session | null | undefined
+  hasData: boolean | undefined
+  dismissed: boolean
+  fontsLoaded: boolean
+  fontError: Error | null
+}
+
+function RootNavigator({ session, hasData, dismissed, fontsLoaded, fontError }: RootNavigatorProps) {
+  const { hasShareIntent } = useShareIntentContext()
+  const segments = useSegments()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (session === undefined || hasData === undefined) return
+    if (!fontsLoaded && !fontError) return
+
+    if (hasShareIntent) {
+      if (segments[0] !== 'share') router.replace('/share')
+      return
+    }
+
+    if (segments[0] === 'share') {
+      router.replace('/(tabs)')
+      return
+    }
+
+    const inAuthGroup = segments[0] === '(auth)'
+    const inOnboarding = segments[0] === 'onboarding'
+
+    // Signed-in users go straight to the app — never flash onboarding or auth intro.
+    if (session) {
+      if (inOnboarding || inAuthGroup) router.replace('/(tabs)')
+      return
+    }
+
+    const showOnboarding = !hasData && !dismissed && !inAuthGroup
+    if (showOnboarding) {
+      if (!inOnboarding) router.replace('/onboarding')
+      return
+    }
+
+    if (inOnboarding) {
+      router.replace('/(tabs)')
+    } else if (inAuthGroup) {
+      router.replace('/(tabs)')
+    }
+  }, [hasShareIntent, session, hasData, dismissed, fontsLoaded, fontError, segments, router])
+
+  return (
+    <>
+      <StatusBar style="dark" />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.bg } }}>
+        <Stack.Screen name="share" options={{ animation: 'fade' }} />
+        <Stack.Screen name="onboarding" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="save/[id]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="collection/[id]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="account" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="change-password" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="ai-preferences" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="upgrade" options={{ animation: 'slide_from_bottom' }} />
+      </Stack>
+    </>
+  )
 }
 
 export default function RootLayout() {
@@ -63,14 +129,10 @@ export default function RootLayout() {
     SplineSansMono_500Medium,
   })
 
-  // undefined = still checking, null = no session, Session = logged in
   const [session, setSession] = useState<Session | null | undefined>(undefined)
-  // undefined = still checking the local store, boolean = known
   const [hasData, setHasData] = useState<boolean | undefined>(undefined)
-  // In-memory: true once the intro is dismissed this session.
   const [dismissed, setDismissed] = useState(isOnboardingDismissed())
 
-  const segments = useSegments()
   const router = useRouter()
 
   useEffect(() => {
@@ -83,14 +145,11 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError, session, hasData])
 
-  // Whether the device has any local saves/collections, kept in sync so
-  // dismissing the intro updates routing without a redirect loop.
   useEffect(() => {
     hasLocalData().then(setHasData)
     return subscribeOnboarding(() => setDismissed(isOnboardingDismissed()))
   }, [])
 
-  // Fetch initial session and subscribe to auth changes
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -98,9 +157,6 @@ export default function RootLayout() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
-      // First sign-in: link purchases to the account, pull the provider's
-      // name/photo into the profile, and (Cloud subscribers only) lift any
-      // device-local saves into the cloud account.
       if (event === 'SIGNED_IN') {
         clearAuthFlow()
         syncProviderProfile()
@@ -112,17 +168,14 @@ export default function RootLayout() {
       if (event === 'SIGNED_OUT') {
         logOutPurchases()
       }
-      // Reset-email deep link: drop the user on the change-password screen.
       if (event === 'PASSWORD_RECOVERY') {
         router.replace('/change-password')
       }
     })
 
     return () => subscription.unsubscribe()
-  }, [])
+  }, [router])
 
-  // RevenueCat: configure once, and when the Cloud entitlement is gained
-  // (purchase or restore) migrate local data for signed-in users.
   useEffect(() => {
     configurePurchases()
     return subscribeTier(tier => {
@@ -130,51 +183,20 @@ export default function RootLayout() {
     })
   }, [])
 
-  // Routing: no forced login. Show the intro on every launch while the library
-  // is empty and signed-out; otherwise land in the app.
-  useEffect(() => {
-    if (session === undefined || hasData === undefined) return // still loading
-    if (!fontsLoaded && !fontError) return // fonts not ready
-
-    const inAuthGroup = segments[0] === '(auth)'
-    const inOnboarding = segments[0] === 'onboarding'
-
-    // Don't force the intro over screens the user navigated to on purpose (the
-    // auth flow), otherwise tapping "Sign in" from the intro bounces back.
-    const showOnboarding = !session && !hasData && !dismissed && !inAuthGroup
-    if (showOnboarding) {
-      if (!inOnboarding) router.replace('/onboarding')
-      return
-    }
-
-    // Has data, signed in, or intro dismissed — never sit on the intro/auth screens.
-    if (inOnboarding) {
-      router.replace('/(tabs)')
-    } else if (session && inAuthGroup) {
-      router.replace('/(tabs)')
-    }
-  }, [session, hasData, dismissed, fontsLoaded, fontError, segments])
-
-  // Hold render until fonts, session, and the local-store check are all known
   if ((!fontsLoaded && !fontError) || session === undefined || hasData === undefined) {
     return null
   }
 
   return (
-    <ShareIntentProvider>
+    <ShareIntentProvider options={{ resetOnBackground: true }}>
       <SafeAreaProvider>
-        <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.bg } }}>
-          <Stack.Screen name="onboarding" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="save/[id]" options={{ animation: 'slide_from_right' }} />
-          <Stack.Screen name="collection/[id]" options={{ animation: 'slide_from_right' }} />
-          <Stack.Screen name="account" options={{ animation: 'slide_from_bottom' }} />
-          <Stack.Screen name="change-password" options={{ animation: 'slide_from_right' }} />
-          <Stack.Screen name="ai-preferences" options={{ animation: 'slide_from_right' }} />
-          <Stack.Screen name="upgrade" options={{ animation: 'slide_from_bottom' }} />
-        </Stack>
+        <RootNavigator
+          session={session}
+          hasData={hasData}
+          dismissed={dismissed}
+          fontsLoaded={fontsLoaded}
+          fontError={fontError}
+        />
       </SafeAreaProvider>
     </ShareIntentProvider>
   )

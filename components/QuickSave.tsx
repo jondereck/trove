@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
+import { UNSORTED_LABEL } from '../constants/labels'
 import { DEFAULT_COLLECTION_ICON, IoniconName } from '../constants/icons'
 import { SaveType, OGMetadata, AISuggestion, Collection } from '../types'
 import { fetchOGMetadata, suggestForSave, suggestNoteTitle } from '../lib/ai'
@@ -303,7 +304,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
     const suggIsNew = !!sugg && sugg.toLowerCase() !== 'read later' && !existing.has(sugg.toLowerCase())
 
     const opts: { id: string; label: string; icon?: IoniconName; color?: string; isNew?: boolean; recommended?: boolean }[] = [
-      { id: '', label: 'Inbox' },
+      { id: '', label: UNSORTED_LABEL },
     ]
     if (suggIsNew) opts.push({ id: sugg!, label: sugg!, isNew: true, recommended: true })
     if (customColl && customColl.toLowerCase() !== sugg?.toLowerCase() && !existing.has(customColl.toLowerCase())) {
@@ -429,7 +430,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                       activeOpacity={0.85}
                     >
                       <Text style={styles.primaryBtnText}>
-                        {type === 'note' ? 'Preview & Title  →' : 'Save to Inbox'}
+                        {type === 'note' ? 'Preview & Title  →' : `Save to ${UNSORTED_LABEL}`}
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -568,7 +569,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
 
               <TouchableOpacity style={styles.primaryBtn} onPress={handleSaveDraft} activeOpacity={0.85}>
                 <Text style={styles.primaryBtnText}>
-                  {selectedCollection ? `Save to ${selectedCollection}` : 'Save to Inbox'}
+                  {selectedCollection ? `Save to ${selectedCollection}` : `Save to ${UNSORTED_LABEL}`}
                 </Text>
               </TouchableOpacity>
             </ScrollView>

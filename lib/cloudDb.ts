@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { Save, Collection } from '../types'
+import { Save, Collection, LibraryFilter, LibraryPageOptions, LibraryPageResult } from '../types'
 import { normalizeUrl } from './url'
 
 // Supabase-backed data layer — used when the user is signed in.
@@ -7,6 +7,16 @@ import { normalizeUrl } from './url'
 // lib/db.ts routes between the two.
 
 // ── Saves ─────────────────────────────────────────────────────────────────────
+
+function applyLibraryFilter<T extends { eq: (col: string, val: unknown) => T }>(
+  query: T,
+  filter: LibraryFilter,
+): T {
+  let q = query.eq('is_inbox', false)
+  if (filter === 'fav') return q.eq('is_favorite', true)
+  if (filter !== 'all') return q.eq('type', filter)
+  return q
+}
 
 export async function fetchLibrarySaves(): Promise<Save[]> {
   const { data, error } = await supabase
@@ -16,6 +26,35 @@ export async function fetchLibrarySaves(): Promise<Save[]> {
     .order('created_at', { ascending: false })
   if (error) { console.error('fetchLibrarySaves:', error.message); return [] }
   return (data ?? []) as Save[]
+}
+
+export async function fetchLibrarySavesPage({
+  limit,
+  offset,
+  filter,
+}: LibraryPageOptions): Promise<LibraryPageResult> {
+  let query = supabase
+    .from('saves')
+    .select('*', { count: 'exact' })
+    .order('is_pinned', { ascending: false })
+    .order('created_at', { ascending: false })
+  query = applyLibraryFilter(query, filter)
+
+  const { data, error, count } = await query.range(offset, offset + limit - 1)
+  if (error) {
+    console.error('fetchLibrarySavesPage:', error.message)
+    return { saves: [], total: 0 }
+  }
+  return { saves: (data ?? []) as Save[], total: count ?? 0 }
+}
+
+export async function fetchLibraryCount(): Promise<number> {
+  const { count, error } = await supabase
+    .from('saves')
+    .select('*', { count: 'exact', head: true })
+    .eq('is_inbox', false)
+  if (error) { console.error('fetchLibraryCount:', error.message); return 0 }
+  return count ?? 0
 }
 
 export async function fetchInboxSaves(): Promise<Save[]> {
@@ -43,6 +82,7 @@ export async function fetchCollectionSaves(collectionId: string): Promise<Save[]
     .from('saves')
     .select('*')
     .eq('collection_id', collectionId)
+    .order('is_pinned', { ascending: false })
     .order('created_at', { ascending: false })
   if (error) { console.error('fetchCollectionSaves:', error.message); return [] }
   return (data ?? []) as Save[]
@@ -194,6 +234,7 @@ export async function fetchCollections(): Promise<Collection[]> {
   const { data: cols, error } = await supabase
     .from('collections')
     .select('*')
+    .order('is_pinned', { ascending: false })
     .order('name')
   if (error) { console.error('fetchCollections:', error.message); return [] }
   if (!cols?.length) return []
@@ -261,7 +302,7 @@ export async function createCollection(input: {
 
 export async function updateCollection(
   id: string,
-  updates: Partial<Pick<Collection, 'name' | 'icon' | 'color' | 'description' | 'cover_image_url'>>
+  updates: Partial<Pick<Collection, 'name' | 'icon' | 'color' | 'description' | 'cover_image_url' | 'is_pinned'>>
 ): Promise<boolean> {
   const { error } = await supabase.from('collections').update(updates).eq('id', id)
   if (error) { console.error('updateCollection:', error.message); return false }

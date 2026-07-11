@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
+import { UNSORTED_LABEL } from '../constants/labels'
 import { Save, Collection, OrganizeSuggestion } from '../types'
 import { organizeInboxItems } from '../lib/ai'
 
@@ -42,6 +43,9 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
   const [edits, setEdits] = useState<Record<number, EditState>>({})
   const [editingItem, setEditingItem] = useState(false)
   const [newTag, setNewTag] = useState('')
+  const [customCollection, setCustomCollection] = useState(false)
+
+  const decisionsRef = useRef<(Decision | null)[]>([])
 
   const scale = useRef(new Animated.Value(1)).current
   const glowOpacity = useRef(new Animated.Value(0.4)).current
@@ -58,6 +62,8 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
       setDecisions([])
       setEdits({})
       setEditingItem(false)
+      setCustomCollection(false)
+      decisionsRef.current = []
 
       Animated.parallel([
         Animated.timing(backdropOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
@@ -70,20 +76,21 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
       organizeInboxItems(saves, collections)
         .then(result => {
           setSuggestions(result)
-          setDecisions(new Array(result.length).fill(null))
+          decisionsRef.current = new Array(result.length).fill(null)
+          setDecisions(decisionsRef.current)
           stopPulse()
           setPhase('review')
         })
         .catch(() => {
-          // Fallback: use defaults
           const fallback = saves.map(s => ({
             save: s,
             suggested_collection: 'Read Later',
-            suggested_tags: [],
+            suggested_tags: [] as string[],
             confidence: 0,
           }))
           setSuggestions(fallback)
-          setDecisions(new Array(fallback.length).fill(null))
+          decisionsRef.current = new Array(fallback.length).fill(null)
+          setDecisions(decisionsRef.current)
           stopPulse()
           setPhase('review')
         })
@@ -126,6 +133,11 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
   const updateCollection = (v: string) =>
     setEdits(e => ({ ...e, [currentIndex]: { collection: v, tags: effectiveTags } }))
 
+  const pickCollection = (name: string) => {
+    setCustomCollection(false)
+    updateCollection(name)
+  }
+
   const removeTag = (tag: string) =>
     setEdits(e => ({ ...e, [currentIndex]: { collection: effectiveCollection, tags: effectiveTags.filter(t => t !== tag) } }))
 
@@ -138,22 +150,22 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
   }
 
   const decide = (decision: Decision) => {
-    setDecisions(prev => {
-      const next = [...prev]
-      next[currentIndex] = decision
-      return next
-    })
+    decisionsRef.current[currentIndex] = decision
+    setDecisions([...decisionsRef.current])
     setEditingItem(false)
+    setCustomCollection(false)
     if (currentIndex < suggestions.length - 1) {
       setCurrentIndex(i => i + 1)
     } else {
-      applyAndFinish([...decisions.slice(0, currentIndex), decision])
+      applyAndFinish(decisionsRef.current)
     }
   }
 
   const acceptAll = () => {
-    const allAccept = decisions.map((d, i) => (i < currentIndex ? d : 'accept') as Decision)
-    applyAndFinish(allAccept)
+    const final = decisionsRef.current.map((d, i) =>
+      i < currentIndex ? d : ('accept' as Decision)
+    )
+    applyAndFinish(final)
   }
 
   const applyAndFinish = (finalDecisions: (Decision | null)[]) => {
@@ -173,8 +185,10 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
     setPhase('done')
   }
 
+  const accepted = decisionsRef.current.filter(d => d === 'accept').length
+
   const remaining = suggestions.length - currentIndex
-  const accepted = decisions.filter(d => d === 'accept').length
+  const collectionNames = [...new Set(collections.map(c => c.name))]
 
   return (
     <Modal transparent visible={visible} animationType="none" onRequestClose={onClose}>
@@ -195,7 +209,7 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
                   <Ionicons name="sparkles" size={22} color="#fff" />
                 </Animated.View>
               </View>
-              <Text style={styles.loadingTitle}>Analyzing your inbox</Text>
+              <Text style={styles.loadingTitle}>Analyzing {UNSORTED_LABEL.toLowerCase()}</Text>
               <Text style={styles.loadingSubtitle}>Finding the right collections and tags…</Text>
               <ActivityIndicator color={COLORS.accent} style={{ marginTop: SPACING.md }} />
             </View>
@@ -206,7 +220,7 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
             <>
               {/* Header */}
               <View style={styles.reviewHeader}>
-                <Text style={styles.reviewTitle}>Organize Inbox</Text>
+                <Text style={styles.reviewTitle}>Organize {UNSORTED_LABEL}</Text>
                 <View style={styles.progressBadge}>
                   <Text style={styles.progressText}>{currentIndex + 1} of {suggestions.length}</Text>
                 </View>
@@ -231,14 +245,50 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
               <ScrollView showsVerticalScrollIndicator={false} style={styles.editArea} keyboardShouldPersistTaps="handled">
                 <Text style={styles.sectionLabel}>Collection</Text>
                 {editingItem ? (
-                  <TextInput
-                    style={styles.collectionInput}
-                    value={effectiveCollection}
-                    onChangeText={updateCollection}
-                    autoCapitalize="words"
-                    returnKeyType="done"
-                    onSubmitEditing={() => {}}
-                  />
+                  <>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.collectionPicker}
+                      contentContainerStyle={styles.collectionPickerRow}
+                    >
+                      {collectionNames.map(name => {
+                        const active = effectiveCollection.toLowerCase() === name.toLowerCase() && !customCollection
+                        return (
+                          <TouchableOpacity
+                            key={name}
+                            style={[styles.collectionOption, active && styles.collectionOptionActive]}
+                            onPress={() => pickCollection(name)}
+                            activeOpacity={0.75}
+                          >
+                            <Text style={[styles.collectionOptionText, active && styles.collectionOptionTextActive]}>
+                              {name}
+                            </Text>
+                          </TouchableOpacity>
+                        )
+                      })}
+                      <TouchableOpacity
+                        style={[styles.collectionOption, customCollection && styles.collectionOptionActive]}
+                        onPress={() => setCustomCollection(true)}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={[styles.collectionOptionText, customCollection && styles.collectionOptionTextActive]}>
+                          + New
+                        </Text>
+                      </TouchableOpacity>
+                    </ScrollView>
+                    {(customCollection || collectionNames.length === 0) && (
+                      <TextInput
+                        style={styles.collectionInput}
+                        value={effectiveCollection}
+                        onChangeText={updateCollection}
+                        autoCapitalize="words"
+                        returnKeyType="done"
+                        placeholder="Collection name"
+                        placeholderTextColor={COLORS.muted}
+                      />
+                    )}
+                  </>
                 ) : (
                   <TouchableOpacity style={styles.collectionChip} onPress={() => setEditingItem(true)} activeOpacity={0.8}>
                     <View style={styles.collectionChipMain}>
@@ -250,6 +300,9 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
                 )}
 
                 <Text style={styles.sectionLabel}>Tags</Text>
+                {effectiveTags.length === 0 && !editingItem ? (
+                  <Text style={styles.tagsEmpty}>No tags suggested — tap Edit to add some.</Text>
+                ) : null}
                 <View style={styles.tagsRow}>
                   {effectiveTags.map((tag, i) => (
                     <TouchableOpacity
@@ -511,6 +564,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: FONTS.sans,
     color: COLORS.text,
+    marginBottom: SPACING.sm,
+  },
+  collectionPicker: { marginBottom: SPACING.sm, maxHeight: 40 },
+  collectionPickerRow: { gap: SPACING.sm, paddingRight: SPACING.sm },
+  collectionOption: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+  collectionOptionActive: {
+    borderColor: COLORS.accent,
+    backgroundColor: '#fdf0eb',
+  },
+  collectionOptionText: {
+    fontSize: 13,
+    fontFamily: FONTS.sansMed,
+    color: COLORS.textSub,
+  },
+  collectionOptionTextActive: {
+    color: COLORS.accent,
+  },
+  tagsEmpty: {
+    fontSize: 12,
+    fontFamily: FONTS.sans,
+    color: COLORS.muted,
     marginBottom: SPACING.sm,
   },
   tagsRow: {

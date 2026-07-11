@@ -28,7 +28,7 @@ export async function applyOrganizeSuggestions(accepted: OrganizeSuggestion[]): 
       await updateSave(suggestion.save.id, {
         is_inbox: false,
         collection_id: collectionId,
-        tags: suggestion.suggested_tags,
+        tags: suggestion.suggested_tags.length ? suggestion.suggested_tags : (suggestion.save.tags ?? []),
       })
     })
   )

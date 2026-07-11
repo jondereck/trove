@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Crypto from 'expo-crypto'
-import { Save, Collection } from '../types'
+import { Save, Collection, LibraryFilter, LibraryPageOptions, LibraryPageResult } from '../types'
 import { normalizeUrl } from './url'
 import { tokenizeSearchQuery, type Profile } from './cloudDb'
 
@@ -46,11 +46,45 @@ async function persistCollections(cols: Collection[]): Promise<void> {
 
 const byNewest = (a: Save, b: Save) => b.created_at.localeCompare(a.created_at)
 
+const byPinnedThenNewest = (a: Save, b: Save) => {
+  const pinDiff = Number(!!b.is_pinned) - Number(!!a.is_pinned)
+  return pinDiff !== 0 ? pinDiff : byNewest(a, b)
+}
+
+const byPinnedThenName = (a: Collection, b: Collection) => {
+  const pinDiff = Number(!!b.is_pinned) - Number(!!a.is_pinned)
+  return pinDiff !== 0 ? pinDiff : a.name.localeCompare(b.name)
+}
+
+function filterLibrarySaves(saves: Save[], filter: LibraryFilter): Save[] {
+  const library = saves.filter(s => !s.is_inbox)
+  if (filter === 'all') return library.sort(byPinnedThenNewest)
+  if (filter === 'fav') return library.filter(s => s.is_favorite).sort(byPinnedThenNewest)
+  return library.filter(s => s.type === filter).sort(byPinnedThenNewest)
+}
+
 // ── Saves ─────────────────────────────────────────────────────────────────────
 
 export async function fetchLibrarySaves(): Promise<Save[]> {
   const saves = await loadSaves()
-  return saves.filter(s => !s.is_inbox).sort(byNewest)
+  return filterLibrarySaves(saves, 'all')
+}
+
+export async function fetchLibrarySavesPage({
+  limit,
+  offset,
+  filter,
+}: LibraryPageOptions): Promise<LibraryPageResult> {
+  const filtered = filterLibrarySaves(await loadSaves(), filter)
+  return {
+    saves: filtered.slice(offset, offset + limit),
+    total: filtered.length,
+  }
+}
+
+export async function fetchLibraryCount(): Promise<number> {
+  const saves = await loadSaves()
+  return saves.filter(s => !s.is_inbox).length
 }
 
 export async function fetchInboxSaves(): Promise<Save[]> {
@@ -67,7 +101,7 @@ export const fetchSaveById = fetchSave
 
 export async function fetchCollectionSaves(collectionId: string): Promise<Save[]> {
   const saves = await loadSaves()
-  return saves.filter(s => s.collection_id === collectionId).sort(byNewest)
+  return saves.filter(s => s.collection_id === collectionId).sort(byPinnedThenNewest)
 }
 
 export const fetchSavesByCollection = fetchCollectionSaves
@@ -174,6 +208,7 @@ export async function createSave(input: {
     tags: input.tags ?? [],
     is_inbox: input.is_inbox ?? true,
     is_favorite: input.is_favorite ?? false,
+    is_pinned: input.is_pinned ?? false,
     created_at: input.created_at ?? new Date().toISOString(),
   }
   await persistSaves([save, ...saves])
@@ -217,7 +252,7 @@ export async function fetchCollections(): Promise<Collection[]> {
   })
 
   return [...cols]
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort(byPinnedThenName)
     .map(c => {
       const recent = coverMap[c.id] ?? []
       const custom = c.cover_image_url
@@ -260,7 +295,7 @@ export async function createCollection(input: {
 
 export async function updateCollection(
   id: string,
-  updates: Partial<Pick<Collection, 'name' | 'icon' | 'color' | 'description' | 'cover_image_url'>>
+  updates: Partial<Pick<Collection, 'name' | 'icon' | 'color' | 'description' | 'cover_image_url' | 'is_pinned'>>
 ): Promise<boolean> {
   const cols = await loadCollections()
   const idx = cols.findIndex(c => c.id === id)
