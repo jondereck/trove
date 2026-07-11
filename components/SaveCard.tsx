@@ -124,9 +124,10 @@ interface SaveCardProps {
   /** undefined = not in selection mode; true/false = selected state */
   selected?: boolean
   onFavoriteToggle?: (isFav: boolean) => void
+  layout?: 'grid' | 'list'
 }
 
-export default function SaveCard({ save, onPress, onLongPress, selected, onFavoriteToggle }: SaveCardProps) {
+export default function SaveCard({ save, onPress, onLongPress, selected, onFavoriteToggle, layout = 'grid' }: SaveCardProps) {
   const scale = useRef(new Animated.Value(1)).current
   const inSelectionMode = selected !== undefined
   const [isFav, setIsFav] = useState(!!save.is_favorite)
@@ -161,10 +162,16 @@ export default function SaveCard({ save, onPress, onLongPress, selected, onFavor
       selected && styles.cardSelected,
     ]}>
       <Pressable onPress={onPress} onLongPress={onLongPress} onPressIn={onPressIn} onPressOut={onPressOut}>
-        {save.type === 'link' && <LinkCard save={save} />}
-        {save.type === 'note' && <NoteCard save={save} />}
-        {save.type === 'image' && <ImageCard save={save} />}
-        {save.type === 'video' && <VideoCard save={save} />}
+        {layout === 'list' ? (
+          <ListCard save={save} />
+        ) : (
+          <>
+            {save.type === 'link' && <LinkCard save={save} />}
+            {save.type === 'note' && <NoteCard save={save} />}
+            {save.type === 'image' && <ImageCard save={save} />}
+            {save.type === 'video' && <VideoCard save={save} />}
+          </>
+        )}
       </Pressable>
 
       {/* Favorite button — unchanged */}
@@ -315,6 +322,53 @@ function VideoCard({ save }: { save: Save }) {
           <Text style={styles.desc} numberOfLines={2}>{save.description}</Text>
         ) : null}
         <TagChips tags={save.tags ?? []} />
+      </View>
+    </View>
+  )
+}
+
+function ListCard({ save }: { save: Save }) {
+  const domain = getDomain(save.url)
+  const [imgError, setImgError] = useState(false)
+  const thumb = save.image_url
+
+  useEffect(() => {
+    if (thumb && !imgError) return
+    if (save.type !== 'link') return
+    let alive = true
+    repairThumbnail(save).then(url => {
+      if (alive && url) setImgError(false)
+    })
+    return () => { alive = false }
+  }, [imgError, thumb, save])
+
+  const typeIcon: keyof typeof Ionicons.glyphMap =
+    save.type === 'note' ? 'document-text-outline'
+    : save.type === 'image' ? 'image-outline'
+    : save.type === 'video' ? 'videocam-outline'
+    : 'link-outline'
+
+  return (
+    <View style={styles.listRow}>
+      {thumb && !imgError ? (
+        <Image
+          source={{ uri: thumb }}
+          style={styles.listThumb}
+          resizeMode="cover"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <View style={[styles.listThumb, styles.listThumbFallback]}>
+          <Ionicons name={typeIcon} size={20} color={COLORS.muted} />
+        </View>
+      )}
+      <View style={styles.listBody}>
+        <Text style={styles.listTitle} numberOfLines={2}>{save.title}</Text>
+        <View style={styles.listMeta}>
+          {domain ? <Text style={styles.listMetaText} numberOfLines={1}>{domain}</Text> : null}
+          {domain ? <Text style={styles.listMetaDot}>·</Text> : null}
+          <Text style={styles.listMetaText}>{formatDate(save.created_at)}</Text>
+        </View>
       </View>
     </View>
   )
@@ -553,4 +607,32 @@ const styles = StyleSheet.create({
     color: '#fff',
     letterSpacing: 0.8,
   },
+
+  listRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    padding: SPACING.md,
+  },
+  listThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.border,
+  },
+  listThumbFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.cream,
+  },
+  listBody: { flex: 1, gap: 4 },
+  listTitle: {
+    fontSize: 15,
+    fontFamily: FONTS.sansSemi,
+    color: COLORS.text,
+    lineHeight: 20,
+  },
+  listMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  listMetaText: { fontSize: 12, fontFamily: FONTS.sans, color: COLORS.muted },
+  listMetaDot: { fontSize: 12, color: COLORS.muted },
 })

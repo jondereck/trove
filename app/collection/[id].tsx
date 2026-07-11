@@ -9,8 +9,9 @@ import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
 import { Save, Collection } from '../../types'
-import { fetchCollectionById, fetchSavesByCollection, fetchCollections, deleteSave, updateSave } from '../../lib/db'
+import { fetchCollectionById, fetchSavesByCollection, fetchCollections, deleteSave, updateSave, deleteCollection } from '../../lib/db'
 import SaveCard from '../../components/SaveCard'
+import CollectionForm from '../../components/CollectionForm'
 
 export default function CollectionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -27,6 +28,7 @@ export default function CollectionDetailScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showMoveModal, setShowMoveModal] = useState(false)
   const [allCollections, setAllCollections] = useState<Collection[]>([])
+  const [editVisible, setEditVisible] = useState(false)
 
   const load = useCallback(async () => {
     const [col, items] = await Promise.all([fetchCollectionById(id), fetchSavesByCollection(id)])
@@ -104,6 +106,36 @@ export default function CollectionDetailScreen() {
     cancelSelection()
   }
 
+  const handleDeleteCollection = () => {
+    if (!collection) return
+    const itemCount = saves.length
+    if (itemCount > 0) {
+      Alert.alert(
+        'Collection not empty',
+        `This collection has ${itemCount} ${itemCount === 1 ? 'item' : 'items'}. Move or delete them before removing the collection.`,
+        [{ text: 'OK' }]
+      )
+      return
+    }
+
+    Alert.alert(
+      'Delete collection?',
+      `"${collection.name}" will be permanently removed. This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const ok = await deleteCollection(collection.id)
+            if (ok) router.back()
+            else Alert.alert('Could not delete', 'Please try again.')
+          },
+        },
+      ]
+    )
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const leftCol = saves.filter((_, i) => i % 2 === 0)
@@ -159,9 +191,19 @@ export default function CollectionDetailScreen() {
               </View>
             )}
             <View style={styles.headerRight}>
+              {!loading && collection && (
+                <TouchableOpacity onPress={() => setEditVisible(true)} style={styles.selectBtn} activeOpacity={0.7}>
+                  <Ionicons name="create-outline" size={22} color={COLORS.muted} />
+                </TouchableOpacity>
+              )}
               {!loading && saves.length > 0 && (
                 <TouchableOpacity onPress={() => enterSelection(saves[0].id)} style={styles.selectBtn} activeOpacity={0.7}>
                   <Ionicons name="checkmark-circle-outline" size={22} color={COLORS.muted} />
+                </TouchableOpacity>
+              )}
+              {!loading && collection && (
+                <TouchableOpacity onPress={handleDeleteCollection} style={styles.selectBtn} activeOpacity={0.7}>
+                  <Ionicons name="trash-outline" size={22} color={COLORS.muted} />
                 </TouchableOpacity>
               )}
               {!loading && (
@@ -257,6 +299,20 @@ export default function CollectionDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      <CollectionForm
+        visible={editVisible}
+        collection={collection ? { ...collection, save_count: saves.length } : null}
+        onClose={() => setEditVisible(false)}
+        onSaved={async () => {
+          const col = await fetchCollectionById(id)
+          if (!col) {
+            router.back()
+            return
+          }
+          await load()
+        }}
+      />
     </View>
   )
 }

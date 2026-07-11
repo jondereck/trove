@@ -23,6 +23,8 @@ export interface Collection {
   icon: string
   color: string
   description?: string
+  /** Custom cover set by the user; when set, it leads the collection card collage. */
+  cover_image_url?: string | null
   created_at: string
   save_count?: number
   cover_urls?: string[]

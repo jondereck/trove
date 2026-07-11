@@ -9,6 +9,14 @@ const UA_IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleW
 const UA_FBCRAWLER = 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)'
 const UA_GOOGLEBOT = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
 
+type PreviewMetadata = {
+  url: string
+  title: string
+  description: string | null
+  image: string | null
+  siteName: string
+}
+
 function pickUA(url: string): string {
   const host = new URL(url).hostname
   if (host.includes('facebook') || host.includes('fb.com') || host.includes('fb.watch')) return UA_FBCRAWLER
@@ -65,6 +73,32 @@ function extractJsonLd(html: string): { title?: string; description?: string; im
   }
 }
 
+async function fetchTikTokOEmbed(url: string): Promise<PreviewMetadata | null> {
+  try {
+    const res = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`, {
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(6000),
+    })
+    if (!res.ok) return null
+
+    const data = await res.json()
+    const title = typeof data?.title === 'string' ? data.title.trim() : ''
+    const image = typeof data?.thumbnail_url === 'string' ? data.thumbnail_url : null
+    if (!title && !image) return null
+
+    const author = typeof data?.author_name === 'string' ? data.author_name.trim() : ''
+    return {
+      url,
+      title: title || 'TikTok video',
+      description: author ? `By ${author}` : null,
+      image,
+      siteName: 'TikTok',
+    }
+  } catch {
+    return null
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
@@ -78,17 +112,42 @@ serve(async (req) => {
 
     const host = new URL(url).hostname
     const isTikTok = host.includes('tiktok')
+    const tiktokMetadata = isTikTok ? await fetchTikTokOEmbed(url) : null
 
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': pickUA(url),
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Cache-Control': 'no-cache',
-      },
-      redirect: 'follow',
-      signal: AbortSignal.timeout(8000),
-    })
+    if (tiktokMetadata?.title && tiktokMetadata.image) {
+      return new Response(JSON.stringify(tiktokMetadata), {
+        headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
+    }
+
+    let res: Response
+    try {
+      res = await fetch(url, {
+        headers: {
+          'User-Agent': pickUA(url),
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Cache-Control': 'no-cache',
+        },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(8000),
+      })
+    } catch (error) {
+      if (tiktokMetadata) {
+        return new Response(JSON.stringify(tiktokMetadata), {
+          headers: { ...CORS, 'Content-Type': 'application/json' },
+        })
+      }
+      throw error
+    }
+    if (!res.ok) {
+      if (tiktokMetadata) {
+        return new Response(JSON.stringify(tiktokMetadata), {
+          headers: { ...CORS, 'Content-Type': 'application/json' },
+        })
+      }
+      throw new Error(`upstream ${res.status}`)
+    }
 
     const html = await res.text()
     const hostname = host.replace(/^www\./, '')
@@ -96,12 +155,12 @@ serve(async (req) => {
 
     const jsonLd = isTikTok ? extractJsonLd(html) : {}
 
-    let result = {
+    let result: PreviewMetadata = {
       url,
-      title: og(html, 'title') ?? meta(html, 'twitter:title') ?? jsonLd.title ?? titleTag ?? hostname,
-      description: og(html, 'description') ?? meta(html, 'description') ?? meta(html, 'twitter:description') ?? jsonLd.description ?? null,
-      image: og(html, 'image') ?? meta(html, 'twitter:image') ?? jsonLd.image ?? null,
-      siteName: og(html, 'site_name') ?? hostname,
+      title: tiktokMetadata?.title ?? og(html, 'title') ?? meta(html, 'twitter:title') ?? jsonLd.title ?? titleTag ?? hostname,
+      description: tiktokMetadata?.description ?? og(html, 'description') ?? meta(html, 'description') ?? meta(html, 'twitter:description') ?? jsonLd.description ?? null,
+      image: tiktokMetadata?.image ?? og(html, 'image') ?? meta(html, 'twitter:image') ?? jsonLd.image ?? null,
+      siteName: tiktokMetadata?.siteName ?? og(html, 'site_name') ?? hostname,
     }
 
     // Meta (Facebook/Instagram) increasingly serves a generic login-wall page

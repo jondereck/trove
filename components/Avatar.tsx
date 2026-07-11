@@ -19,8 +19,8 @@ export default function Avatar({
   ring?: boolean
 }) {
   const initials = (
-    (firstName?.[0] ?? 'T') + (lastName?.[0] ?? '')
-  ).toUpperCase()
+    (firstName?.trim()?.[0] ?? '') + (lastName?.trim()?.[0] ?? '')
+  ).toUpperCase() || (firstName?.trim()?.[0] ?? 'T').toUpperCase()
 
   const circle = (
     <View style={styles.shadow}>

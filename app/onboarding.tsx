@@ -109,12 +109,6 @@ export default function OnboardingScreen() {
         <TouchableOpacity style={styles.primaryBtn} onPress={next} activeOpacity={0.85}>
           <Text style={styles.primaryBtnText}>{isLast ? 'Get started' : 'Next'}</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => router.push('/(auth)/login')} activeOpacity={0.7} hitSlop={10}>
-          <Text style={styles.signIn}>
-            I already have an account · <Text style={styles.signInLink}>Sign in</Text>
-          </Text>
-        </TouchableOpacity>
       </View>
     </View>
   )
@@ -158,7 +152,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryBtnText: { fontSize: 16, fontFamily: FONTS.sansSemi, color: '#fff', letterSpacing: 0.1 },
-
-  signIn: { fontFamily: FONTS.sans, fontSize: 14, color: COLORS.muted },
-  signInLink: { fontFamily: FONTS.sansSemi, color: COLORS.accent },
 })

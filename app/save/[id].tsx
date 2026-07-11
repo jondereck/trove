@@ -139,7 +139,7 @@ export default function SaveDetailScreen() {
                 <Text style={styles.editText}>Edit</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={handleDelete} style={styles.actionBtn} activeOpacity={0.7}>
-                <Text style={styles.deleteText}>🗑</Text>
+                <Ionicons name="trash-outline" size={22} color="#e53e3e" />
               </TouchableOpacity>
             </>
           )}
@@ -305,7 +305,6 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', gap: SPACING.sm, alignItems: 'center' },
   actionBtn: { paddingHorizontal: SPACING.sm, paddingVertical: SPACING.xs },
   editText: { fontSize: 15, fontFamily: FONTS.sansMed, color: COLORS.accent },
-  deleteText: { fontSize: 16 },
   cancelText: { fontSize: 15, fontFamily: FONTS.sans, color: COLORS.muted },
   saveBtn: { backgroundColor: COLORS.accent, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.md },
   saveBtnText: { fontSize: 14, fontFamily: FONTS.sansSemi, color: '#fff' },

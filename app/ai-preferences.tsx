@@ -69,7 +69,7 @@ export default function AIPreferencesScreen() {
         <Text style={styles.explainer}>
           When you save a link, Trove asks AI to suggest a collection and tags. Auto-organize files
           new saves straight into the suggested collection; turn it off to review everything in your
-          Inbox first.
+          Inbox first. There is no separate &quot;Read Later&quot; collection — that label means Inbox.
         </Text>
       </ScrollView>
     </View>

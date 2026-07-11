@@ -6,12 +6,14 @@ export interface Settings {
   autoOrganize: boolean
   aiSuggestTags: boolean
   aiSuggestCollections: boolean
+  libraryView: 'grid' | 'list'
 }
 
 const DEFAULTS: Settings = {
   autoOrganize: true,
   aiSuggestTags: true,
   aiSuggestCollections: true,
+  libraryView: 'grid',
 }
 
 export async function getSettings(): Promise<Settings> {

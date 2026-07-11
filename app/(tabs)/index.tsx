@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   View,
   Text,
@@ -18,10 +18,12 @@ import SaveCard from '../../components/SaveCard'
 import AIOrganize from '../../components/AIOrganize'
 import Avatar from '../../components/Avatar'
 import { fetchLibrarySaves, fetchInboxSaves, fetchCollections, fetchProfile, deleteSave } from '../../lib/db'
-import { isLoggedIn } from '../../lib/session'
 import { applyOrganizeSuggestions } from '../../lib/organize'
+import { subscribeDataChanges } from '../../lib/dataEvents'
+import { getSettings, patchSettings } from '../../lib/settings'
 
 type FilterId = 'all' | 'fav' | 'link' | 'image' | 'video' | 'note'
+type LibraryView = 'grid' | 'list'
 
 const CHIPS: { id: FilterId; label: string; icon?: keyof typeof Ionicons.glyphMap }[] = [
   { id: 'all', label: 'All' },
@@ -49,8 +51,10 @@ export default function LibraryScreen() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [userName, setUserName] = useState<string | null>(null)
-  const [loggedIn, setLoggedIn] = useState(isLoggedIn())
+  const [userLastName, setUserLastName] = useState<string | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [filter, setFilter] = useState<FilterId>('all')
+  const [viewMode, setViewMode] = useState<LibraryView>('grid')
   const [aiVisible, setAiVisible] = useState(false)
 
   // Bulk selection
@@ -68,7 +72,12 @@ export default function LibraryScreen() {
     setInboxSaves(inbox)
     setCollections(cols)
     setUserName(profile?.first_name ?? null)
-    setLoggedIn(isLoggedIn())
+    setUserLastName(profile?.last_name ?? null)
+    setAvatarUrl(profile?.avatar_url ?? null)
+  }, [])
+
+  useEffect(() => {
+    getSettings().then(s => setViewMode(s.libraryView ?? 'grid'))
   }, [])
 
   useFocusEffect(
@@ -76,6 +85,10 @@ export default function LibraryScreen() {
       loadData().finally(() => setLoading(false))
     }, [loadData])
   )
+
+  useEffect(() => subscribeDataChanges(() => {
+    loadData().catch(() => {})
+  }), [loadData])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -145,6 +158,16 @@ export default function LibraryScreen() {
   const leftCol = shown.filter((_, i) => i % 2 === 0)
   const rightCol = shown.filter((_, i) => i % 2 === 1)
 
+  const toggleViewMode = useCallback(() => {
+    setViewMode(prev => {
+      const next: LibraryView = prev === 'grid' ? 'list' : 'grid'
+      patchSettings({ libraryView: next })
+      return next
+    })
+  }, [])
+
+  const greetingLine = `${getGreeting()}, ${userName?.trim() || 'there'}.`
+
   const dateLabel = new Date()
     .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
     .toUpperCase()
@@ -181,8 +204,7 @@ export default function LibraryScreen() {
         {!selectionMode && (
           <View style={styles.header}>
             <View style={styles.headerLeft}>
-              <Text style={styles.greetingTop}>{getGreeting()},</Text>
-              <Text style={styles.greetingName} numberOfLines={1}>{userName ?? 'there'}.</Text>
+              <Text style={styles.greetingLine} numberOfLines={1}>{greetingLine}</Text>
               <View style={styles.subRow}>
                 <Text style={styles.kicker}>{saves.length} SAVED</Text>
                 <View style={styles.dot} />
@@ -190,39 +212,52 @@ export default function LibraryScreen() {
               </View>
             </View>
             <TouchableOpacity onPress={() => router.push('/account')} activeOpacity={0.75} style={styles.avatarBtn}>
-              {loggedIn ? (
-                <Avatar firstName={userName} size={36} />
-              ) : (
-                <View style={styles.guestAvatar}>
-                  <Ionicons name="person-outline" size={18} color={COLORS.muted} />
-                </View>
-              )}
+              <Avatar
+                firstName={userName}
+                lastName={userLastName}
+                imageUrl={avatarUrl}
+                size={36}
+              />
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Filter chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.chipScroll}
-          contentContainerStyle={styles.chipRow}
-        >
-          {CHIPS.map(c => {
-            const on = filter === c.id
-            return (
-              <TouchableOpacity
-                key={c.id}
-                style={[styles.chip, on && styles.chipOn]}
-                onPress={() => setFilter(c.id)}
-                activeOpacity={0.7}
-              >
-                {c.icon && <Ionicons name={c.icon} size={15} color={on ? '#fff' : COLORS.text} />}
-                <Text style={[styles.chipText, on && styles.chipTextOn]}>{c.label}</Text>
-              </TouchableOpacity>
-            )
-          })}
-        </ScrollView>
+        {/* Filter chips + view toggle */}
+        <View style={styles.filterBar}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.chipScroll}
+            contentContainerStyle={styles.chipRow}
+          >
+            {CHIPS.map(c => {
+              const on = filter === c.id
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[styles.chip, on && styles.chipOn]}
+                  onPress={() => setFilter(c.id)}
+                  activeOpacity={0.7}
+                >
+                  {c.icon && <Ionicons name={c.icon} size={15} color={on ? '#fff' : COLORS.text} />}
+                  <Text style={[styles.chipText, on && styles.chipTextOn]}>{c.label}</Text>
+                </TouchableOpacity>
+              )
+            })}
+          </ScrollView>
+          <TouchableOpacity
+            style={styles.viewToggle}
+            onPress={toggleViewMode}
+            activeOpacity={0.7}
+            accessibilityLabel={viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
+          >
+            <Ionicons
+              name={viewMode === 'grid' ? 'list-outline' : 'grid-outline'}
+              size={20}
+              color={COLORS.text}
+            />
+          </TouchableOpacity>
+        </View>
 
         {/* Inbox banner */}
         {!selectionMode && inboxSaves.length > 0 && (
@@ -249,6 +284,19 @@ export default function LibraryScreen() {
             <Text style={styles.emptyIcon}>◇</Text>
             <Text style={styles.emptyTitle}>Nothing saved yet</Text>
             <Text style={styles.emptySubtitle}>Tap + to save your first link, note, or image.</Text>
+          </View>
+        ) : viewMode === 'list' ? (
+          <View style={styles.list}>
+            {shown.map(save => (
+              <SaveCard
+                key={save.id}
+                save={save}
+                layout="list"
+                selected={selectionMode ? selectedIds.has(save.id) : undefined}
+                onPress={() => selectionMode ? toggleSelect(save.id) : router.push(`/save/${save.id}`)}
+                onLongPress={() => !selectionMode && enterSelection(save.id)}
+              />
+            ))}
           </View>
         ) : (
           <View style={styles.grid}>
@@ -311,26 +359,45 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between',
     paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, paddingBottom: SPACING.lg,
   },
-  headerLeft: { flex: 1 },
-  greetingTop: { fontSize: 34, fontFamily: FONTS.serifItal, color: COLORS.muted, lineHeight: 38, letterSpacing: -0.5 },
-  greetingName: { fontSize: 38, fontFamily: FONTS.serifItal, color: COLORS.text, lineHeight: 42, letterSpacing: -0.5 },
+  headerLeft: { flex: 1, paddingRight: SPACING.md },
+  greetingLine: {
+    fontSize: 34,
+    fontFamily: FONTS.serifItal,
+    color: COLORS.text,
+    lineHeight: 38,
+    letterSpacing: -0.5,
+  },
   subRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginTop: SPACING.sm },
   kicker: { fontSize: 11, fontFamily: FONTS.mono, color: COLORS.muted, letterSpacing: 1 },
   kickerAccent: { fontSize: 11, fontFamily: FONTS.monoMed, color: COLORS.accent, letterSpacing: 1 },
   dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: COLORS.muted },
   avatarBtn: { marginTop: SPACING.sm },
-  guestAvatar: {
-    width: 36, height: 36, borderRadius: 18,
-    borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.card,
-    alignItems: 'center', justifyContent: 'center',
-  },
 
-  chipScroll: { marginBottom: SPACING.lg },
-  chipRow: { paddingHorizontal: SPACING.lg, gap: SPACING.sm },
+  filterBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.lg,
+  },
+  viewToggle: {
+    width: 40,
+    height: 40,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    marginLeft: SPACING.xl + SPACING.lg,
+  },
+  chipScroll: { flex: 1, marginRight: SPACING.sm },
+  chipRow: { paddingRight: SPACING.md },
   chip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
     borderRadius: 999, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card,
+    marginRight: SPACING.md,
   },
   chipOn: { backgroundColor: COLORS.text, borderColor: COLORS.text },
   chipText: { fontSize: 13, fontFamily: FONTS.sansSemi, color: COLORS.text },
@@ -354,6 +421,7 @@ const styles = StyleSheet.create({
 
   loader: { marginTop: SPACING.xl * 3 },
   grid: { flexDirection: 'row', gap: SPACING.sm, paddingHorizontal: SPACING.lg },
+  list: { paddingHorizontal: SPACING.lg, gap: SPACING.sm },
   col: { flex: 1 },
   empty: { alignItems: 'center', paddingTop: SPACING.xl * 3, gap: SPACING.md },
   emptyIcon: { fontSize: 40, color: COLORS.border, marginBottom: SPACING.sm },

@@ -8,6 +8,7 @@
 import { isLoggedIn } from './session'
 import * as cloud from './cloudDb'
 import * as local from './localDb'
+import { emitDataChange } from './dataEvents'
 
 export type { Profile } from './cloudDb'
 
@@ -21,20 +22,49 @@ export const fetchSaveById = (id: string) => pick().fetchSaveById(id)
 export const fetchCollectionSaves = (collectionId: string) => pick().fetchCollectionSaves(collectionId)
 export const fetchSavesByCollection = (collectionId: string) => pick().fetchSavesByCollection(collectionId)
 export const searchSaves = (query: string) => pick().searchSaves(query)
+export const searchCollections = (query: string) => pick().searchCollections(query)
 export const fetchSearchSuggestions = () => pick().fetchSearchSuggestions()
 export const findSaveByUrl = (url: string) => pick().findSaveByUrl(url)
-export const createSave = (input: Parameters<typeof cloud.createSave>[0]) => pick().createSave(input)
-export const updateSave = (id: string, updates: Parameters<typeof cloud.updateSave>[1]) => pick().updateSave(id, updates)
-export const deleteSave = (id: string) => pick().deleteSave(id)
+export async function createSave(input: Parameters<typeof cloud.createSave>[0]) {
+  const save = await pick().createSave(input)
+  if (save) emitDataChange('saves')
+  return save
+}
+export async function updateSave(id: string, updates: Parameters<typeof cloud.updateSave>[1]) {
+  const updated = await pick().updateSave(id, updates)
+  if (updated) emitDataChange('saves')
+  return updated
+}
+export async function deleteSave(id: string) {
+  const deleted = await pick().deleteSave(id)
+  if (deleted) emitDataChange('saves')
+  return deleted
+}
 
 // ── Collections ───────────────────────────────────────────────────────────────
 export const fetchCollections = () => pick().fetchCollections()
 export const fetchCollection = (id: string) => pick().fetchCollection(id)
 export const fetchCollectionById = (id: string) => pick().fetchCollectionById(id)
-export const createCollection = (input: Parameters<typeof cloud.createCollection>[0]) => pick().createCollection(input)
-export const updateCollection = (id: string, updates: Parameters<typeof cloud.updateCollection>[1]) => pick().updateCollection(id, updates)
-export const deleteCollection = (id: string) => pick().deleteCollection(id)
-export const upsertCollectionByName = (name: string) => pick().upsertCollectionByName(name)
+export async function createCollection(input: Parameters<typeof cloud.createCollection>[0]) {
+  const collection = await pick().createCollection(input)
+  if (collection) emitDataChange('collections')
+  return collection
+}
+export async function updateCollection(id: string, updates: Parameters<typeof cloud.updateCollection>[1]) {
+  const updated = await pick().updateCollection(id, updates)
+  if (updated) emitDataChange('collections')
+  return updated
+}
+export async function deleteCollection(id: string) {
+  const deleted = await pick().deleteCollection(id)
+  if (deleted) emitDataChange('collections')
+  return deleted
+}
+export async function upsertCollectionByName(name: string) {
+  const id = await pick().upsertCollectionByName(name)
+  if (id) emitDataChange('collections')
+  return id
+}
 
 // ── Profile / stats ─────────────────────────────────────────────────────────────
 export const fetchProfile = () => pick().fetchProfile()

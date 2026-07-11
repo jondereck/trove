@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useRouter } from 'expo-router'
+import { useRouter, useFocusEffect } from 'expo-router'
 import Constants from 'expo-constants'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -20,11 +20,11 @@ import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme'
 import Avatar from '../components/Avatar'
 import { SettingGroup, SettingRow } from '../components/Settings'
 import { fetchCounts, fetchProfile, updateProfile } from '../lib/db'
-import { getSettings, patchSettings } from '../lib/settings'
 import { supabase } from '../lib/supabase'
 import { isLoggedIn } from '../lib/session'
 import { exportData, importData } from '../lib/transfer'
 import { AvatarTooLargeError, pickAndUploadAvatar } from '../lib/storage'
+import { requestAuthFlow } from '../lib/authNavigation'
 
 const SUPPORT_EMAIL = 'mailto:jonderecknifas@gmail.com?subject=Trove%20support'
 
@@ -44,7 +44,7 @@ export default function AccountScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
 
-  const [loggedIn] = useState(isLoggedIn())
+  const [loggedIn, setLoggedIn] = useState(isLoggedIn())
   const [editing, setEditing] = useState(false)
   const [first, setFirst] = useState('')
   const [last, setLast] = useState('')
@@ -52,20 +52,25 @@ export default function AccountScreen() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [counts, setCounts] = useState({ saves: 0, collections: 0 })
-  const [autoOrganize, setAutoOrganize] = useState(true)
 
-  useEffect(() => {
-    if (loggedIn) {
+  const loadProfile = useCallback(async () => {
+    const signedIn = isLoggedIn()
+    setLoggedIn(signedIn)
+    if (signedIn) {
       supabase.auth.getUser().then(({ data: { user } }) => setEmail(user?.email ?? ''))
-      fetchProfile().then(p => {
-        setFirst(p?.first_name ?? '')
-        setLast(p?.last_name ?? '')
-        setAvatarUrl(p?.avatar_url ?? null)
-      })
     }
-    fetchCounts().then(setCounts)
-    getSettings().then(s => setAutoOrganize(s.autoOrganize))
-  }, [loggedIn])
+    const profile = await fetchProfile()
+    setFirst(profile?.first_name ?? '')
+    setLast(profile?.last_name ?? '')
+    setAvatarUrl(profile?.avatar_url ?? null)
+  }, [])
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile()
+      fetchCounts().then(setCounts)
+    }, [loadProfile])
+  )
 
   const handleChangeAvatar = useCallback(async () => {
     if (uploadingAvatar) return
@@ -96,7 +101,15 @@ export default function AccountScreen() {
       const thumbs = res.thumbnailsRepaired
         ? ` Refetched ${res.thumbnailsRepaired} link preview${res.thumbnailsRepaired === 1 ? '' : 's'}.`
         : ''
-      Alert.alert('Import complete', `Added ${res.saves} saves and ${res.collections} collections.${thumbs}`)
+      const skipped =
+        res.skipped
+          ? ` Skipped ${res.skipped} duplicate or empty row${res.skipped === 1 ? '' : 's'}.`
+          : ''
+      const message =
+        res.source === 'raindrop'
+          ? `Imported ${res.saves} save${res.saves === 1 ? '' : 's'} from Raindrop (${res.collections} collection${res.collections === 1 ? '' : 's'}).${skipped}${thumbs}`
+          : `Added ${res.saves} saves and ${res.collections} collections.${thumbs}`
+      Alert.alert('Import complete', message)
       fetchCounts().then(setCounts)
     } catch (e: any) {
       Alert.alert('Import failed', e?.message ?? String(e))
@@ -111,17 +124,10 @@ export default function AccountScreen() {
         Alert.alert('Could not save', 'Your profile changes were not saved. Please try again.')
         return
       }
+      await loadProfile()
     }
     setEditing(e => !e)
-  }, [editing, first, last])
-
-  const toggleAutoOrganize = useCallback(() => {
-    setAutoOrganize(prev => {
-      const next = !prev
-      patchSettings({ autoOrganize: next })
-      return next
-    })
-  }, [])
+  }, [editing, first, last, loadProfile])
 
   const handleSignOut = useCallback(() => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -129,6 +135,11 @@ export default function AccountScreen() {
       { text: 'Sign Out', style: 'destructive', onPress: () => supabase.auth.signOut() },
     ])
   }, [])
+
+  const openAuth = useCallback(() => {
+    requestAuthFlow()
+    router.push('/(auth)/')
+  }, [router])
 
   return (
     <View style={styles.container}>
@@ -139,13 +150,9 @@ export default function AccountScreen() {
           <Text style={styles.topAction}>Library</Text>
         </TouchableOpacity>
         <Text style={styles.topTitle}>Account</Text>
-        {loggedIn ? (
-          <TouchableOpacity onPress={toggleEditing} activeOpacity={0.6} style={styles.editBtn}>
-            <Text style={styles.topAction}>{editing ? 'Done' : 'Edit'}</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.editBtn} />
-        )}
+        <TouchableOpacity onPress={toggleEditing} activeOpacity={0.6} style={styles.editBtn}>
+          <Text style={styles.topAction}>{editing ? 'Done' : 'Edit'}</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -212,7 +219,7 @@ export default function AccountScreen() {
         <TouchableOpacity
           activeOpacity={0.9}
           style={styles.bannerWrap}
-          onPress={loggedIn ? undefined : () => router.push('/(auth)/')}
+          onPress={loggedIn ? undefined : openAuth}
         >
           <LinearGradient
             colors={UPGRADE_GRADIENT}
@@ -243,20 +250,9 @@ export default function AccountScreen() {
               <SettingRow icon="lock-closed-outline" label="Change password" onPress={() => router.push('/change-password')} />
             </>
           ) : (
-            <SettingRow icon="log-in-outline" label="Sign in or create account" onPress={() => router.push('/(auth)/')} />
+            <SettingRow icon="log-in-outline" label="Sign in or create account" onPress={openAuth} />
           )}
           <SettingRow icon="sparkles-outline" label="AI preferences" onPress={() => router.push('/ai-preferences')} last />
-        </SettingGroup>
-
-        <SettingGroup title="Preferences">
-          <SettingRow
-            icon="flash-outline"
-            label="Auto-organize new saves"
-            toggle
-            on={autoOrganize}
-            onPress={toggleAutoOrganize}
-          />
-          <SettingRow icon="folder-outline" label="Default collection" value="Read Later" onPress={() => {}} last />
         </SettingGroup>
 
         <SettingGroup title="Data">

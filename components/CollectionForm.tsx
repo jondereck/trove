@@ -13,6 +13,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -20,6 +21,7 @@ import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
 import { COLLECTION_ICONS, DEFAULT_COLLECTION_ICON, IoniconName } from '../constants/icons'
 import { Collection } from '../types'
 import { createCollection, updateCollection, deleteCollection } from '../lib/db'
+import { pickAndUploadCollectionCover } from '../lib/storage'
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window')
 
@@ -44,16 +46,19 @@ export default function CollectionForm({ visible, onClose, onSaved, collection }
   const [icon, setIcon] = useState<IoniconName>(DEFAULT_COLLECTION_ICON)
   const [color, setColor] = useState(COLOR_OPTS[0])
   const [description, setDescription] = useState('')
+  const [coverUrl, setCoverUrl] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [uploadingCover, setUploadingCover] = useState(false)
 
-  // Hydrate fields whenever the sheet opens
   useEffect(() => {
     if (visible) {
       setName(collection?.name ?? '')
       setIcon((collection?.icon as IoniconName) ?? DEFAULT_COLLECTION_ICON)
       setColor(collection?.color ?? COLOR_OPTS[0])
       setDescription(collection?.description ?? '')
+      setCoverUrl(collection?.cover_image_url ?? null)
       setSaving(false)
+      setUploadingCover(false)
       Animated.parallel([
         Animated.spring(translateY, { toValue: 0, damping: 22, mass: 0.85, stiffness: 200, useNativeDriver: true }),
         Animated.timing(backdropOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
@@ -66,13 +71,33 @@ export default function CollectionForm({ visible, onClose, onSaved, collection }
     }
   }, [visible, collection])
 
+  const handlePickCover = async () => {
+    if (uploadingCover) return
+    setUploadingCover(true)
+    try {
+      const url = await pickAndUploadCollectionCover()
+      if (url) setCoverUrl(url)
+    } catch (e: any) {
+      Alert.alert('Could not set cover', e?.message ?? String(e))
+    } finally {
+      setUploadingCover(false)
+    }
+  }
+
   const handleSave = async () => {
     const trimmed = name.trim()
     if (!trimmed) return
     setSaving(true)
+    const payload = {
+      name: trimmed,
+      icon,
+      color,
+      description: description.trim() || undefined,
+      cover_image_url: coverUrl,
+    }
     const ok = isEdit
-      ? await updateCollection(collection!.id, { name: trimmed, icon, color, description: description.trim() || undefined })
-      : !!(await createCollection({ name: trimmed, icon, color, description: description.trim() || undefined }))
+      ? await updateCollection(collection!.id, payload)
+      : !!(await createCollection(payload))
     setSaving(false)
     if (ok) {
       onSaved()
@@ -84,22 +109,35 @@ export default function CollectionForm({ visible, onClose, onSaved, collection }
 
   const handleDelete = () => {
     if (!collection) return
-    Alert.alert('Delete collection', 'Saves in this collection will become uncategorized. This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          const ok = await deleteCollection(collection.id)
-          if (ok) {
-            onSaved()
-            onClose()
-          } else {
-            Alert.alert('Error', 'Could not delete the collection. Please try again.')
-          }
+    const count = collection.save_count ?? 0
+    if (count > 0) {
+      Alert.alert(
+        'Collection not empty',
+        `"${collection.name}" has ${count} ${count === 1 ? 'item' : 'items'}. Move or delete them before removing this collection.`,
+        [{ text: 'OK' }]
+      )
+      return
+    }
+    Alert.alert(
+      'Delete collection?',
+      `"${collection.name}" will be permanently removed. This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const ok = await deleteCollection(collection.id)
+            if (ok) {
+              onSaved()
+              onClose()
+            } else {
+              Alert.alert('Error', 'Could not delete the collection. Please try again.')
+            }
+          },
         },
-      },
-    ])
+      ]
+    )
   }
 
   return (
@@ -108,14 +146,40 @@ export default function CollectionForm({ visible, onClose, onSaved, collection }
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
       </Animated.View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kvWrap} pointerEvents="box-none">
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.kvWrap} pointerEvents="box-none">
         <Animated.View style={[styles.sheet, { paddingBottom: insets.bottom + SPACING.lg, transform: [{ translateY }] }]}>
           <View style={styles.handle} />
 
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             <Text style={styles.title}>{isEdit ? 'Edit Collection' : 'New Collection'}</Text>
 
-            {/* Preview */}
+            <Text style={styles.label}>Cover</Text>
+            <TouchableOpacity style={styles.coverPick} onPress={handlePickCover} activeOpacity={0.8} disabled={uploadingCover}>
+              {coverUrl ? (
+                <Image source={{ uri: coverUrl }} style={styles.coverImage} resizeMode="cover" />
+              ) : (
+                <View style={styles.coverPlaceholder}>
+                  <Ionicons name="image-outline" size={28} color={COLORS.muted} />
+                  <Text style={styles.coverHint}>Use recent save thumbnails</Text>
+                </View>
+              )}
+              <View style={styles.coverOverlay}>
+                {uploadingCover ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="camera" size={16} color="#fff" />
+                    <Text style={styles.coverOverlayText}>{coverUrl ? 'Change cover' : 'Set cover'}</Text>
+                  </>
+                )}
+              </View>
+            </TouchableOpacity>
+            {coverUrl ? (
+              <TouchableOpacity onPress={() => setCoverUrl(null)} activeOpacity={0.7} style={styles.clearCover}>
+                <Text style={styles.clearCoverText}>Use recent thumbnails instead</Text>
+              </TouchableOpacity>
+            ) : null}
+
             <View style={styles.preview}>
               <View style={[styles.previewStrip, { backgroundColor: color }]} />
               <Ionicons name={icon} size={22} color={color} style={styles.previewIcon} />
@@ -134,16 +198,16 @@ export default function CollectionForm({ visible, onClose, onSaved, collection }
 
             <Text style={styles.label}>Icon</Text>
             <View style={styles.optionGrid}>
-              {COLLECTION_ICONS.map(name => {
-                const active = icon === name
+              {COLLECTION_ICONS.map(iconName => {
+                const active = icon === iconName
                 return (
                   <TouchableOpacity
-                    key={name}
+                    key={iconName}
                     style={[styles.iconOpt, active && styles.iconOptActive]}
-                    onPress={() => setIcon(name)}
+                    onPress={() => setIcon(iconName)}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name={name} size={20} color={active ? color : COLORS.textSub} />
+                    <Ionicons name={iconName} size={20} color={active ? color : COLORS.textSub} />
                   </TouchableOpacity>
                 )
               })}
@@ -213,6 +277,40 @@ const styles = StyleSheet.create({
   },
   handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: COLORS.border, marginBottom: SPACING.lg },
   title: { fontSize: 20, fontFamily: FONTS.serif, color: COLORS.text, marginBottom: SPACING.lg },
+
+  coverPick: {
+    height: 120,
+    borderRadius: RADIUS.lg,
+    overflow: 'hidden',
+    backgroundColor: COLORS.card,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    marginBottom: SPACING.sm,
+  },
+  coverImage: { width: '100%', height: '100%' },
+  coverPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    backgroundColor: COLORS.cream,
+  },
+  coverHint: { fontSize: 12, fontFamily: FONTS.sans, color: COLORS.muted },
+  coverOverlay: {
+    position: 'absolute',
+    right: SPACING.sm,
+    bottom: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 999,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  coverOverlayText: { fontSize: 12, fontFamily: FONTS.sansSemi, color: '#fff' },
+  clearCover: { alignSelf: 'flex-start', marginBottom: SPACING.md },
+  clearCoverText: { fontSize: 13, fontFamily: FONTS.sansMed, color: COLORS.accent },
 
   preview: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.md,

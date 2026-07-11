@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Crypto from 'expo-crypto'
 import { Save, Collection } from '../types'
 import { normalizeUrl } from './url'
-import { SEARCH_STOPWORDS, type Profile } from './cloudDb'
+import { tokenizeSearchQuery, type Profile } from './cloudDb'
 
 // Device-local data layer (AsyncStorage) — used when no user is signed in.
 // Mirrors lib/cloudDb.ts function-for-function so lib/db.ts can route between
@@ -11,6 +11,7 @@ import { SEARCH_STOPWORDS, type Profile } from './cloudDb'
 
 const SAVES_KEY = 'trove.local.saves'
 const COLLECTIONS_KEY = 'trove.local.collections'
+const PROFILE_KEY = 'trove.local.profile'
 
 const LOCAL_USER = 'local'
 
@@ -71,24 +72,52 @@ export async function fetchCollectionSaves(collectionId: string): Promise<Save[]
 
 export const fetchSavesByCollection = fetchCollectionSaves
 
+// Mirrors the cloud search_saves RPC: every term must match at least one
+// field; results ranked title 4 > tags 3 > description/content 2 > url 1
+// per matching term, ties broken by newest first.
 export async function searchSaves(query: string): Promise<Save[]> {
-  const trimmed = query.trim()
-  if (!trimmed) return []
+  const terms = tokenizeSearchQuery(query)
+  if (!terms.length) return []
 
-  const words = trimmed
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(w => w.length > 2 && !SEARCH_STOPWORDS.has(w))
-
-  const terms = words.length ? words : [trimmed.toLowerCase()]
   const saves = await loadSaves()
 
-  const matches = saves.filter(s => {
-    const haystack = [s.title, s.description, s.content].filter(Boolean).join(' ').toLowerCase()
-    const tags = (s.tags ?? []).map(t => t.toLowerCase())
-    return terms.some(w => haystack.includes(w) || tags.includes(w))
-  })
-  return matches.sort(byNewest).slice(0, 50)
+  const scored: { save: Save; score: number }[] = []
+  for (const s of saves) {
+    const title = s.title.toLowerCase()
+    const description = (s.description ?? '').toLowerCase()
+    const content = (s.content ?? '').toLowerCase()
+    const url = (s.url ?? '').toLowerCase()
+    const tags = (s.tags ?? []).join(' ').toLowerCase()
+
+    let score = 0
+    let allMatch = true
+    for (const w of terms) {
+      let termScore = 0
+      if (title.includes(w)) termScore += 4
+      if (tags.includes(w)) termScore += 3
+      if (description.includes(w)) termScore += 2
+      if (content.includes(w)) termScore += 2
+      if (url.includes(w)) termScore += 1
+      if (termScore === 0) { allMatch = false; break }
+      score += termScore
+    }
+    if (allMatch) scored.push({ save: s, score })
+  }
+
+  return scored
+    .sort((a, b) => b.score - a.score || byNewest(a.save, b.save))
+    .slice(0, 50)
+    .map(x => x.save)
+}
+
+export async function searchCollections(query: string): Promise<Collection[]> {
+  const q = query.trim().toLowerCase()
+  if (!q) return []
+  const cols = await loadCollections()
+  return cols
+    .filter(c => c.name.toLowerCase().includes(q) || (c.description ?? '').toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .slice(0, 10)
 }
 
 export async function fetchSearchSuggestions(): Promise<string[]> {
@@ -189,7 +218,14 @@ export async function fetchCollections(): Promise<Collection[]> {
 
   return [...cols]
     .sort((a, b) => a.name.localeCompare(b.name))
-    .map(c => ({ ...c, save_count: countMap[c.id] ?? 0, cover_urls: coverMap[c.id] ?? [] }))
+    .map(c => {
+      const recent = coverMap[c.id] ?? []
+      const custom = c.cover_image_url
+      const cover_urls = custom
+        ? [custom, ...recent.filter(u => u !== custom)].slice(0, 3)
+        : recent
+      return { ...c, save_count: countMap[c.id] ?? 0, cover_urls }
+    })
 }
 
 export async function fetchCollection(id: string): Promise<Collection | null> {
@@ -204,6 +240,7 @@ export async function createCollection(input: {
   icon?: string
   color?: string
   description?: string
+  cover_image_url?: string | null
   created_at?: string
 }): Promise<Collection | null> {
   const cols = await loadCollections()
@@ -214,6 +251,7 @@ export async function createCollection(input: {
     icon: input.icon ?? 'folder-outline',
     color: input.color ?? '#c0613c',
     description: input.description,
+    cover_image_url: input.cover_image_url ?? null,
     created_at: input.created_at ?? new Date().toISOString(),
   }
   await persistCollections([...cols, col])
@@ -222,7 +260,7 @@ export async function createCollection(input: {
 
 export async function updateCollection(
   id: string,
-  updates: Partial<Pick<Collection, 'name' | 'icon' | 'color' | 'description'>>
+  updates: Partial<Pick<Collection, 'name' | 'icon' | 'color' | 'description' | 'cover_image_url'>>
 ): Promise<boolean> {
   const cols = await loadCollections()
   const idx = cols.findIndex(c => c.id === id)
@@ -251,16 +289,39 @@ export async function upsertCollectionByName(name: string): Promise<string | nul
 }
 
 // ── Profile ───────────────────────────────────────────────────────────────────
-// No local profile — the account/profile UI is guarded behind isLoggedIn().
+// Guest display name + avatar live on-device until the user signs in.
 
 export async function fetchProfile(): Promise<Profile | null> {
-  return null
+  try {
+    const raw = await AsyncStorage.getItem(PROFILE_KEY)
+    const parsed = raw ? JSON.parse(raw) as Partial<Profile> : {}
+    return {
+      id: LOCAL_USER,
+      first_name: parsed.first_name ?? null,
+      last_name: parsed.last_name ?? null,
+      avatar_url: parsed.avatar_url ?? null,
+    }
+  } catch {
+    return { id: LOCAL_USER, first_name: null, last_name: null, avatar_url: null }
+  }
 }
 
 export async function updateProfile(
-  _updates: Partial<Pick<Profile, 'first_name' | 'last_name' | 'avatar_url'>>
+  updates: Partial<Pick<Profile, 'first_name' | 'last_name' | 'avatar_url'>>
 ): Promise<boolean> {
-  return false
+  try {
+    const current = await fetchProfile()
+    if (!current) return false
+    const next = { ...current, ...updates }
+    await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify({
+      first_name: next.first_name,
+      last_name: next.last_name,
+      avatar_url: next.avatar_url,
+    }))
+    return true
+  } catch {
+    return false
+  }
 }
 
 export async function fetchCounts(): Promise<{ saves: number; collections: number }> {

@@ -174,3 +174,20 @@ export async function pickAndUploadAvatar(): Promise<string | null> {
   await updateProfile({ avatar_url: url })
   return url
 }
+
+/** Pick a photo for a collection cover. Works signed-in (Storage) or guest (local FS). */
+export async function pickAndUploadCollectionCover(): Promise<string | null> {
+  const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
+  if (!perm.granted) throw new Error('Photo access is needed to set a collection cover.')
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: 'images',
+    allowsEditing: true,
+    aspect: [4, 3],
+    quality: 0.75,
+  })
+  if (result.canceled || !result.assets?.length) return null
+
+  const prepared = await prepareMediaForUpload(result.assets[0], 'image')
+  return uploadMedia(prepared.base64, prepared.ext, prepared.mime)
+}

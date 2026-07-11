@@ -27,6 +27,7 @@ import { isOnboardingDismissed, subscribeOnboarding } from '../lib/firstLaunch'
 import { hasLocalData } from '../lib/localDb'
 import { migrateLocalToCloud } from '../lib/migrateLocal'
 import { syncProviderProfile } from '../lib/auth'
+import { clearAuthFlow } from '../lib/authNavigation'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -53,10 +54,14 @@ export default function RootLayout() {
   const router = useRouter()
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    const resourcesReady =
+      (fontsLoaded || fontError) &&
+      session !== undefined &&
+      hasData !== undefined
+    if (resourcesReady) {
       SplashScreen.hideAsync()
     }
-  }, [fontsLoaded, fontError])
+  }, [fontsLoaded, fontError, session, hasData])
 
   // Whether the device has any local saves/collections, kept in sync so
   // dismissing the intro updates routing without a redirect loop.
@@ -76,6 +81,7 @@ export default function RootLayout() {
       // First sign-in: lift any device-local saves into the cloud account and
       // pull the provider's name/photo into the profile.
       if (event === 'SIGNED_IN') {
+        clearAuthFlow()
         syncProviderProfile()
         hasLocalData().then(has => {
           if (!has) return

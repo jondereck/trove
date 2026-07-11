@@ -48,33 +48,63 @@ export async function fetchCollectionSaves(collectionId: string): Promise<Save[]
   return (data ?? []) as Save[]
 }
 
-export async function searchSaves(query: string): Promise<Save[]> {
+export function tokenizeSearchQuery(query: string): string[] {
   const trimmed = query.trim()
   if (!trimmed) return []
-
   const words = trimmed
     .toLowerCase()
     .split(/\s+/)
     .filter(w => w.length > 2 && !SEARCH_STOPWORDS.has(w))
+  return words.length ? words : [trimmed.toLowerCase()]
+}
 
-  const terms = words.length ? words : [trimmed.toLowerCase()]
+// PostgREST .or() filter strings break on commas/parens/percent in user input.
+const sanitizeFilterTerm = (w: string) => w.replace(/[,()%\\{}]/g, '')
+
+export async function searchSaves(query: string): Promise<Save[]> {
+  const terms = tokenizeSearchQuery(query)
+  if (!terms.length) return []
+
+  // Ranked search: title > tags > description/content > url, every term must
+  // match somewhere. Requires supabase/search-upgrade.sql to have been run.
+  const { data, error } = await supabase.rpc('search_saves', { terms })
+  if (!error) return (data ?? []) as Save[]
+
+  // Migration not run yet — fall back to the legacy OR ilike query.
   const conditions = terms
+    .map(sanitizeFilterTerm)
+    .filter(Boolean)
     .flatMap(w => [
       `title.ilike.%${w}%`,
       `description.ilike.%${w}%`,
       `content.ilike.%${w}%`,
+      `url.ilike.%${w}%`,
       `tags.cs.{${w}}`,
     ])
     .join(',')
+  if (!conditions) return []
 
-  const { data, error } = await supabase
+  const { data: fallback, error: fbError } = await supabase
     .from('saves')
     .select('*')
     .or(conditions)
     .order('created_at', { ascending: false })
     .limit(50)
-  if (error) { console.error('searchSaves:', error.message); return [] }
-  return (data ?? []) as Save[]
+  if (fbError) { console.error('searchSaves:', fbError.message); return [] }
+  return (fallback ?? []) as Save[]
+}
+
+export async function searchCollections(query: string): Promise<Collection[]> {
+  const q = sanitizeFilterTerm(query.trim().toLowerCase())
+  if (!q) return []
+  const { data, error } = await supabase
+    .from('collections')
+    .select('*')
+    .or(`name.ilike.%${q}%,description.ilike.%${q}%`)
+    .order('name')
+    .limit(10)
+  if (error) { console.error('searchCollections:', error.message); return [] }
+  return (data ?? []) as Collection[]
 }
 
 // Builds "Try asking" suggestions from the user's own data: their most-used
@@ -186,11 +216,18 @@ export async function fetchCollections(): Promise<Collection[]> {
     }
   })
 
-  return cols.map(c => ({
-    ...c,
-    save_count: countMap[c.id] ?? 0,
-    cover_urls: coverMap[c.id] ?? [],
-  })) as Collection[]
+  return cols.map(c => {
+    const recent = coverMap[c.id] ?? []
+    const custom = c.cover_image_url
+    const cover_urls = custom
+      ? [custom, ...recent.filter(u => u !== custom)].slice(0, 3)
+      : recent
+    return {
+      ...c,
+      save_count: countMap[c.id] ?? 0,
+      cover_urls,
+    }
+  }) as Collection[]
 }
 
 export async function fetchCollection(id: string): Promise<Collection | null> {
@@ -208,6 +245,7 @@ export async function createCollection(input: {
   icon?: string
   color?: string
   description?: string
+  cover_image_url?: string | null
   created_at?: string
 }): Promise<Collection | null> {
   const { data: { user } } = await supabase.auth.getUser()
@@ -223,7 +261,7 @@ export async function createCollection(input: {
 
 export async function updateCollection(
   id: string,
-  updates: Partial<Pick<Collection, 'name' | 'icon' | 'color' | 'description'>>
+  updates: Partial<Pick<Collection, 'name' | 'icon' | 'color' | 'description' | 'cover_image_url'>>
 ): Promise<boolean> {
   const { error } = await supabase.from('collections').update(updates).eq('id', id)
   if (error) { console.error('updateCollection:', error.message); return false }
@@ -297,10 +335,10 @@ export async function updateProfile(
 ): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return false
+  // Upsert so older accounts without a profiles row still save on first edit.
   const { error } = await supabase
     .from('profiles')
-    .update(updates)
-    .eq('id', user.id)
+    .upsert({ id: user.id, ...updates }, { onConflict: 'id' })
   if (error) { console.error('updateProfile:', error.message); return false }
   return true
 }

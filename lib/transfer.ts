@@ -7,6 +7,7 @@ import { Save, Collection } from '../types'
 import * as db from './db'
 import { LOCAL_MEDIA_DIR, importMediaFile } from './storage'
 import { repairMissingThumbnails } from './thumbnailRepair'
+import { importRaindropCsv, isRaindropCsv } from './raindropImport'
 
 // Manual backup / restore. Routes through lib/db.ts, so it reads/writes the
 // local store when logged out and the cloud when signed in. Mainly the
@@ -122,12 +123,26 @@ async function looksLikeZip(uri: string): Promise<boolean> {
   }
 }
 
+export type ImportResult = {
+  saves: number
+  collections: number
+  thumbnailsRepaired: number
+  skipped?: number
+  source?: 'trove' | 'raindrop'
+}
+
 // Returns null if the user cancels the file picker.
-export async function importData(): Promise<
-  { saves: number; collections: number; thumbnailsRepaired: number } | null
-> {
+export async function importData(): Promise<ImportResult | null> {
   const res = await DocumentPicker.getDocumentAsync({
-    type: ['application/zip', 'application/json', 'application/octet-stream'],
+    type: [
+      'application/zip',
+      'application/json',
+      'application/octet-stream',
+      'text/csv',
+      'text/comma-separated-values',
+      'application/csv',
+      'text/plain',
+    ],
     copyToCacheDirectory: true,
   })
   if (res.canceled || !res.assets?.length) return null
@@ -155,10 +170,13 @@ export async function importData(): Promise<
       parsed = JSON.parse(raw)
     } else {
       const raw = await fetch(asset.uri).then(r => r.text())
+      if (isRaindropCsv(raw)) {
+        return importRaindropCsv(raw)
+      }
       try {
         parsed = JSON.parse(raw)
       } catch {
-        throw new Error('That file is not a valid Trove backup.')
+        throw new Error('Unrecognized file. Use a Trove backup or a Raindrop CSV export.')
       }
     }
 
@@ -238,7 +256,12 @@ export async function importData(): Promise<
 
     const thumbnailsRepaired = await repairMissingThumbnails(createdSaves)
 
-    return { saves: importedSaves, collections: importedCollections, thumbnailsRepaired }
+    return {
+      saves: importedSaves,
+      collections: importedCollections,
+      thumbnailsRepaired,
+      source: 'trove',
+    }
   } finally {
     if (extractDir) FileSystem.deleteAsync(extractDir, { idempotent: true }).catch(() => {})
   }

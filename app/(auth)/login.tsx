@@ -10,15 +10,18 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native'
-import { Link } from 'expo-router'
+import { Link, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../lib/supabase'
 import { signInWithGoogle, sendPasswordReset } from '../../lib/auth'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { clearAuthFlow } from '../../lib/authNavigation'
+import { dismissOnboarding } from '../../lib/firstLaunch'
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets()
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -64,11 +67,22 @@ export default function LoginScreen() {
     else setResetSent(true)
   }
 
+  const handleSkip = () => {
+    clearAuthFlow()
+    dismissOnboarding()
+    router.replace('/(tabs)')
+  }
+
   return (
     <KeyboardAvoidingView
       style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <View style={styles.topBar}>
+        <TouchableOpacity onPress={handleSkip} activeOpacity={0.65} hitSlop={12}>
+          <Text style={styles.skip}>Skip</Text>
+        </TouchableOpacity>
+      </View>
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
@@ -191,6 +205,17 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: COLORS.bg,
+  },
+  topBar: {
+    minHeight: 40,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.lg,
+  },
+  skip: {
+    color: COLORS.accent,
+    fontFamily: FONTS.sansSemi,
+    fontSize: 15,
   },
   scroll: {
     flexGrow: 1,

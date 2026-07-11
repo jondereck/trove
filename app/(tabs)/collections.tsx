@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   TextInput,
   Animated,
   Dimensions,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Alert,
@@ -23,7 +24,8 @@ import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
 import { COLLECTION_ICONS, DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
 import { Collection } from '../../types'
-import { fetchCollections, createCollection } from '../../lib/db'
+import { fetchCollections, createCollection, deleteCollection } from '../../lib/db'
+import { subscribeDataChanges } from '../../lib/dataEvents'
 
 // Appends an alpha byte to a #rrggbb hex so a saturated collection color reads
 // as a soft pastel when layered over the cream cover base.
@@ -44,7 +46,6 @@ export default function CollectionsScreen() {
   const [collections, setCollections] = useState<Collection[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [formVisible, setFormVisible] = useState(false)
 
   // Create modal state
   const [showCreate, setShowCreate] = useState(false)
@@ -54,8 +55,15 @@ export default function CollectionsScreen() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
 
+  // Bulk selection
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
   const slideY = useRef(new Animated.Value(SCREEN_HEIGHT)).current
   const backdropOpacity = useRef(new Animated.Value(0)).current
+  const nameInputRef = useRef<TextInput>(null)
+  const openFrame = useRef<number | null>(null)
+  const pendingRefresh = useRef(false)
 
   const loadCollections = useCallback(async () => {
     const data = await fetchCollections()
@@ -68,6 +76,18 @@ export default function CollectionsScreen() {
     }, [loadCollections])
   )
 
+  useEffect(() => subscribeDataChanges(() => {
+    if (showCreate) {
+      pendingRefresh.current = true
+      return
+    }
+    loadCollections().catch(() => {})
+  }), [loadCollections, showCreate])
+
+  useEffect(() => () => {
+    if (openFrame.current !== null) cancelAnimationFrame(openFrame.current)
+  }, [])
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
     await loadCollections()
@@ -75,14 +95,31 @@ export default function CollectionsScreen() {
   }, [loadCollections])
 
   const openCreate = () => {
+    if (showCreate) return
+    slideY.stopAnimation()
+    backdropOpacity.stopAnimation()
+    slideY.setValue(SCREEN_HEIGHT)
+    backdropOpacity.setValue(0)
     setShowCreate(true)
-    Animated.parallel([
-      Animated.spring(slideY, { toValue: 0, damping: 22, mass: 0.85, stiffness: 200, useNativeDriver: true }),
-      Animated.timing(backdropOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-    ]).start()
+    openFrame.current = requestAnimationFrame(() => {
+      openFrame.current = null
+      Animated.parallel([
+        Animated.spring(slideY, { toValue: 0, damping: 22, mass: 0.85, stiffness: 200, useNativeDriver: true }),
+        Animated.timing(backdropOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+      ]).start(({ finished }) => {
+        if (finished) nameInputRef.current?.focus()
+      })
+    })
   }
 
-  const closeCreate = () => {
+  const closeCreate = (refreshAfter = false) => {
+    if (openFrame.current !== null) {
+      cancelAnimationFrame(openFrame.current)
+      openFrame.current = null
+    }
+    Keyboard.dismiss()
+    slideY.stopAnimation()
+    backdropOpacity.stopAnimation()
     Animated.parallel([
       Animated.timing(slideY, { toValue: SCREEN_HEIGHT, duration: 260, useNativeDriver: true }),
       Animated.timing(backdropOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
@@ -92,6 +129,10 @@ export default function CollectionsScreen() {
       setNewIcon(DEFAULT_COLLECTION_ICON)
       setNewColor(COLORS.accent)
       setCreateError('')
+      if (refreshAfter || pendingRefresh.current) {
+        pendingRefresh.current = false
+        loadCollections().catch(() => {})
+      }
     })
   }
 
@@ -114,29 +155,115 @@ export default function CollectionsScreen() {
       return
     }
 
-    closeCreate()
-    await loadCollections()
+    closeCreate(true)
+  }
+
+  const enterSelection = (id: string) => {
+    setSelectionMode(true)
+    setSelectedIds(new Set([id]))
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const cancelSelection = () => {
+    setSelectionMode(false)
+    setSelectedIds(new Set())
+  }
+
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) return
+
+    const selected = collections.filter(c => selectedIds.has(c.id))
+    const empty = selected.filter(c => (c.save_count ?? 0) === 0)
+    const blocked = selected.filter(c => (c.save_count ?? 0) > 0)
+
+    if (empty.length === 0) {
+      Alert.alert(
+        'Collections not empty',
+        selected.length === 1
+          ? `"${selected[0].name}" has items. Move or delete them before removing this collection.`
+          : 'None of the selected collections are empty. Move or delete their items first.',
+        [{ text: 'OK' }]
+      )
+      return
+    }
+
+    const blockedNote = blocked.length > 0
+      ? `\n\n${blocked.length} ${blocked.length === 1 ? 'collection has' : 'collections have'} items and will be skipped.`
+      : ''
+
+    Alert.alert(
+      `Delete ${empty.length} ${empty.length === 1 ? 'collection' : 'collections'}?`,
+      `Empty collections will be permanently removed.${blockedNote}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const results = await Promise.all(empty.map(c => deleteCollection(c.id)))
+            const failed = results.filter(ok => !ok).length
+            await loadCollections()
+            cancelSelection()
+            if (failed > 0) {
+              Alert.alert('Some deletes failed', 'Please try again.')
+            }
+          },
+        },
+      ]
+    )
+  }
+
+  const onCardPress = (col: Collection) => {
+    if (selectionMode) toggleSelect(col.id)
+    else router.push(`/collection/${col.id}`)
   }
 
   return (
-    <>
+    <View style={[styles.wrapper, { paddingTop: insets.top }]}>
+      {selectionMode && (
+        <View style={styles.selectionBar}>
+          <TouchableOpacity onPress={cancelSelection} style={styles.selBarBtn} activeOpacity={0.7}>
+            <Text style={styles.selBarCancel}>Cancel</Text>
+          </TouchableOpacity>
+          <Text style={styles.selBarCount}>{selectedIds.size} selected</Text>
+          <TouchableOpacity
+            onPress={handleBulkDelete}
+            style={[styles.selBarBtn, selectedIds.size === 0 && styles.selBarBtnDisabled]}
+            disabled={selectedIds.size === 0}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="trash-outline" size={20} color={selectedIds.size > 0 ? '#e53e3e' : COLORS.muted} />
+          </TouchableOpacity>
+        </View>
+      )}
+
       <ScrollView
-        style={[styles.container, { paddingTop: insets.top }]}
+        style={styles.container}
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} colors={[COLORS.accent]} />
         }
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.kicker}>{collections.length} COLLECTIONS</Text>
-            <Text style={styles.title}>Collections</Text>
+        {!selectionMode && (
+          <View style={styles.header}>
+            <View style={styles.headerText}>
+              <Text style={styles.kicker}>{collections.length} COLLECTIONS</Text>
+              <Text style={styles.title}>Collections</Text>
+            </View>
+            <TouchableOpacity style={styles.newBtn} onPress={openCreate} activeOpacity={0.75}>
+              <Text style={styles.newBtnText}>New +</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.newBtn} onPress={openCreate} activeOpacity={0.75}>
-            <Text style={styles.newBtnText}>New +</Text>
-          </TouchableOpacity>
-        </View>
+        )}
 
         {loading ? (
           <ActivityIndicator color={COLORS.accent} style={styles.loader} />
@@ -150,12 +277,24 @@ export default function CollectionsScreen() {
           <View style={styles.grid}>
             <View style={styles.col}>
               {collections.filter((_, i) => i % 2 === 0).map(col => (
-                <CollectionCard key={col.id} collection={col} onPress={() => router.push(`/collection/${col.id}`)} />
+                <CollectionCard
+                  key={col.id}
+                  collection={col}
+                  selected={selectionMode ? selectedIds.has(col.id) : undefined}
+                  onPress={() => onCardPress(col)}
+                  onLongPress={() => !selectionMode && enterSelection(col.id)}
+                />
               ))}
             </View>
             <View style={styles.col}>
               {collections.filter((_, i) => i % 2 === 1).map(col => (
-                <CollectionCard key={col.id} collection={col} onPress={() => router.push(`/collection/${col.id}`)} />
+                <CollectionCard
+                  key={col.id}
+                  collection={col}
+                  selected={selectionMode ? selectedIds.has(col.id) : undefined}
+                  onPress={() => onCardPress(col)}
+                  onLongPress={() => !selectionMode && enterSelection(col.id)}
+                />
               ))}
             </View>
           </View>
@@ -163,12 +302,12 @@ export default function CollectionsScreen() {
       </ScrollView>
 
       {/* Create Collection Modal */}
-      <Modal transparent visible={showCreate} animationType="none" onRequestClose={closeCreate}>
+      <Modal transparent visible={showCreate} animationType="none" onRequestClose={() => closeCreate()}>
         <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={closeCreate} activeOpacity={1} />
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => closeCreate()} activeOpacity={1} />
         </Animated.View>
 
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kvWrap} pointerEvents="box-none">
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.kvWrap} pointerEvents="box-none">
           <Animated.View style={[styles.sheet, { paddingBottom: insets.bottom + SPACING.lg, transform: [{ translateY: slideY }] }]}>
             <View style={styles.handle} />
             <Text style={styles.sheetTitle}>New Collection</Text>
@@ -176,17 +315,19 @@ export default function CollectionsScreen() {
             {/* Name */}
             <Text style={styles.label}>NAME</Text>
             <TextInput
+              ref={nameInputRef}
               style={styles.input}
               value={newName}
               onChangeText={v => { setNewName(v); setCreateError('') }}
               placeholder="e.g. Design Inspiration"
               placeholderTextColor={COLORS.muted}
-              autoFocus
               returnKeyType="done"
               onSubmitEditing={handleCreate}
             />
 
-            {createError ? <Text style={styles.errorText}>{createError}</Text> : null}
+            <View style={styles.errorSlot}>
+              {createError ? <Text style={styles.errorText}>{createError}</Text> : null}
+            </View>
 
             {/* Icon */}
             <Text style={styles.label}>ICON</Text>
@@ -240,7 +381,7 @@ export default function CollectionsScreen() {
           </Animated.View>
         </KeyboardAvoidingView>
       </Modal>
-    </>
+    </View>
   )
 }
 
@@ -259,13 +400,29 @@ function CoverTile({ url, color, alpha, radius, style }: {
   return <View style={[{ borderRadius: radius, backgroundColor: tint(color, alpha) }, style]} />
 }
 
-function CollectionCard({ collection, onPress }: { collection: Collection; onPress: () => void }) {
+function CollectionCard({
+  collection,
+  onPress,
+  onLongPress,
+  selected,
+}: {
+  collection: Collection
+  onPress: () => void
+  onLongPress?: () => void
+  selected?: boolean
+}) {
   const covers = collection.cover_urls ?? []
   const color = collection.color || COLORS.accent
   const count = collection.save_count ?? 0
+  const inSelectionMode = selected !== undefined
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
+    <TouchableOpacity
+      style={[styles.card, selected && styles.cardSelected]}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      activeOpacity={0.8}
+    >
       {/* Collage of recent-save thumbnails */}
       <View style={styles.cover}>
         {covers[0] ? (
@@ -289,13 +446,34 @@ function CollectionCard({ collection, onPress }: { collection: Collection; onPre
         <Text style={styles.cardName} numberOfLines={1}>{collection.name}</Text>
         <Text style={styles.cardMeta}>{count} {count === 1 ? 'item' : 'items'}</Text>
       </View>
+
+      {inSelectionMode && (
+        <View style={[styles.selectionOverlay, selected && styles.selectionOverlayActive]} pointerEvents="none">
+          <View style={[styles.checkCircle, selected && styles.checkCircleActive]}>
+            {selected && <Ionicons name="checkmark" size={13} color="#fff" />}
+          </View>
+        </View>
+      )}
     </TouchableOpacity>
   )
 }
 
 const styles = StyleSheet.create({
+  wrapper: { flex: 1, backgroundColor: COLORS.bg },
   container: { flex: 1, backgroundColor: COLORS.bg },
   content: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl * 2 },
+
+  selectionBar: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.bg,
+  },
+  selBarBtn: { padding: SPACING.xs },
+  selBarBtnDisabled: { opacity: 0.4 },
+  selBarCancel: { fontSize: 15, fontFamily: FONTS.sansMed, color: COLORS.accent },
+  selBarCount: { flex: 1, textAlign: 'center', fontSize: 15, fontFamily: FONTS.sansSemi, color: COLORS.text },
+
   header: {
     flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
     paddingTop: SPACING.md, paddingBottom: SPACING.lg,
@@ -324,6 +502,10 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 2,
   },
+  cardSelected: {
+    borderColor: COLORS.accent,
+    borderWidth: 2,
+  },
   cover: { flexDirection: 'row', gap: 3, height: 96, padding: 8, backgroundColor: COLORS.cream },
   coverBig: { flex: 2, height: '100%', borderRadius: 10 },
   coverColumn: { flex: 1, gap: 3 },
@@ -331,6 +513,30 @@ const styles = StyleSheet.create({
   cardBody: { paddingHorizontal: 14, paddingTop: 4, paddingBottom: 14 },
   cardName: { fontSize: 15, fontFamily: FONTS.sansBold, color: COLORS.text },
   cardMeta: { fontSize: 12, fontFamily: FONTS.sans, color: COLORS.muted, marginTop: 3 },
+
+  selectionOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'transparent',
+    alignItems: 'flex-end',
+    padding: SPACING.sm,
+  },
+  selectionOverlayActive: {
+    backgroundColor: 'rgba(192,97,60,0.08)',
+  },
+  checkCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkCircleActive: {
+    borderColor: COLORS.accent,
+    backgroundColor: COLORS.accent,
+  },
 
   // Empty
   empty: { alignItems: 'center', paddingTop: SPACING.xl * 4, gap: SPACING.md },
@@ -354,7 +560,8 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: SPACING.md,
     fontSize: 15, fontFamily: FONTS.sans, color: COLORS.text,
   },
-  errorText: { fontSize: 12, fontFamily: FONTS.sans, color: '#dc2626', marginTop: SPACING.xs },
+  errorSlot: { minHeight: 18, marginTop: SPACING.xs },
+  errorText: { fontSize: 12, fontFamily: FONTS.sans, color: COLORS.accent },
   iconRow: { marginBottom: SPACING.sm },
   iconBtn: {
     width: 40, height: 40, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center',

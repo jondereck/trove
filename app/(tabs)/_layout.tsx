@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import * as Clipboard from 'expo-clipboard'
 import { Tabs } from 'expo-router'
@@ -7,10 +7,26 @@ import { useShareIntentContext } from 'expo-share-intent'
 import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING } from '../../constants/theme'
 import QuickSave from '../../components/QuickSave'
-import { createSave, upsertCollectionByName } from '../../lib/db'
+import SaveToast from '../../components/SaveToast'
+import { createSave, findSaveByUrl, updateSave, upsertCollectionByName } from '../../lib/db'
+import { fetchOGMetadata } from '../../lib/ai'
 import type { Draft } from '../../components/QuickSave'
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name']
+type ToastTone = 'success' | 'neutral' | 'error'
+type ToastState = { id: number; message: string; tone: ToastTone }
+
+function extractSharedUrl(webUrl?: string | null, text?: string | null): string | null {
+  const candidate = webUrl ?? text?.match(/https?:\/\/[^\s]+/i)?.[0]
+  if (!candidate) return null
+
+  try {
+    const parsed = new URL(candidate.replace(/[),.;!?]+$/, ''))
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : null
+  } catch {
+    return null
+  }
+}
 
 const TAB_CONFIG: Record<string, { label: string; icon: IoniconName; activeIcon: IoniconName }> = {
   index:       { label: 'Library',     icon: 'grid-outline',       activeIcon: 'grid' },
@@ -67,24 +83,61 @@ function CustomTabBar({ state, navigation, onQuickSave }: any) {
 export default function TabsLayout() {
   const [quickSaveVisible, setQuickSaveVisible] = useState(false)
   const [sharedUrl, setSharedUrl] = useState<string | undefined>()
+  const [toast, setToast] = useState<ToastState | null>(null)
+  const processingShare = useRef(false)
 
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext()
 
-  // When the OS delivers a share intent, open QuickSave with the URL pre-filled.
-  // webUrl is populated for both "Share URL" and "Share Page" actions in browsers.
-  // Falls back to raw text in case the browser sends a plain-text URL.
   useEffect(() => {
-    if (!hasShareIntent) return
+    if (!hasShareIntent || processingShare.current) return
 
-    const url = shareIntent?.webUrl ?? (
-      shareIntent?.text?.startsWith('http') ? shareIntent.text : undefined
-    )
+    const url = extractSharedUrl(shareIntent?.webUrl, shareIntent?.text)
+    processingShare.current = true
+    resetShareIntent()
 
-    if (url) {
-      setSharedUrl(url)
-      setQuickSaveVisible(true)
+    if (!url) {
+      setToast({ id: Date.now(), message: 'Share a valid link to Trove', tone: 'error' })
+      processingShare.current = false
+      return
     }
+
+    void (async () => {
+      try {
+        const duplicate = await findSaveByUrl(url)
+        if (duplicate) {
+          setToast({ id: Date.now(), message: 'Already in Trove', tone: 'neutral' })
+          return
+        }
+
+        const title = new URL(url).hostname.replace(/^www\./, '')
+        const save = await createSave({
+          url,
+          title,
+          type: 'link',
+          tags: [],
+          is_inbox: true,
+        })
+
+        if (!save) throw new Error('Save failed')
+
+        setToast({ id: Date.now(), message: 'Saved to Inbox', tone: 'success' })
+
+        void fetchOGMetadata(url)
+          .then(metadata => updateSave(save.id, {
+            title: metadata.title || title,
+            description: metadata.description,
+            image_url: metadata.image,
+          }))
+          .catch(() => {})
+      } catch {
+        setToast({ id: Date.now(), message: 'Could not save this link', tone: 'error' })
+      } finally {
+        processingShare.current = false
+      }
+    })()
   }, [hasShareIntent, shareIntent])
+
+  const hideToast = useCallback(() => setToast(null), [])
 
   const handleClose = () => {
     setQuickSaveVisible(false)
@@ -148,6 +201,15 @@ export default function TabsLayout() {
         onSave={handleSave}
         initialUrl={sharedUrl}
       />
+
+      {toast && (
+        <SaveToast
+          key={toast.id}
+          message={toast.message}
+          tone={toast.tone}
+          onHide={hideToast}
+        />
+      )}
     </>
   )
 }

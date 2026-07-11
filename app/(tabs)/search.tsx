@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import {
   View,
@@ -13,9 +13,10 @@ import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
-import { Save, SaveType } from '../../types'
+import { DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
+import { Save, SaveType, Collection } from '../../types'
 import SaveCard from '../../components/SaveCard'
-import { searchSaves, fetchSearchSuggestions } from '../../lib/db'
+import { searchSaves, searchCollections, fetchSearchSuggestions } from '../../lib/db'
 import { getRecentSearches, addRecentSearch } from '../../lib/recents'
 
 // Shown only until the user's own data produces suggestions.
@@ -49,6 +50,7 @@ export default function SearchScreen() {
   const [query, setQuery] = useState('')
   const [type, setType] = useState<TypeId>('all')
   const [results, setResults] = useState<Save[]>([])
+  const [collectionHits, setCollectionHits] = useState<Collection[]>([])
   const [searching, setSearching] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [recents, setRecents] = useState<string[]>([])
@@ -60,15 +62,22 @@ export default function SearchScreen() {
   }, [])
 
   useEffect(() => {
-    if (!debouncedQuery.trim()) {
+    const q = debouncedQuery.trim()
+    if (!q) {
       setResults([])
+      setCollectionHits([])
+      setSearching(false)
       return
     }
+    let stale = false
     setSearching(true)
-    searchSaves(debouncedQuery).then(data => {
-      setResults(data)
+    Promise.all([searchSaves(q), searchCollections(q)]).then(([saves, cols]) => {
+      if (stale) return
+      setResults(saves)
+      setCollectionHits(cols)
       setSearching(false)
     })
+    return () => { stale = true }
   }, [debouncedQuery])
 
   // Set the query and remember it as a recent search.
@@ -83,13 +92,14 @@ export default function SearchScreen() {
     router.push(`/save/${id}`)
   }
 
-  const ql = debouncedQuery.trim().toLowerCase()
-  const hasQuery = ql.length > 0
-  const isQuestion = ql.length > 14 || /\b(that|where|find|my|i saved)\b/.test(ql)
+  const openCollection = (id: string) => {
+    if (debouncedQuery.trim()) addRecentSearch(debouncedQuery).then(setRecents)
+    router.push(`/collection/${id}`)
+  }
 
+  const hasQuery = debouncedQuery.trim().length > 0
   const shown = type === 'all' ? results : results.filter(r => r.type === type)
-  const leftCol = shown.filter((_, i) => i % 2 === 0)
-  const rightCol = shown.filter((_, i) => i % 2 === 1)
+  const nothingFound = hasQuery && !searching && shown.length === 0 && collectionHits.length === 0
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -99,7 +109,7 @@ export default function SearchScreen() {
           <Ionicons name="search" size={20} color={COLORS.muted} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search or ask in plain words…"
+            placeholder="Search your saves…"
             placeholderTextColor={COLORS.muted}
             value={query}
             onChangeText={setQuery}
@@ -150,10 +160,74 @@ export default function SearchScreen() {
 
         {hasQuery && (
           <>
-            <Text style={styles.resultCount}>
-              {results.length} {results.length === 1 ? 'result' : 'results'}
-            </Text>
-            {results.map(save => <SaveCard key={save.id} save={save} onPress={() => router.push(`/save/${save.id}`)} />)}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.typeScroll}
+              contentContainerStyle={styles.typeRow}
+            >
+              {TYPES.map(t => {
+                const on = type === t.id
+                return (
+                  <TouchableOpacity
+                    key={t.id}
+                    style={[styles.typeChip, on && styles.typeChipOn]}
+                    onPress={() => setType(t.id)}
+                    activeOpacity={0.8}
+                  >
+                    {t.icon && <Ionicons name={t.icon} size={14} color={on ? '#fff' : COLORS.text} />}
+                    <Text style={[styles.typeChipText, on && styles.typeChipTextOn]}>{t.label}</Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </ScrollView>
+
+            {searching && <ActivityIndicator color={COLORS.accent} style={styles.loader} />}
+
+            {!searching && collectionHits.length > 0 && (
+              <>
+                <Text style={styles.sectionLabel}>COLLECTIONS</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.collScroll}
+                  contentContainerStyle={styles.collRow}
+                >
+                  {collectionHits.map(c => (
+                    <TouchableOpacity
+                      key={c.id}
+                      style={styles.collChip}
+                      onPress={() => openCollection(c.id)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.collChipIcon, { backgroundColor: c.color + '22' }]}>
+                        <Ionicons name={(c.icon as IoniconName) ?? DEFAULT_COLLECTION_ICON} size={14} color={c.color} />
+                      </View>
+                      <Text style={styles.collChipText}>{c.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </>
+            )}
+
+            {!searching && nothingFound && (
+              <View style={styles.noResults}>
+                <Ionicons name="search-outline" size={40} color={COLORS.border} />
+                <Text style={styles.noResultsTitle}>No results for "{debouncedQuery.trim()}"</Text>
+                <Text style={styles.noResultsSub}>Try fewer or different words, or check the type filter.</Text>
+              </View>
+            )}
+
+            {!searching && shown.length > 0 && (
+              <>
+                <Text style={styles.resultCount}>
+                  {shown.length} {shown.length === 1 ? 'result' : 'results'}
+                </Text>
+                {shown.map(save => (
+                  <SaveCard key={save.id} save={save} onPress={() => openResult(save.id)} />
+                ))}
+              </>
+            )}
           </>
         )}
       </ScrollView>
@@ -192,30 +266,34 @@ const styles = StyleSheet.create({
   },
   recentChipText: { fontSize: 13, fontFamily: FONTS.sansSemi, color: COLORS.text },
 
-  aiAnswer: {
-    padding: SPACING.md, borderRadius: RADIUS.lg, marginBottom: SPACING.md,
-    backgroundColor: COLORS.accentSoft, borderWidth: 1, borderColor: COLORS.accentBorder,
-  },
-  aiAnswerHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 6 },
-  aiAnswerLabel: { fontSize: 12.5, fontFamily: FONTS.sansBold, color: COLORS.accent },
-  aiAnswerText: { fontSize: 13.5, fontFamily: FONTS.sans, color: COLORS.text, lineHeight: 20 },
-
-  typeScroll: { marginBottom: SPACING.md },
+  typeScroll: { marginBottom: SPACING.md, flexGrow: 0 },
   typeRow: { gap: SPACING.sm },
   typeChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: SPACING.md, paddingVertical: 7,
     borderRadius: 999, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card,
+    marginRight: SPACING.sm,
   },
   typeChipOn: { backgroundColor: COLORS.text, borderColor: COLORS.text },
   typeChipText: { fontSize: 12.5, fontFamily: FONTS.sansSemi, color: COLORS.text },
   typeChipTextOn: { color: '#fff' },
 
+  loader: { marginTop: SPACING.xl * 2 },
+
+  sectionLabel: { fontSize: 11, fontFamily: FONTS.mono, color: COLORS.muted, letterSpacing: 1, marginBottom: SPACING.sm },
+  collScroll: { marginBottom: SPACING.lg, flexGrow: 0 },
+  collRow: { gap: SPACING.sm },
+  collChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    paddingLeft: 6, paddingRight: SPACING.md, paddingVertical: 5,
+    borderRadius: 999, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card,
+    marginRight: SPACING.sm,
+  },
+  collChipIcon: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  collChipText: { fontSize: 13, fontFamily: FONTS.sansSemi, color: COLORS.text },
+
   resultCount: { fontSize: 11, fontFamily: FONTS.mono, color: COLORS.muted, letterSpacing: 1, marginBottom: SPACING.md },
-  grid: { flexDirection: 'row', gap: SPACING.sm },
-  col: { flex: 1 },
   noResults: { alignItems: 'center', paddingTop: SPACING.xl * 3, gap: SPACING.md },
-  noResultsIcon: { fontSize: 40, color: COLORS.border },
-  noResultsTitle: { fontSize: 20, fontFamily: FONTS.serif, color: COLORS.textSub },
+  noResultsTitle: { fontSize: 20, fontFamily: FONTS.serif, color: COLORS.textSub, textAlign: 'center', paddingHorizontal: SPACING.lg },
   noResultsSub: { fontSize: 14, fontFamily: FONTS.sans, color: COLORS.muted, textAlign: 'center', paddingHorizontal: SPACING.xl },
 })

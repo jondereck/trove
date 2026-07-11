@@ -4,6 +4,138 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Smarter keyword search (2026-07-11)
+**Files:** `supabase/search-upgrade.sql`, `lib/cloudDb.ts`, `lib/localDb.ts`, `lib/db.ts`,
+`app/(tabs)/search.tsx`
+
+Search now requires every word to match (AND across terms) and ranks results by relevance
+(title 4 > tags 3 > description/content 2 > url 1 per term, newest breaks ties). URLs and
+partial tags are searchable, and collection names/descriptions match too (shown as chips
+above results). Cloud search runs through a new `search_saves` Postgres function —
+**run `supabase/search-upgrade.sql` once in the Supabase SQL Editor**; until then the app
+falls back to the old ilike query (now with sanitized input). Local search mirrors the same
+scoring in memory. Search screen: type filter chips are now rendered, plus a loading
+spinner, a no-results state, and opening a result records the recent search.
+
+---
+
+### Inbox multi-select + move (2026-07-11)
+**Files:** `app/(tabs)/inbox.tsx`
+
+Long-press an Inbox card to enter multi-select (same pattern as Library / collection
+detail). Selection bar supports Move to a collection and Delete. Swipe-to-archive is
+disabled while selecting so taps toggle selection cleanly.
+
+---
+
+### Hide sign-in on first-launch onboarding (2026-07-11)
+**Files:** `app/onboarding.tsx`
+
+Removed the “I already have an account · Sign in” link from the intro splash.
+First install stays guest-first (Skip / Get started only); sign-in remains available
+from Account after entering the app.
+
+---
+
+### Raindrop CSV import (2026-07-11)
+**Files:** `lib/raindropImport.ts`, `lib/transfer.ts`, `app/account.tsx`
+
+Account → Import data now accepts Raindrop.io CSV exports alongside Trove zip/JSON
+backups. Format is auto-detected from CSV headers (`url`, `title`, `folder`, `created`).
+`Unsorted` folders land in Inbox; named folders become collections (matched by name).
+Covers stay as remote URLs; favorites, tags, notes, excerpts, and created dates map across.
+URL dedup skips already-saved links on re-import.
+
+---
+
+### Collection edit + custom cover thumbnail (2026-07-11)
+**Files:** `types/index.ts`, `lib/cloudDb.ts`, `lib/localDb.ts`, `lib/storage.ts`,
+`components/CollectionForm.tsx`, `app/collection/[id].tsx`, `supabase/add-collection-cover.sql`
+
+Collections can be edited from the detail screen (pencil icon): name, icon, color, description, and
+an optional cover image. Custom covers are stored as `cover_image_url` and lead the Collections-tab
+collage; clearing the cover falls back to the 3 most recent save thumbnails. Guest covers save to
+local media; signed-in covers upload to Storage. Run `add-collection-cover.sql` in Supabase once.
+
+---
+
+### Collection delete (empty only) (2026-07-11)
+**Files:** `app/collection/[id].tsx`, `app/(tabs)/collections.tsx`
+
+Empty collections can be deleted from the collection detail header (trash icon). On the Collections
+tab, long-press enters multi-select (like Library); tap more cards, then trash to bulk-delete.
+Non-empty collections are blocked with a warning and skipped in bulk delete.
+
+---
+
+### Library greeting, avatar initials, grid/list toggle (2026-07-11)
+**Files:** `app/(tabs)/index.tsx`, `components/Avatar.tsx`, `components/SaveCard.tsx`, `lib/settings.ts`
+
+**Greeting:** Combined into one line (`Good afternoon, John.`) so it no longer wraps across two rows.
+
+**Avatar:** Library header passes first + last name (guest or signed-in) so initials show both letters (e.g. `JD`).
+
+**View toggle:** Grid/list button beside filter chips; preference persisted in settings as `libraryView`. List mode uses a compact horizontal row layout on `SaveCard`. Chip row uses explicit `marginRight` + bar `gap` so spacing stays even (RN horizontal ScrollView ignores `gap`).
+
+---
+
+### Fixed: Account profile save, misleading default collection, save delete icon (2026-07-11)
+**Files:** `lib/cloudDb.ts`, `lib/localDb.ts`, `app/account.tsx`, `app/save/[id].tsx`, `app/ai-preferences.tsx`
+
+**Profile save:** Cloud `updateProfile` now upserts the `profiles` row so first-time edits on older
+accounts actually persist (plain `update` silently matched zero rows). Guest users can also edit their
+display name — stored locally in AsyncStorage via `localDb.fetchProfile` / `updateProfile`. Account
+reloads profile on focus and after tapping Done.
+
+**Default collection row:** Removed the dead "Default collection: Read Later" setting from Account.
+"Read Later" is an AI label for Inbox, not a real collection. Clarified in AI preferences explainer.
+
+**Save detail delete:** Replaced the 🗑 emoji with `Ionicons trash-outline` to match the rest of the app.
+
+---
+
+### Fixed: share-to-Inbox, realtime refresh, auth flash, collection flicker, TikTok previews (2026-07-11)
+**Files:** `lib/dataEvents.ts`, `lib/db.ts`, `app/(tabs)/_layout.tsx`, `components/SaveToast.tsx`,
+`app/(tabs)/index.tsx`, `app/(tabs)/inbox.tsx`, `app/(tabs)/collections.tsx`, `lib/authNavigation.ts`,
+`app/(auth)/_layout.tsx`, `app/(auth)/login.tsx`, `app/_layout.tsx`, `app/onboarding.tsx`,
+`app/account.tsx`, `supabase/functions/fetch-og/index.ts`
+
+**Realtime refresh:** Added a lightweight mutation bus (`lib/dataEvents.ts`). `lib/db.ts` now emits
+`saves` / `collections` events after successful create, update, and delete. Library, Inbox, and
+Collections subscribe so new saves appear immediately without pull-to-refresh or tab switching.
+
+**Share-to-Inbox:** OS share intents (Savebook, Chrome, etc.) no longer open QuickSave. A shared URL is
+deduped, saved straight to Inbox with a minimal title, and a top snackbar confirms the result
+(`Saved to Inbox`, `Already in Trove`, or an error). OG metadata is fetched in the background and
+patched onto the same save. The centered `+` QuickSave flow is unchanged.
+
+**Collection form flicker:** Stabilized the create sheet — animation values reset before open, keyboard
+focus deferred until the spring finishes, Android `KeyboardAvoidingView` no longer uses `height`, error
+row has reserved space, and list refresh waits until the sheet closes.
+
+**Auth startup:** Login no longer flashes on cold start when already signed in or when nav state
+restores an auth route. `lib/authNavigation.ts` marks user-initiated auth entry; `(auth)/_layout`
+redirects to tabs unless that flag is set. Splash stays up until fonts + session + local-data check
+resolve. Login screen has a top-right **Skip** that returns to the app as guest.
+
+**Settings cleanup:** Removed duplicate **Auto-organize new saves** toggle from Account; AI Preferences
+remains the single control.
+
+**TikTok previews:** `fetch-og` now tries TikTok's official oEmbed API first (`thumbnail_url`, title,
+author), with the existing HTML/JSON-LD scraper as fallback. Deployed as **fetch-og v7**
+(`--no-verify-jwt`, same as prior deploys).
+
+**Verification:**
+- `npx tsc --noEmit` — pass
+- `npx expo-doctor` — 3 pre-existing failures (not addressed here): missing `react-native-screens`
+  peer for `@react-navigation/bottom-tabs`, direct `@react-navigation/bottom-tabs` alongside
+  expo-router SDK 56, and 8 patch-version mismatches on Expo packages
+- `npx expo run:android` — failed in Cursor due to Windows path length >260 in sandbox Gradle cache;
+  device `R58R21QKH3D` already has Trove installed — manual share/auth/collection tests pending a
+  local-terminal rebuild
+
+---
+
 ### Changed: AI works for guests via ai-proxy (2026-07-08)
 **Files:** `lib/ai.ts`, `supabase/functions/ai-proxy/index.ts`
 
