@@ -274,7 +274,8 @@ export default function AccountScreen() {
           ) : (
             <SettingRow icon="log-in-outline" label="Sign in or create account" onPress={openAuth} />
           )}
-          <SettingRow icon="sparkles-outline" label="AI preferences" onPress={() => router.push('/ai-preferences')} last />
+          <SettingRow icon="sparkles-outline" label="AI preferences" onPress={() => router.push('/ai-preferences')} />
+          <SettingRow icon="color-palette-outline" label="Appearance" onPress={() => router.push('/appearance')} last />
         </SettingGroup>
 
         <SettingGroup title="Data">

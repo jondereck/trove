@@ -2,6 +2,8 @@ import * as SecureStore from 'expo-secure-store'
 
 const KEY = 'trove.settings'
 
+export type AppearanceMode = 'system' | 'light' | 'dark'
+
 export interface Settings {
   autoOrganize: boolean
   aiSuggestTitleDescription: boolean
@@ -10,6 +12,7 @@ export interface Settings {
   libraryView: 'grid' | 'list'
   /** When true, OS shares open the QuickSave preview (with AI). When false, auto-save to Unsorted. */
   shareReviewModal: boolean
+  appearance: AppearanceMode
 }
 
 const DEFAULTS: Settings = {
@@ -19,6 +22,7 @@ const DEFAULTS: Settings = {
   aiSuggestCollections: true,
   libraryView: 'grid',
   shareReviewModal: true,
+  appearance: 'system',
 }
 
 export async function getSettings(): Promise<Settings> {

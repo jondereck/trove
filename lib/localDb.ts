@@ -187,6 +187,8 @@ export async function createSave(input: {
   tags?: string[]
   is_inbox?: boolean
   is_favorite?: boolean
+  is_pinned?: boolean
+  is_viewed?: boolean
   created_at?: string
 }): Promise<Save | null> {
   const url = input.url ? normalizeUrl(input.url) : undefined
@@ -209,6 +211,7 @@ export async function createSave(input: {
     is_inbox: input.is_inbox ?? true,
     is_favorite: input.is_favorite ?? false,
     is_pinned: input.is_pinned ?? false,
+    is_viewed: input.is_viewed ?? false,
     created_at: input.created_at ?? new Date().toISOString(),
   }
   await persistSaves([save, ...saves])

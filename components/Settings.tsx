@@ -34,6 +34,7 @@ export function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) 
 export function SettingRow({
   icon,
   label,
+  hint,
   value,
   onPress,
   danger,
@@ -43,6 +44,7 @@ export function SettingRow({
 }: {
   icon: IoniconName
   label: string
+  hint?: string
   value?: string
   onPress?: () => void
   danger?: boolean
@@ -60,7 +62,10 @@ export function SettingRow({
       <View style={[styles.rowIcon, danger && styles.rowIconDanger]}>
         <Ionicons name={icon} size={18} color={danger ? DANGER : COLORS.accent} />
       </View>
-      <Text style={[styles.rowLabel, danger && { color: DANGER }]}>{label}</Text>
+      <View style={styles.rowText}>
+        <Text style={[styles.rowLabel, danger && { color: DANGER }]}>{label}</Text>
+        {hint ? <Text style={styles.rowHint}>{hint}</Text> : null}
+      </View>
       {value ? <Text style={styles.rowValue}>{value}</Text> : null}
       {toggle ? (
         <Toggle on={!!on} onToggle={() => onPress?.()} />
@@ -112,7 +117,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rowIconDanger: { backgroundColor: DANGER_SOFT },
-  rowLabel: { flex: 1, fontFamily: FONTS.sansSemi, fontSize: 15, color: COLORS.text },
+  rowText: { flex: 1, gap: 2 },
+  rowLabel: { fontFamily: FONTS.sansSemi, fontSize: 15, color: COLORS.text },
+  rowHint: { fontFamily: FONTS.sans, fontSize: 12.5, lineHeight: 17, color: COLORS.muted },
   rowValue: { fontFamily: FONTS.sans, fontSize: 14, color: COLORS.muted },
 
   track: { width: 44, height: 26, borderRadius: 99, justifyContent: 'center' },
