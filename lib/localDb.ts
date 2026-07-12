@@ -59,6 +59,7 @@ const byPinnedThenName = (a: Collection, b: Collection) => {
 function filterLibrarySaves(saves: Save[], filter: LibraryFilter): Save[] {
   const library = saves.filter(s => !s.is_inbox)
   if (filter === 'all') return library.sort(byPinnedThenNewest)
+  if (filter === 'unread') return library.filter(s => s.is_viewed === false).sort(byPinnedThenNewest)
   if (filter === 'fav') return library.filter(s => s.is_favorite).sort(byPinnedThenNewest)
   return library.filter(s => s.type === filter).sort(byPinnedThenNewest)
 }
@@ -90,6 +91,11 @@ export async function fetchLibraryCount(): Promise<number> {
 export async function fetchInboxSaves(): Promise<Save[]> {
   const saves = await loadSaves()
   return saves.filter(s => s.is_inbox).sort(byNewest)
+}
+
+export async function fetchInboxUnreadCount(): Promise<number> {
+  const saves = await loadSaves()
+  return saves.filter(s => s.is_inbox && s.is_viewed === false).length
 }
 
 export async function fetchSave(id: string): Promise<Save | null> {
