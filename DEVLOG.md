@@ -4,6 +4,17 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Chest loader storyboard — implementation plan (2026-07-12)
+**Files:** `docs/superpowers/specs/2026-07-12-trove-chest-loader-spec.md`,
+`docs/superpowers/plans/2026-07-12-chest-loader-animation.md`
+
+Locked the 6-scene saving-modal chest animation spec (3.2s loop, synced copy,
+finish-current-cycle + 800ms success hold) and wrote a task-by-task implementation
+plan. Builds on the existing Lottie `chest-save` auto-share loader rather than
+QuickSave’s spinner. Implementation not started yet.
+
+---
+
 ### App icon — flat T-chest with keyhole (2026-07-11)
 **Files:** `assets/icon-source.svg`, `assets/icon-foreground.svg`, `assets/icon-monochrome.svg`,
 `assets/icon.png`, `assets/splash-icon.png`, `assets/favicon.png`,
