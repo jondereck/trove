@@ -4,6 +4,25 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Unread saves clarity (2026-07-12)
+**Files:** `components/SaveCard.tsx`, `app/(tabs)/index.tsx`, `app/(tabs)/inbox.tsx`,
+`app/(tabs)/_layout.tsx`, `types/index.ts`, `lib/db.ts`, `lib/localDb.ts`, `lib/cloudDb.ts`
+
+**Stronger unread visuals:** Unread cards use `accentSoft` background, accent border, 4px left
+stripe, larger dot, bold title, and a `NEW` pill badge.
+
+**Unread filter:** Library filter chip filters `is_viewed === false` (local + cloud).
+
+**Mark read on link open:** Tapping a link thumbnail / hero image marks the save viewed without
+opening the detail screen.
+
+**Unsorted counts:** Inbox header shows `N new` for unread items; tab bar badge on Unsorted when
+inbox has unread saves.
+
+**Cloud createSave:** Explicitly sets `is_viewed: false` on insert.
+
+---
+
 ### Plan — 6-scene chest loader storyboard (2026-07-12)
 **Files:** `docs/superpowers/specs/2026-07-12-trove-chest-loader.md`,
 `docs/superpowers/plans/2026-07-12-trove-chest-loader.md`
@@ -11,7 +30,16 @@ Running record of changes, fixes, and decisions. Most recent first.
 Locked the auto-share saving-loader storyboard (3.2s / 60fps, six scenes, loop + 800ms
 success hold) and wrote a task-by-task implementation plan: pure `chestLoaderTimeline`
 phase machine, rebuilt Lottie with fading green check, `ShareSaveAnimation` orchestrator,
-and `app/share.tsx` completion wiring. Docs/planning only — implementation not started.
+and `app/share.tsx` completion wiring. Prefer this refined plan over the earlier draft in
+`docs/superpowers/plans/2026-07-12-chest-loader-animation.md`.
+
+---
+
+### Chest loader storyboard — earlier draft plan (2026-07-12)
+**Files:** `docs/superpowers/specs/2026-07-12-trove-chest-loader-spec.md`,
+`docs/superpowers/plans/2026-07-12-chest-loader-animation.md`
+
+Earlier draft of the same feature (30fps Lottie). Superseded by the refined 60fps plan above.
 
 ---
 
