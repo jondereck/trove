@@ -15,8 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useFocusEffect } from 'expo-router'
 import Constants from 'expo-constants'
 import { Ionicons } from '@expo/vector-icons'
-import { LinearGradient } from 'expo-linear-gradient'
-import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme'
+import { COLORS, FONTS, SPACING } from '../constants/theme'
 import Avatar from '../components/Avatar'
 import { SettingGroup, SettingRow } from '../components/Settings'
 import { fetchCounts, fetchProfile, updateProfile } from '../lib/db'
@@ -24,23 +23,41 @@ import { cacheProfile, clearProfileCache, formatProfileName, peekProfile } from 
 import { supabase } from '../lib/supabase'
 import { isLoggedIn } from '../lib/session'
 import { getTier, subscribeTier } from '../lib/entitlements'
-import { PRICES } from '../constants/limits'
 import { exportData, importData } from '../lib/transfer'
 import { AvatarTooLargeError, pickAndUploadAvatar } from '../lib/storage'
-import { requestAuthFlow } from '../lib/authNavigation'
 
 const SUPPORT_EMAIL = 'mailto:jonderecknifas@gmail.com?subject=Trove%20support'
 
 const FAINT = '#bdb9b0'
-const UPGRADE_GRADIENT = [COLORS.accent, '#7a4f86'] as const
 
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <View style={styles.stat}>
-      <Text style={styles.statValue}>{value}</Text>
+function Stat({
+  label,
+  value,
+  onPress,
+  highlight,
+}: {
+  label: string
+  value: string | number
+  onPress?: () => void
+  highlight?: boolean
+}) {
+  const content = (
+    <>
+      <Text style={[styles.statValue, highlight && styles.statValueHighlight]}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
+    </>
   )
+
+  if (onPress) {
+    return (
+      <TouchableOpacity style={[styles.stat, styles.statPressable]} onPress={onPress} activeOpacity={0.7}>
+        {content}
+        <Ionicons name="chevron-forward" size={12} color={FAINT} style={styles.statChevron} />
+      </TouchableOpacity>
+    )
+  }
+
+  return <View style={styles.stat}>{content}</View>
 }
 
 export default function AccountScreen() {
@@ -162,11 +179,6 @@ export default function AccountScreen() {
     ])
   }, [])
 
-  const openAuth = useCallback(() => {
-    requestAuthFlow()
-    router.push('/(auth)/')
-  }, [router])
-
   useEffect(() => subscribeTier(setTier), [])
 
   const planLabel = tier === 'cloud' ? 'Cloud' : tier === 'unlocked' ? 'Unlocked' : 'Free'
@@ -182,7 +194,7 @@ export default function AccountScreen() {
           <Ionicons name="chevron-back" size={20} color={COLORS.accent} />
           <Text style={styles.topAction}>Library</Text>
         </TouchableOpacity>
-        <Text style={styles.topTitle}>Account</Text>
+        <Text style={styles.topTitle}>Settings</Text>
         <TouchableOpacity onPress={toggleEditing} activeOpacity={0.6} style={styles.editBtn}>
           <Text style={styles.topAction}>{editing ? 'Done' : 'Edit'}</Text>
         </TouchableOpacity>
@@ -247,51 +259,23 @@ export default function AccountScreen() {
               <View style={styles.statDivider} />
               <Stat label="Collections" value={counts.collections} />
               <View style={styles.statDivider} />
-              <Stat label="Plan" value={planLabel} />
+              <Stat
+                label="Plan"
+                value={planLabel}
+                onPress={() => router.push('/plan')}
+                highlight={tier === 'free'}
+              />
             </View>
           )}
         </View>
 
-        {/* banner: plan upsell — hidden once the user is on Cloud */}
-        {tier !== 'cloud' && (
-          <TouchableOpacity
-            activeOpacity={0.9}
-            style={styles.bannerWrap}
-            onPress={() => router.push('/upgrade')}
-          >
-            <LinearGradient
-              colors={UPGRADE_GRADIENT}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.banner}
-            >
-              <View style={styles.bannerIcon}>
-                <Ionicons name={tier === 'unlocked' ? 'cloud-upload' : 'sparkles'} size={22} color="#fff" />
-              </View>
-              <View style={styles.bannerText}>
-                <Text style={styles.bannerTitle}>
-                  {tier === 'unlocked' ? 'Add Trove Cloud' : 'Unlock Trove'}
-                </Text>
-                <Text style={styles.bannerSub}>
-                  {tier === 'unlocked'
-                    ? `Sync across devices · ${PRICES.cloudMonthly}`
-                    : `Unlimited saves for ${PRICES.unlockedOneTime}, once`}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#fff" />
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
-
         {/* settings */}
         <SettingGroup title="Account">
-          {loggedIn ? (
+          {loggedIn && (
             <>
               <SettingRow icon="mail-outline" label="Email" value={email} />
               <SettingRow icon="lock-closed-outline" label="Change password" onPress={() => router.push('/change-password')} />
             </>
-          ) : (
-            <SettingRow icon="log-in-outline" label="Sign in or create account" onPress={openAuth} />
           )}
           <SettingRow icon="sparkles-outline" label="AI preferences" onPress={() => router.push('/ai-preferences')} />
           <SettingRow icon="color-palette-outline" label="Appearance" onPress={() => router.push('/appearance')} last />
@@ -382,23 +366,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   stat: { paddingVertical: 12, paddingHorizontal: 20, alignItems: 'center', minWidth: 76 },
+  statPressable: { position: 'relative', paddingRight: 24 },
+  statChevron: { position: 'absolute', right: 8, top: 14 },
   statValue: { fontFamily: FONTS.serif, fontSize: 24, color: COLORS.text, lineHeight: 26 },
+  statValueHighlight: { color: COLORS.accent },
   statLabel: { fontFamily: FONTS.sansSemi, fontSize: 11.5, color: COLORS.muted, marginTop: 4 },
   statDivider: { width: 1, backgroundColor: COLORS.border },
-
-  bannerWrap: { marginHorizontal: SPACING.lg, marginBottom: SPACING.xl, borderRadius: RADIUS.lg, overflow: 'hidden' },
-  banner: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 16, paddingHorizontal: 18 },
-  bannerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bannerText: { flex: 1 },
-  bannerTitle: { fontFamily: FONTS.sansBold, fontSize: 15, color: '#fff' },
-  bannerSub: { fontFamily: FONTS.sans, fontSize: 12.5, color: 'rgba(255,255,255,0.85)', marginTop: 1 },
 
   footer: { textAlign: 'center', fontFamily: FONTS.mono, fontSize: 11, color: FAINT, marginTop: 4 },
 })

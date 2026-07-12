@@ -4,6 +4,24 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Settings & plan UX cleanup (2026-07-12)
+**Files:** `app/account.tsx`, `app/plan.tsx`, `app/_layout.tsx`, `app/ai-preferences.tsx`,
+`app/appearance.tsx`, `app/change-password.tsx`, `app/(tabs)/index.tsx`
+
+**Settings screen:** Top bar title renamed from Account → Settings; sub-screen back links match.
+
+**Removed upsells from settings:** Dropped the gradient Unlock Trove / Get Trove Cloud banner and
+the guest "Sign in or create account" row from the Account settings group.
+
+**Clickable plan stat:** Plan column in the profile stats row opens a new Your plan screen with
+current tier, included features, and usage meters (saves / collections / AI) on the free plan.
+
+**Upgrade funnel:** Free guests tap Plan → "Create an account to sync" → Trove plans (`/upgrade`)
+where Restore purchases lives for returning subscribers. Logged-in users see "See Trove plans" or
+"Get Trove Cloud" instead.
+
+---
+
 ### Chest loader — 6-scene storyboard implementation (2026-07-12)
 **Files:** `lib/chestLoaderTimeline.ts`, `lib/chestLoaderTimeline.test.ts`,
 `assets/lottie/chest-save.json`, `components/ShareSaveAnimation.tsx`, `app/share.tsx`,
