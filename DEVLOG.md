@@ -4,6 +4,25 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Unread saves clarity (2026-07-12)
+**Files:** `components/SaveCard.tsx`, `app/(tabs)/index.tsx`, `app/(tabs)/inbox.tsx`,
+`app/(tabs)/_layout.tsx`, `types/index.ts`, `lib/db.ts`, `lib/localDb.ts`, `lib/cloudDb.ts`
+
+**Stronger unread visuals:** Unread cards use `accentSoft` background, accent border, 4px left
+stripe, larger dot, bold title, and a `NEW` pill badge.
+
+**Unread filter:** Library filter chip filters `is_viewed === false` (local + cloud).
+
+**Mark read on link open:** Tapping a link thumbnail / hero image marks the save viewed without
+opening the detail screen.
+
+**Unsorted counts:** Inbox header shows `N new` for unread items; tab bar badge on Unsorted when
+inbox has unread saves.
+
+**Cloud createSave:** Explicitly sets `is_viewed: false` on insert.
+
+---
+
 ### App icon — flat T-chest with keyhole (2026-07-11)
 **Files:** `assets/icon-source.svg`, `assets/icon-foreground.svg`, `assets/icon-monochrome.svg`,
 `assets/icon.png`, `assets/splash-icon.png`, `assets/favicon.png`,
