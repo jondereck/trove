@@ -111,6 +111,7 @@ function RootNavigator({ session, hasData, dismissed, fontsLoaded, fontError }: 
         <Stack.Screen name="save/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="collection/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="account" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="plan" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="change-password" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="ai-preferences" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="appearance" options={{ animation: 'slide_from_right' }} />

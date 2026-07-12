@@ -81,7 +81,7 @@ export default function AppearanceScreen() {
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.6}>
           <Ionicons name="chevron-back" size={20} color={colors.accent} />
-          <Text style={styles.topAction}>Account</Text>
+          <Text style={styles.topAction}>Settings</Text>
         </TouchableOpacity>
         <Text style={styles.topTitle}>Appearance</Text>
         <View style={styles.topSpacer} />

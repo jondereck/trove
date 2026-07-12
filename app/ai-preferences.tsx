@@ -48,7 +48,7 @@ export default function AIPreferencesScreen() {
       <View style={[styles.topBar, { paddingTop: insets.top + SPACING.sm }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.6}>
           <Ionicons name="chevron-back" size={20} color={colors.accent} />
-          <Text style={styles.topAction}>Account</Text>
+          <Text style={styles.topAction}>Settings</Text>
         </TouchableOpacity>
         <Text style={styles.topTitle}>AI preferences</Text>
         <View style={styles.topSpacer} />
