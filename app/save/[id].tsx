@@ -50,6 +50,10 @@ export default function SaveDetailScreen() {
       setDescription(s.description ?? '')
       setTags(s.tags ?? [])
       setSelectedCollection(s.collection_id ?? undefined)
+      if (s.is_viewed === false) {
+        await updateSave(s.id, { is_viewed: true })
+        setSave(prev => prev ? { ...prev, is_viewed: true } : prev)
+      }
     }
     setCollections(cols)
   }, [id])

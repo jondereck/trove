@@ -16,11 +16,39 @@ background updated to match. Re-render anytime with `node scripts/render-icons.m
 
 ---
 
+### Appearance, unread saves, move picker, AI hints (2026-07-11)
+**Files:** `app/appearance.tsx`, `app/account.tsx`, `app/ai-preferences.tsx`, `app/_layout.tsx`,
+`app/(tabs)/_layout.tsx`, `app/(tabs)/index.tsx`, `app/(tabs)/inbox.tsx`,
+`app/(tabs)/collections.tsx`, `app/collection/[id].tsx`, `app/save/[id].tsx`,
+`components/MoveToCollectionModal.tsx`, `components/SaveCard.tsx`, `components/Settings.tsx`,
+`constants/theme.ts`, `constants/pinLimits.ts`, `contexts/ThemeContext.tsx`,
+`lib/settings.ts`, `lib/localDb.ts`, `types/index.ts`, `supabase/add-viewed.sql`
+
+**Appearance:** System / Light / Dark theme picker under Account → Appearance.
+`ThemeProvider` resolves palette; tab bar and root `StatusBar` follow the active scheme.
+
+**Unread saves:** `is_viewed` on saves — new saves start unread; opening detail marks read.
+Unread cards show an accent dot, bold title, and left border.
+
+**Move to collection:** Picker has “Create new collection”; pinned collections (max 3) stay
+at the top with a section label. Collection detail uses the shared modal.
+
+**Pin limit:** Max 3 pinned collections enforced on Collections grid and collection detail.
+
+**Thumbnail → link:** Tapping a link-card hero image or list thumbnail opens the URL.
+
+**AI preferences:** Long footer paragraphs replaced with short per-toggle hints.
+
+---
+
+### Library greeting polish (2026-07-11)
 **Files:** `app/(tabs)/index.tsx`
 
 Greeting shows first name only; evening greeting used from 5pm onward (no "Good night").
 
 ---
+
+### Library perf, organize fixes, pin, move, UI polish (2026-07-11)
 **Files:** `app/(tabs)/index.tsx`, `app/(tabs)/inbox.tsx`, `app/(tabs)/collections.tsx`,
 `app/collection/[id].tsx`, `app/_layout.tsx`, `components/AIOrganize.tsx`,
 `components/SaveCard.tsx`, `components/MoveToCollectionModal.tsx`, `constants/organize.ts`,

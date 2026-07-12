@@ -21,7 +21,7 @@ import {
   SplineSansMono_400Regular,
   SplineSansMono_500Medium,
 } from '@expo-google-fonts/spline-sans-mono'
-import { COLORS } from '../constants/theme'
+import { ThemeProvider, useTheme } from '../contexts/ThemeContext'
 import { supabase } from '../lib/supabase'
 import { isOnboardingDismissed, subscribeOnboarding } from '../lib/firstLaunch'
 import { hasLocalData } from '../lib/localDb'
@@ -62,6 +62,7 @@ function RootNavigator({ session, hasData, dismissed, fontsLoaded, fontError }: 
   const { hasShareIntent } = useShareIntentContext()
   const segments = useSegments()
   const router = useRouter()
+  const { colors, resolvedScheme } = useTheme()
 
   useEffect(() => {
     if (session === undefined || hasData === undefined) return
@@ -101,8 +102,8 @@ function RootNavigator({ session, hasData, dismissed, fontsLoaded, fontError }: 
 
   return (
     <>
-      <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.bg } }}>
+      <StatusBar style={resolvedScheme === 'dark' ? 'light' : 'dark'} />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
         <Stack.Screen name="share" options={{ animation: 'fade' }} />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="(tabs)" />
@@ -112,6 +113,7 @@ function RootNavigator({ session, hasData, dismissed, fontsLoaded, fontError }: 
         <Stack.Screen name="account" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="change-password" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="ai-preferences" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="appearance" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="upgrade" options={{ animation: 'slide_from_bottom' }} />
       </Stack>
     </>
@@ -192,13 +194,15 @@ export default function RootLayout() {
   return (
     <ShareIntentProvider options={{ resetOnBackground: true }}>
       <SafeAreaProvider>
-        <RootNavigator
-          session={session}
-          hasData={hasData}
-          dismissed={dismissed}
-          fontsLoaded={fontsLoaded}
-          fontError={fontError}
-        />
+        <ThemeProvider>
+          <RootNavigator
+            session={session}
+            hasData={hasData}
+            dismissed={dismissed}
+            fontsLoaded={fontsLoaded}
+            fontError={fontError}
+          />
+        </ThemeProvider>
       </SafeAreaProvider>
     </ShareIntentProvider>
   )
