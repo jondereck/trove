@@ -22,6 +22,22 @@ where Restore purchases lives for returning subscribers. Logged-in users see "Se
 
 ---
 
+### Chest loader — 6-scene storyboard implementation (2026-07-12)
+**Files:** `lib/chestLoaderTimeline.ts`, `lib/chestLoaderTimeline.test.ts`,
+`assets/lottie/chest-save.json`, `components/ShareSaveAnimation.tsx`, `app/share.tsx`,
+`package.json`
+
+Implemented the auto-share chest loader to the 6-scene storyboard (prepare → drop-in →
+organize → close → finalize → green check) at 3.2s / 60fps. Scene copy is driven by
+`chestLoaderTimeline.resolveLoaderPhase`. While the network save is still in flight the
+cycle loops (check fades before restart). On `saved` it finishes the current cycle, freezes
+on the peak check frame for 800ms, then fades out before the snackbar. Duplicate/error
+fades out immediately. Spec/plan:
+`docs/superpowers/specs/2026-07-12-trove-chest-loader.md`,
+`docs/superpowers/plans/2026-07-12-trove-chest-loader.md`.
+
+---
+
 ### Unread saves clarity (2026-07-12)
 **Files:** `components/SaveCard.tsx`, `app/(tabs)/index.tsx`, `app/(tabs)/inbox.tsx`,
 `app/(tabs)/_layout.tsx`, `types/index.ts`, `lib/db.ts`, `lib/localDb.ts`, `lib/cloudDb.ts`
@@ -41,14 +57,23 @@ inbox has unread saves.
 
 ---
 
-### Chest loader storyboard — implementation plan (2026-07-12)
+### Plan — 6-scene chest loader storyboard (2026-07-12)
+**Files:** `docs/superpowers/specs/2026-07-12-trove-chest-loader.md`,
+`docs/superpowers/plans/2026-07-12-trove-chest-loader.md`
+
+Locked the auto-share saving-loader storyboard (3.2s / 60fps, six scenes, loop + 800ms
+success hold) and wrote a task-by-task implementation plan: pure `chestLoaderTimeline`
+phase machine, rebuilt Lottie with fading green check, `ShareSaveAnimation` orchestrator,
+and `app/share.tsx` completion wiring. Prefer this refined plan over the earlier draft in
+`docs/superpowers/plans/2026-07-12-chest-loader-animation.md`.
+
+---
+
+### Chest loader storyboard — earlier draft plan (2026-07-12)
 **Files:** `docs/superpowers/specs/2026-07-12-trove-chest-loader-spec.md`,
 `docs/superpowers/plans/2026-07-12-chest-loader-animation.md`
 
-Locked the 6-scene saving-modal chest animation spec (3.2s loop, synced copy,
-finish-current-cycle + 800ms success hold) and wrote a task-by-task implementation
-plan. Builds on the existing Lottie `chest-save` auto-share loader rather than
-QuickSave’s spinner. Implementation not started yet.
+Earlier draft of the same feature (30fps Lottie). Superseded by the refined 60fps plan above.
 
 ---
 
