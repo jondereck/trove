@@ -27,6 +27,7 @@ import { Collection } from '../../types'
 import { fetchCollections, createCollection, deleteCollection, updateCollection } from '../../lib/db'
 import { isLimitError, showLimitAlert } from '../../lib/upgradeAlert'
 import { subscribeDataChanges } from '../../lib/dataEvents'
+import { canPinMoreCollections, MAX_PINNED_COLLECTIONS } from '../../constants/pinLimits'
 
 // Appends an alpha byte to a #rrggbb hex so a saturated collection color reads
 // as a soft pastel when layered over the cream cover base.
@@ -304,6 +305,7 @@ export default function CollectionsScreen() {
                 <CollectionCard
                   key={col.id}
                   collection={col}
+                  collections={collections}
                   selected={selectionMode ? selectedIds.has(col.id) : undefined}
                   onPress={() => onCardPress(col)}
                   onLongPress={() => !selectionMode && enterSelection(col.id)}
@@ -316,6 +318,7 @@ export default function CollectionsScreen() {
                 <CollectionCard
                   key={col.id}
                   collection={col}
+                  collections={collections}
                   selected={selectionMode ? selectedIds.has(col.id) : undefined}
                   onPress={() => onCardPress(col)}
                   onLongPress={() => !selectionMode && enterSelection(col.id)}
@@ -428,12 +431,14 @@ function CoverTile({ url, color, alpha, radius, style }: {
 
 function CollectionCard({
   collection,
+  collections,
   onPress,
   onLongPress,
   selected,
   onPinToggle,
 }: {
   collection: Collection
+  collections: Collection[]
   onPress: () => void
   onLongPress?: () => void
   selected?: boolean
@@ -447,6 +452,10 @@ function CollectionCard({
 
   const handlePin = async () => {
     const next = !isPinned
+    if (next && !canPinMoreCollections(collections, collection.id)) {
+      Alert.alert('Pin limit reached', `You can pin up to ${MAX_PINNED_COLLECTIONS} collections. Unpin one to add another.`)
+      return
+    }
     setIsPinned(next)
     try {
       await updateCollection(collection.id, { is_pinned: next })

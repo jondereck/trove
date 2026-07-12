@@ -443,6 +443,7 @@ export default function LibraryScreen() {
         collections={collections}
         onClose={() => setShowMoveModal(false)}
         onSelect={handleBulkMove}
+        onCreated={col => setCollections(prev => [...prev, col])}
       />
 
       <AIOrganize

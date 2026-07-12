@@ -4,7 +4,8 @@ import * as Clipboard from 'expo-clipboard'
 import { Tabs } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, FONTS, SPACING } from '../../constants/theme'
+import { FONTS, SPACING, LIGHT_COLORS } from '../../constants/theme'
+import { useColors } from '../../contexts/ThemeContext'
 import { UNSORTED_LABEL } from '../../constants/labels'
 import QuickSave from '../../components/QuickSave'
 import SaveToast from '../../components/SaveToast'
@@ -25,6 +26,7 @@ const TAB_CONFIG: Record<string, { label: string; icon: IoniconName; activeIcon:
 
 function CustomTabBar({ state, navigation, onQuickSave }: any) {
   const insets = useSafeAreaInsets()
+  const colors = useColors()
   const routes = state.routes
 
   const renderTab = (route: typeof routes[number], index: number) => {
@@ -44,9 +46,9 @@ function CustomTabBar({ state, navigation, onQuickSave }: any) {
         <Ionicons
           name={isFocused ? config.activeIcon : config.icon}
           size={23}
-          color={isFocused ? COLORS.accent : COLORS.muted}
+          color={isFocused ? colors.accent : colors.muted}
         />
-        <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
+        <Text style={[styles.tabLabel, { color: colors.muted }, isFocused && { color: colors.accent, fontFamily: FONTS.sansSemi }]}>
           {config.label}
         </Text>
       </TouchableOpacity>
@@ -55,12 +57,12 @@ function CustomTabBar({ state, navigation, onQuickSave }: any) {
 
   return (
     <View style={[styles.tabBarOuter, { paddingBottom: (insets.bottom || SPACING.md) + SPACING.sm }]}>
-      <View style={styles.pill}>
+      <View style={[styles.pill, { backgroundColor: colors.card, borderColor: colors.border }]}>
         {routes.slice(0, 2).map((r: typeof routes[number], i: number) => renderTab(r, i))}
         <View style={styles.fabSpacer} />
         {routes.slice(2, 4).map((r: typeof routes[number], i: number) => renderTab(r, i + 2))}
 
-        <TouchableOpacity style={styles.fab} onPress={onQuickSave} activeOpacity={0.85}>
+        <TouchableOpacity style={[styles.fab, { backgroundColor: colors.accent, shadowColor: colors.accent }]} onPress={onQuickSave} activeOpacity={0.85}>
           <Ionicons name="add" size={28} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -173,9 +175,9 @@ const styles = StyleSheet.create({
     height: 62,
     marginHorizontal: SPACING.lg,
     borderRadius: 24,
-    backgroundColor: COLORS.card,
+    backgroundColor: LIGHT_COLORS.card,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: LIGHT_COLORS.border,
     shadowColor: '#1e140a',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.12,
@@ -192,11 +194,9 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: 10,
     fontFamily: FONTS.sansMed,
-    color: COLORS.muted,
     letterSpacing: 0.2,
   },
   tabLabelActive: {
-    color: COLORS.accent,
     fontFamily: FONTS.sansBold,
   },
   fabSpacer: { width: 58 },
@@ -208,10 +208,8 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 20,
-    backgroundColor: COLORS.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.accent,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.45,
     shadowRadius: 14,

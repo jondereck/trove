@@ -27,6 +27,8 @@ export interface Save {
   is_inbox: boolean
   is_favorite?: boolean
   is_pinned?: boolean
+  /** false = unread (not opened yet); undefined treated as read for legacy rows */
+  is_viewed?: boolean
   created_at: string
 }
 

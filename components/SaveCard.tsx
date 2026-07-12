@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { View, Text, Image, Animated, Pressable, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, Image, Animated, Pressable, TouchableOpacity, StyleSheet, Linking } from 'react-native'
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons'
-import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
+import { FONTS, SPACING, RADIUS, LIGHT_COLORS } from '../constants/theme'
+import { useColors } from '../contexts/ThemeContext'
 import { Save } from '../types'
 import { updateSave } from '../lib/db'
 import { repairThumbnail } from '../lib/thumbnailRepair'
@@ -97,7 +98,7 @@ const BRAND_MAP: Record<string, { icon: string; color: string }> = {
 }
 
 // Domain row: real brand icon OR colored letter square fallback
-function DomainRow({ domain }: { domain: string }) {
+function DomainRow({ domain, colors }: { domain: string; colors: ReturnType<typeof useColors> }) {
   if (!domain) return null
   const brand = BRAND_MAP[domain]
   const c = chipColor(domain)
@@ -112,7 +113,7 @@ function DomainRow({ domain }: { domain: string }) {
           </Text>
         </View>
       )}
-      <Text style={styles.domainText} numberOfLines={1}>{domain}</Text>
+      <Text style={[styles.domainText, { color: colors.muted }]} numberOfLines={1}>{domain}</Text>
     </View>
   )
 }
@@ -129,11 +130,17 @@ interface SaveCardProps {
 }
 
 export default function SaveCard({ save, onPress, onLongPress, selected, onFavoriteToggle, onPinToggle, layout = 'grid' }: SaveCardProps) {
+  const colors = useColors()
   const scale = useRef(new Animated.Value(1)).current
   const inSelectionMode = selected !== undefined
   const [isFav, setIsFav] = useState(!!save.is_favorite)
   const [isPinned, setIsPinned] = useState(!!save.is_pinned)
   const [favAnimScale] = useState(new Animated.Value(1))
+  const isUnread = save.is_viewed === false
+
+  const openLink = () => {
+    if (save.url) Linking.openURL(save.url).catch(() => {})
+  }
 
   const onPressIn = () =>
     Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 50 }).start()
@@ -170,19 +177,20 @@ export default function SaveCard({ save, onPress, onLongPress, selected, onFavor
   return (
     <Animated.View style={[
       styles.card,
-      { transform: [{ scale }] },
-      save.type === 'note' && styles.cardNote,
-      selected && styles.cardSelected,
+      { transform: [{ scale }], backgroundColor: colors.card, borderColor: colors.border },
+      save.type === 'note' && [styles.cardNote, { backgroundColor: colors.cream, borderColor: colors.border }],
+      isUnread && { borderLeftWidth: 3, borderLeftColor: colors.accent },
+      selected && [styles.cardSelected, { borderColor: colors.accent }],
     ]}>
       <Pressable onPress={onPress} onLongPress={onLongPress} onPressIn={onPressIn} onPressOut={onPressOut}>
         {layout === 'list' ? (
-          <ListCard save={save} />
+          <ListCard save={save} isUnread={isUnread} onOpenLink={openLink} colors={colors} />
         ) : (
           <>
-            {save.type === 'link' && <LinkCard save={save} />}
-            {save.type === 'note' && <NoteCard save={save} />}
-            {save.type === 'image' && <ImageCard save={save} />}
-            {save.type === 'video' && <VideoCard save={save} />}
+            {save.type === 'link' && <LinkCard save={save} isUnread={isUnread} onOpenLink={openLink} colors={colors} />}
+            {save.type === 'note' && <NoteCard save={save} isUnread={isUnread} colors={colors} />}
+            {save.type === 'image' && <ImageCard save={save} isUnread={isUnread} colors={colors} />}
+            {save.type === 'video' && <VideoCard save={save} isUnread={isUnread} colors={colors} />}
           </>
         )}
       </Pressable>
@@ -199,7 +207,7 @@ export default function SaveCard({ save, onPress, onLongPress, selected, onFavor
             <Ionicons
               name={isPinned ? 'pin' : 'pin-outline'}
               size={16}
-              color={isPinned ? COLORS.accent : COLORS.muted}
+              color={isPinned ? colors.accent : colors.muted}
             />
           </TouchableOpacity>
           <TouchableOpacity
@@ -212,7 +220,7 @@ export default function SaveCard({ save, onPress, onLongPress, selected, onFavor
               <Ionicons
                 name={isFav ? 'heart' : 'heart-outline'}
                 size={16}
-                color={isFav ? '#e53e3e' : COLORS.muted}
+                color={isFav ? '#e53e3e' : LIGHT_COLORS.muted}
               />
             </Animated.View>
           </TouchableOpacity>
@@ -222,7 +230,7 @@ export default function SaveCard({ save, onPress, onLongPress, selected, onFavor
       {/* Selection mode overlay */}
       {inSelectionMode && (
         <View style={[styles.selectionOverlay, selected && styles.selectionOverlayActive]} pointerEvents="none">
-          <View style={[styles.checkCircle, selected && styles.checkCircleActive]}>
+          <View style={[styles.checkCircle, { borderColor: colors.accent, backgroundColor: '#fff' }, selected && { backgroundColor: colors.accent, borderColor: colors.accent }]}>
             {selected && <Ionicons name="checkmark" size={13} color="#fff" />}
           </View>
         </View>
@@ -233,7 +241,17 @@ export default function SaveCard({ save, onPress, onLongPress, selected, onFavor
 
 // ── Card variants ──────────────────────────────────────────────────────────────
 
-function LinkCard({ save }: { save: Save }) {
+function LinkCard({
+  save,
+  isUnread,
+  onOpenLink,
+  colors,
+}: {
+  save: Save
+  isUnread: boolean
+  onOpenLink: () => void
+  colors: ReturnType<typeof useColors>
+}) {
   const domain = getDomain(save.url)
   const [imgError, setImgError] = useState(false)
   const [imageUrl, setImageUrl] = useState(save.image_url)
@@ -255,40 +273,60 @@ function LinkCard({ save }: { save: Save }) {
   return (
     <>
       {imageUrl && !imgError && (
-        <Image
-          source={{ uri: imageUrl }}
-          style={styles.heroImage}
-          resizeMode="cover"
-          onError={() => setImgError(true)}
-        />
+        <TouchableOpacity onPress={onOpenLink} activeOpacity={0.85} disabled={!save.url}>
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.heroImage}
+            resizeMode="cover"
+            onError={() => setImgError(true)}
+          />
+        </TouchableOpacity>
       )}
       <View style={styles.linkBody}>
-        {/* Date above title */}
-        <Text style={styles.date}>{formatDate(save.created_at)}</Text>
-        <Text style={styles.linkTitle} numberOfLines={3}>{save.title}</Text>
+        <View style={styles.titleRow}>
+          {isUnread ? <View style={[styles.unreadDot, { backgroundColor: colors.accent }]} /> : null}
+          <Text style={[styles.date, { color: colors.muted }]}>{formatDate(save.created_at)}</Text>
+        </View>
+        <Text
+          style={[styles.linkTitle, { color: colors.text }, isUnread && styles.linkTitleUnread]}
+          numberOfLines={3}
+        >
+          {save.title}
+        </Text>
         {save.description ? (
-          <Text style={styles.desc} numberOfLines={2}>{save.description}</Text>
+          <Text style={[styles.desc, { color: colors.textSub }]} numberOfLines={2}>{save.description}</Text>
         ) : null}
-        {/* Domain row */}
-        <DomainRow domain={domain} />
-        {/* Tags — one row, max 3 */}
+        <DomainRow domain={domain} colors={colors} />
         <TagChips tags={save.tags ?? []} />
       </View>
     </>
   )
 }
 
-function NoteCard({ save }: { save: Save }) {
+function NoteCard({
+  save,
+  isUnread,
+  colors,
+}: {
+  save: Save
+  isUnread: boolean
+  colors: ReturnType<typeof useColors>
+}) {
   const body = save.content || save.description || ''
   const showTitle = save.title && save.title !== body && save.title !== body.slice(0, 60)
   return (
     <View style={styles.noteBody}>
-      <Text style={styles.date}>{formatDate(save.created_at)}</Text>
-      <Text style={styles.noteQuote}>"</Text>
+      <View style={styles.titleRow}>
+        {isUnread ? <View style={[styles.unreadDot, { backgroundColor: colors.accent }]} /> : null}
+        <Text style={[styles.date, { color: colors.muted }]}>{formatDate(save.created_at)}</Text>
+      </View>
+      <Text style={[styles.noteQuote, { color: colors.accent }]}>"</Text>
       {showTitle && (
-        <Text style={styles.noteTitle} numberOfLines={2}>{save.title}</Text>
+        <Text style={[styles.noteTitle, { color: colors.text }, isUnread && styles.linkTitleUnread]} numberOfLines={2}>
+          {save.title}
+        </Text>
       )}
-      <Text style={styles.noteText} numberOfLines={showTitle ? 5 : 7}>
+      <Text style={[styles.noteText, { color: colors.text }]} numberOfLines={showTitle ? 5 : 7}>
         {body || save.title}
       </Text>
       <TagChips tags={save.tags ?? []} />
@@ -296,7 +334,15 @@ function NoteCard({ save }: { save: Save }) {
   )
 }
 
-function ImageCard({ save }: { save: Save }) {
+function ImageCard({
+  save,
+  isUnread,
+  colors,
+}: {
+  save: Save
+  isUnread: boolean
+  colors: ReturnType<typeof useColors>
+}) {
   const [imgError, setImgError] = useState(false)
   return (
     <View>
@@ -304,16 +350,21 @@ function ImageCard({ save }: { save: Save }) {
         {save.image_url && !imgError ? (
           <Image source={{ uri: save.image_url }} style={styles.imageFullBleed} resizeMode="cover" onError={() => setImgError(true)} />
         ) : (
-          <View style={[styles.imageFullBleed, styles.imagePlaceholder]}>
-            <Ionicons name="image-outline" size={28} color={COLORS.muted} />
+          <View style={[styles.imageFullBleed, styles.imagePlaceholder, { backgroundColor: colors.border }]}>
+            <Ionicons name="image-outline" size={28} color={colors.muted} />
           </View>
         )}
       </View>
       <View style={styles.mediaBody}>
-        <Text style={styles.date}>{formatDate(save.created_at)}</Text>
-        <Text style={styles.mediaTitle} numberOfLines={2}>{save.title}</Text>
+        <View style={styles.titleRow}>
+          {isUnread ? <View style={[styles.unreadDot, { backgroundColor: colors.accent }]} /> : null}
+          <Text style={[styles.date, { color: colors.muted }]}>{formatDate(save.created_at)}</Text>
+        </View>
+        <Text style={[styles.mediaTitle, { color: colors.text }, isUnread && styles.linkTitleUnread]} numberOfLines={2}>
+          {save.title}
+        </Text>
         {save.description ? (
-          <Text style={styles.desc} numberOfLines={2}>{save.description}</Text>
+          <Text style={[styles.desc, { color: colors.textSub }]} numberOfLines={2}>{save.description}</Text>
         ) : null}
         <TagChips tags={save.tags ?? []} />
       </View>
@@ -321,7 +372,15 @@ function ImageCard({ save }: { save: Save }) {
   )
 }
 
-function VideoCard({ save }: { save: Save }) {
+function VideoCard({
+  save,
+  isUnread,
+  colors,
+}: {
+  save: Save
+  isUnread: boolean
+  colors: ReturnType<typeof useColors>
+}) {
   const [imgError, setImgError] = useState(false)
   return (
     <View>
@@ -329,13 +388,13 @@ function VideoCard({ save }: { save: Save }) {
         {save.image_url && !imgError ? (
           <Image source={{ uri: save.image_url }} style={styles.videoThumb} resizeMode="cover" onError={() => setImgError(true)} />
         ) : (
-          <View style={[styles.videoThumb, styles.imagePlaceholder]}>
-            <Ionicons name="videocam-outline" size={28} color={COLORS.muted} />
+          <View style={[styles.videoThumb, styles.imagePlaceholder, { backgroundColor: colors.border }]}>
+            <Ionicons name="videocam-outline" size={28} color={colors.muted} />
           </View>
         )}
         <View style={styles.playOverlay}>
           <View style={styles.playBtn}>
-            <Text style={styles.playIcon}>▶</Text>
+            <Text style={[styles.playIcon, { color: colors.text }]}>▶</Text>
           </View>
         </View>
         <View style={styles.videoBadge}>
@@ -343,10 +402,15 @@ function VideoCard({ save }: { save: Save }) {
         </View>
       </View>
       <View style={styles.mediaBody}>
-        <Text style={styles.date}>{formatDate(save.created_at)}</Text>
-        <Text style={styles.mediaTitle} numberOfLines={2}>{save.title}</Text>
+        <View style={styles.titleRow}>
+          {isUnread ? <View style={[styles.unreadDot, { backgroundColor: colors.accent }]} /> : null}
+          <Text style={[styles.date, { color: colors.muted }]}>{formatDate(save.created_at)}</Text>
+        </View>
+        <Text style={[styles.mediaTitle, { color: colors.text }, isUnread && styles.linkTitleUnread]} numberOfLines={2}>
+          {save.title}
+        </Text>
         {save.description ? (
-          <Text style={styles.desc} numberOfLines={2}>{save.description}</Text>
+          <Text style={[styles.desc, { color: colors.textSub }]} numberOfLines={2}>{save.description}</Text>
         ) : null}
         <TagChips tags={save.tags ?? []} />
       </View>
@@ -354,7 +418,17 @@ function VideoCard({ save }: { save: Save }) {
   )
 }
 
-function ListCard({ save }: { save: Save }) {
+function ListCard({
+  save,
+  isUnread,
+  onOpenLink,
+  colors,
+}: {
+  save: Save
+  isUnread: boolean
+  onOpenLink: () => void
+  colors: ReturnType<typeof useColors>
+}) {
   const domain = getDomain(save.url)
   const [imgError, setImgError] = useState(false)
   const thumb = save.image_url
@@ -378,23 +452,34 @@ function ListCard({ save }: { save: Save }) {
   return (
     <View style={styles.listRow}>
       {thumb && !imgError ? (
-        <Image
-          source={{ uri: thumb }}
-          style={styles.listThumb}
-          resizeMode="cover"
-          onError={() => setImgError(true)}
-        />
+        <TouchableOpacity
+          onPress={save.type === 'link' && save.url ? onOpenLink : undefined}
+          activeOpacity={save.type === 'link' && save.url ? 0.85 : 1}
+          disabled={!(save.type === 'link' && save.url)}
+        >
+          <Image
+            source={{ uri: thumb }}
+            style={styles.listThumb}
+            resizeMode="cover"
+            onError={() => setImgError(true)}
+          />
+        </TouchableOpacity>
       ) : (
-        <View style={[styles.listThumb, styles.listThumbFallback]}>
-          <Ionicons name={typeIcon} size={20} color={COLORS.muted} />
+        <View style={[styles.listThumb, styles.listThumbFallback, { backgroundColor: colors.cream }]}>
+          <Ionicons name={typeIcon} size={20} color={colors.muted} />
         </View>
       )}
       <View style={styles.listBody}>
-        <Text style={styles.listTitle} numberOfLines={2}>{save.title}</Text>
+        <View style={styles.titleRow}>
+          {isUnread ? <View style={[styles.unreadDot, { backgroundColor: colors.accent }]} /> : null}
+          <Text style={[styles.listTitle, { color: colors.text }, isUnread && styles.linkTitleUnread]} numberOfLines={2}>
+            {save.title}
+          </Text>
+        </View>
         <View style={styles.listMeta}>
-          {domain ? <Text style={styles.listMetaText} numberOfLines={1}>{domain}</Text> : null}
-          {domain ? <Text style={styles.listMetaDot}>·</Text> : null}
-          <Text style={styles.listMetaText}>{formatDate(save.created_at)}</Text>
+          {domain ? <Text style={[styles.listMetaText, { color: colors.muted }]} numberOfLines={1}>{domain}</Text> : null}
+          {domain ? <Text style={[styles.listMetaDot, { color: colors.muted }]}>·</Text> : null}
+          <Text style={[styles.listMetaText, { color: colors.muted }]}>{formatDate(save.created_at)}</Text>
         </View>
       </View>
     </View>
@@ -405,20 +490,32 @@ function ListCard({ save }: { save: Save }) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: COLORS.card,
+    backgroundColor: LIGHT_COLORS.card,
     borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: LIGHT_COLORS.border,
     marginBottom: SPACING.sm,
     overflow: 'hidden',
   },
   cardNote: {
-    backgroundColor: COLORS.cream,
+    backgroundColor: LIGHT_COLORS.cream,
     borderColor: '#dddad4',
   },
   cardSelected: {
-    borderColor: COLORS.accent,
     borderWidth: 2,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  unreadDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  linkTitleUnread: {
+    fontFamily: FONTS.sansBold,
   },
 
   // Pin + favorite buttons
@@ -437,7 +534,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: LIGHT_COLORS.border,
   },
 
   // Selection overlay
@@ -456,14 +553,14 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     borderWidth: 2,
-    borderColor: COLORS.accent,
+    borderColor: LIGHT_COLORS.accent,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkCircleActive: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
+    backgroundColor: LIGHT_COLORS.accent,
+    borderColor: LIGHT_COLORS.accent,
   },
 
   // Hero image (link cards with OG image)
@@ -481,7 +578,7 @@ const styles = StyleSheet.create({
   linkTitle: {
     fontSize: 13,
     fontFamily: FONTS.sansSemi,
-    color: COLORS.text,
+    color: LIGHT_COLORS.text,
     lineHeight: 18,
     marginTop: 1,
   },
@@ -490,12 +587,12 @@ const styles = StyleSheet.create({
   date: {
     fontSize: 10,
     fontFamily: FONTS.sans,
-    color: COLORS.muted,
+    color: LIGHT_COLORS.muted,
   },
   desc: {
     fontSize: 11.5,
     fontFamily: FONTS.sans,
-    color: COLORS.textSub,
+    color: LIGHT_COLORS.textSub,
     lineHeight: 16,
   },
 
@@ -522,7 +619,7 @@ const styles = StyleSheet.create({
   domainText: {
     fontSize: 11,
     fontFamily: FONTS.sans,
-    color: COLORS.muted,
+    color: LIGHT_COLORS.muted,
     flexShrink: 1,
   },
 
@@ -554,7 +651,7 @@ const styles = StyleSheet.create({
   noteQuote: {
     fontSize: 28,
     fontFamily: FONTS.serifItal,
-    color: COLORS.accent,
+    color: LIGHT_COLORS.accent,
     lineHeight: 28,
     marginBottom: -4,
     opacity: 0.55,
@@ -562,14 +659,14 @@ const styles = StyleSheet.create({
   noteTitle: {
     fontSize: 12,
     fontFamily: FONTS.sansSemi,
-    color: COLORS.text,
+    color: LIGHT_COLORS.text,
     lineHeight: 17,
     marginBottom: 2,
   },
   noteText: {
     fontSize: 13,
     fontFamily: FONTS.serifItal,
-    color: COLORS.text,
+    color: LIGHT_COLORS.text,
     lineHeight: 20,
   },
 
@@ -586,7 +683,7 @@ const styles = StyleSheet.create({
     height: 130,
   },
   imagePlaceholder: {
-    backgroundColor: COLORS.border,
+    backgroundColor: LIGHT_COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -598,7 +695,7 @@ const styles = StyleSheet.create({
   mediaTitle: {
     fontSize: 13,
     fontFamily: FONTS.sansSemi,
-    color: COLORS.text,
+    color: LIGHT_COLORS.text,
     lineHeight: 18,
     marginTop: 1,
   },
@@ -617,7 +714,7 @@ const styles = StyleSheet.create({
   },
   playIcon: {
     fontSize: 13,
-    color: COLORS.text,
+    color: LIGHT_COLORS.text,
     marginLeft: 2,
   },
   videoBadge: {
@@ -646,21 +743,21 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.border,
+    backgroundColor: LIGHT_COLORS.border,
   },
   listThumbFallback: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.cream,
+    backgroundColor: LIGHT_COLORS.cream,
   },
   listBody: { flex: 1, gap: 4 },
   listTitle: {
     fontSize: 15,
     fontFamily: FONTS.sansSemi,
-    color: COLORS.text,
+    color: LIGHT_COLORS.text,
     lineHeight: 20,
   },
   listMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  listMetaText: { fontSize: 12, fontFamily: FONTS.sans, color: COLORS.muted },
-  listMetaDot: { fontSize: 12, color: COLORS.muted },
+  listMetaText: { fontSize: 12, fontFamily: FONTS.sans, color: LIGHT_COLORS.muted },
+  listMetaDot: { fontSize: 12, color: LIGHT_COLORS.muted },
 })

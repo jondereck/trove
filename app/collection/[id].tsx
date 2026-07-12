@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import {
   View, Text, ScrollView, RefreshControl, StyleSheet,
-  TouchableOpacity, ActivityIndicator, Alert, Modal, FlatList,
+  TouchableOpacity, ActivityIndicator, Alert,
 } from 'react-native'
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -12,6 +12,8 @@ import { Save, Collection } from '../../types'
 import { fetchCollectionById, fetchSavesByCollection, fetchCollections, deleteSave, updateSave, deleteCollection, updateCollection } from '../../lib/db'
 import SaveCard from '../../components/SaveCard'
 import CollectionForm from '../../components/CollectionForm'
+import MoveToCollectionModal from '../../components/MoveToCollectionModal'
+import { canPinMoreCollections } from '../../constants/pinLimits'
 
 export default function CollectionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -92,8 +94,7 @@ export default function CollectionDetailScreen() {
 
   const openMoveModal = async () => {
     const cols = await fetchCollections()
-    // Exclude the current collection
-    setAllCollections(cols.filter(c => c.id !== id))
+    setAllCollections(cols)
     setShowMoveModal(true)
   }
 
@@ -141,6 +142,13 @@ export default function CollectionDetailScreen() {
   const togglePin = async () => {
     if (!collection) return
     const next = !isPinned
+    if (next) {
+      const cols = await fetchCollections()
+      if (!canPinMoreCollections(cols, collection.id)) {
+        Alert.alert('Pin limit reached', 'You can pin up to 3 collections. Unpin one to add another.')
+        return
+      }
+    }
     setIsPinned(next)
     const ok = await updateCollection(collection.id, { is_pinned: next })
     if (!ok) setIsPinned(!next)
@@ -288,37 +296,14 @@ export default function CollectionDetailScreen() {
         </ScrollView>
       )}
 
-      {/* Move to collection modal */}
-      <Modal visible={showMoveModal} transparent animationType="slide" onRequestClose={() => setShowMoveModal(false)}>
-        <View style={styles.modalBackdrop}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setShowMoveModal(false)} activeOpacity={1} />
-          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + SPACING.lg }]}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Move to…</Text>
-            <FlatList
-              data={allCollections}
-              keyExtractor={c => c.id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.collRow}
-                  onPress={() => handleBulkMove(item.id)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.collIcon, { backgroundColor: item.color + '22' }]}>
-                    <Ionicons name={(item.icon as IoniconName) ?? DEFAULT_COLLECTION_ICON} size={18} color={item.color} />
-                  </View>
-                  <Text style={styles.collRowName}>{item.name}</Text>
-                  <Ionicons name="chevron-forward" size={16} color={COLORS.muted} />
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <Text style={styles.modalEmpty}>No other collections yet.</Text>
-              }
-              showsVerticalScrollIndicator={false}
-            />
-          </View>
-        </View>
-      </Modal>
+      <MoveToCollectionModal
+        visible={showMoveModal}
+        collections={allCollections}
+        excludeId={collection?.id}
+        onClose={() => setShowMoveModal(false)}
+        onSelect={handleBulkMove}
+        onCreated={col => setAllCollections(prev => [...prev, col])}
+      />
 
       <CollectionForm
         visible={editVisible}
