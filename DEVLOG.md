@@ -4,6 +4,17 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Plan — 6-scene chest loader storyboard (2026-07-12)
+**Files:** `docs/superpowers/specs/2026-07-12-trove-chest-loader.md`,
+`docs/superpowers/plans/2026-07-12-trove-chest-loader.md`
+
+Locked the auto-share saving-loader storyboard (3.2s / 60fps, six scenes, loop + 800ms
+success hold) and wrote a task-by-task implementation plan: pure `chestLoaderTimeline`
+phase machine, rebuilt Lottie with fading green check, `ShareSaveAnimation` orchestrator,
+and `app/share.tsx` completion wiring. Docs/planning only — implementation not started.
+
+---
+
 ### App icon — flat T-chest with keyhole (2026-07-11)
 **Files:** `assets/icon-source.svg`, `assets/icon-foreground.svg`, `assets/icon-monochrome.svg`,
 `assets/icon.png`, `assets/splash-icon.png`, `assets/favicon.png`,
