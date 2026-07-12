@@ -41,6 +41,7 @@
     "react-native-zip-archive": "^8.0.1"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@types/react": "~19.2.2",
     "typescript": "~6.0.3"
   },

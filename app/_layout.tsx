@@ -28,6 +28,7 @@ import { hasLocalData } from '../lib/localDb'
 import { migrateLocalToCloud } from '../lib/migrateLocal'
 import { syncProviderProfile } from '../lib/auth'
 import { clearAuthFlow } from '../lib/authNavigation'
+import { clearProfileCache } from '../lib/profileCache'
 import { isLoggedIn } from '../lib/session'
 import {
   configurePurchases,
@@ -167,6 +168,7 @@ export default function RootLayout() {
       }
       if (event === 'SIGNED_OUT') {
         logOutPurchases()
+        clearProfileCache()
       }
       if (event === 'PASSWORD_RECOVERY') {
         router.replace('/change-password')

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <rect width="1024" height="1024" fill="#faf9f5"/>
+
+  <!-- T-lid -->
+  <path fill="#c0613c" d="M176 280h672c28 0 50 22 50 50v80c0 28-22 50-50 50H176c-28 0-50-22-50-50V330c0-28 22-50 50-50z"/>
+
+  <!-- T-stem -->
+  <path fill="#c0613c" d="M336 440h352c28 0 50 22 50 50v294c0 28-22 50-50 50H336c-28 0-50-22-50-50V490c0-28 22-50 50-50z"/>
+
+  <!-- Card cutout (negative space feel) -->
+  <rect x="404" y="520" width="216" height="168" rx="22" fill="#fdf6ef"/>
+  <rect x="440" y="560" width="120" height="14" rx="7" fill="#e8e6e0"/>
+  <rect x="440" y="596" width="160" height="14" rx="7" fill="#e8e6e0"/>
+  <rect x="440" y="632" width="88" height="14" rx="7" fill="#e8e6e0"/>
+
+  <!-- Lid seam -->
+  <rect x="176" y="400" width="672" height="20" rx="4" fill="#a04e30"/>
+</svg>

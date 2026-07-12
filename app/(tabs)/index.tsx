@@ -3,18 +3,19 @@ import {
   View,
   Text,
   ScrollView,
-  FlatList,
   RefreshControl,
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
-import { LIBRARY_INITIAL_PAGE, LIBRARY_LOAD_MORE } from '../../constants/library'
+import { LIBRARY_INITIAL_PAGE, LIBRARY_LOAD_MORE, LIBRARY_SCROLL_THRESHOLD } from '../../constants/library'
 import { ORGANIZE_BATCH_LIMIT } from '../../constants/organize'
 import { Save, Collection, OrganizeSuggestion, LibraryFilter } from '../../types'
 import SaveCard from '../../components/SaveCard'
@@ -33,6 +34,7 @@ import { applyOrganizeSuggestions } from '../../lib/organize'
 import { showUpgradeAlert } from '../../lib/upgradeAlert'
 import { subscribeDataChanges } from '../../lib/dataEvents'
 import { getSettings, patchSettings } from '../../lib/settings'
+import { cacheProfile, peekProfile } from '../../lib/profileCache'
 
 type LibraryView = 'grid' | 'list'
 
@@ -49,12 +51,7 @@ function getGreeting(): string {
   const h = new Date().getHours()
   if (h >= 5 && h < 12) return 'Good morning'
   if (h >= 12 && h < 17) return 'Good afternoon'
-  if (h >= 17 && h < 21) return 'Good evening'
-  return 'Good night'
-}
-
-function formatDisplayName(first: string | null, last: string | null): string {
-  return [first?.trim(), last?.trim()].filter(Boolean).join(' ') || 'there'
+  return 'Good evening'
 }
 
 export default function LibraryScreen() {
@@ -68,9 +65,9 @@ export default function LibraryScreen() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [profileReady, setProfileReady] = useState(false)
-  const [userName, setUserName] = useState<string | null>(null)
-  const [userLastName, setUserLastName] = useState<string | null>(null)
+  const cachedProfile = peekProfile()
+  const [profileReady, setProfileReady] = useState(!!cachedProfile)
+  const [userName, setUserName] = useState<string | null>(cachedProfile?.first_name ?? null)
   const [filter, setFilter] = useState<LibraryFilter>('all')
   const [viewMode, setViewMode] = useState<LibraryView>('grid')
   const [aiVisible, setAiVisible] = useState(false)
@@ -111,7 +108,7 @@ export default function LibraryScreen() {
     setInboxSaves(inbox)
     setCollections(cols)
     setUserName(profile?.first_name ?? null)
-    setUserLastName(profile?.last_name ?? null)
+    if (profile) cacheProfile(profile)
     setProfileReady(true)
   }, [])
 
@@ -160,6 +157,13 @@ export default function LibraryScreen() {
       setLoadingMore(false)
     }
   }, [loadLibraryPage])
+
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent
+    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - LIBRARY_SCROLL_THRESHOLD) {
+      loadMore()
+    }
+  }, [loadMore])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -264,15 +268,19 @@ export default function LibraryScreen() {
   const organizeRemaining = Math.max(0, inboxSaves.length - ORGANIZE_BATCH_LIMIT)
 
   const greetingLine = profileReady
-    ? `${getGreeting()}, ${formatDisplayName(userName, userLastName)}.`
+    ? `${getGreeting()}, ${userName?.trim() || 'there'}.`
     : ''
 
   const dateLabel = new Date()
     .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
     .toUpperCase()
 
-  const renderSave = useCallback(({ item: save }: { item: Save }) => (
+  const leftCol = saves.filter((_, i) => i % 2 === 0)
+  const rightCol = saves.filter((_, i) => i % 2 === 1)
+
+  const renderSaveCard = (save: Save) => (
     <SaveCard
+      key={save.id}
       save={save}
       layout={viewMode}
       selected={selectionMode ? selectedIds.has(save.id) : undefined}
@@ -280,105 +288,7 @@ export default function LibraryScreen() {
       onLongPress={() => !selectionMode && enterSelection(save.id)}
       onPinToggle={pinned => handlePinToggle(save.id, pinned)}
     />
-  ), [viewMode, selectionMode, selectedIds, router, handlePinToggle])
-
-  const listHeader = (
-    <>
-      {!selectionMode && profileReady && (
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.greetingLine} numberOfLines={2}>{greetingLine}</Text>
-            <View style={styles.subRow}>
-              <Text style={styles.kicker}>{libraryTotal} SAVED</Text>
-              <View style={styles.dot} />
-              <Text style={styles.kickerAccent}>{dateLabel}</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            onPress={() => router.push('/account')}
-            activeOpacity={0.75}
-            style={styles.settingsBtn}
-            accessibilityLabel="Account settings"
-          >
-            <Ionicons name="settings-outline" size={22} color={COLORS.text} />
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <View style={styles.filterBar}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.chipScroll}
-          contentContainerStyle={styles.chipRow}
-        >
-          {CHIPS.map(c => {
-            const on = filter === c.id
-            return (
-              <TouchableOpacity
-                key={c.id}
-                style={[styles.chip, on && styles.chipOn]}
-                onPress={() => setFilter(c.id)}
-                activeOpacity={0.7}
-              >
-                {c.icon && <Ionicons name={c.icon} size={15} color={on ? '#fff' : COLORS.text} />}
-                <Text style={[styles.chipText, on && styles.chipTextOn]}>{c.label}</Text>
-              </TouchableOpacity>
-            )
-          })}
-        </ScrollView>
-        <TouchableOpacity
-          style={styles.viewToggle}
-          onPress={toggleViewMode}
-          activeOpacity={0.7}
-          accessibilityLabel={viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
-        >
-          <Ionicons
-            name={viewMode === 'grid' ? 'list-outline' : 'grid-outline'}
-            size={20}
-            color={COLORS.text}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {!selectionMode && inboxSaves.length > 0 && (
-        <View style={styles.banner}>
-          <View style={styles.bannerOrb}>
-            <Ionicons name="sparkles" size={20} color="#fff" />
-          </View>
-          <View style={styles.bannerText}>
-            <Text style={styles.bannerTitle}>
-              {inboxSaves.length} {inboxSaves.length === 1 ? 'save' : 'saves'} waiting to be sorted
-            </Text>
-            <Text style={styles.bannerSub}>
-              {organizeRemaining > 0
-                ? `AI will organize up to ${ORGANIZE_BATCH_LIMIT} at a time`
-                : 'Let AI file them into collections'}
-            </Text>
-          </View>
-          <TouchableOpacity style={styles.bannerBtn} onPress={() => setAiVisible(true)} activeOpacity={0.85}>
-            <Text style={styles.bannerBtnText}>Organize</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </>
   )
-
-  const listEmpty = loading ? (
-    <ActivityIndicator color={COLORS.accent} style={styles.loader} />
-  ) : filteredTotal === 0 ? (
-    <View style={styles.empty}>
-      <Text style={styles.emptyIcon}>◇</Text>
-      <Text style={styles.emptyTitle}>
-        {filter === 'all' ? 'Nothing saved yet' : 'No matches'}
-      </Text>
-      <Text style={styles.emptySubtitle}>
-        {filter === 'all'
-          ? 'Tap + to save your first link, note, or image.'
-          : 'Try a different filter or save something new.'}
-      </Text>
-    </View>
-  ) : null
 
   return (
     <View style={[styles.wrapper, { paddingTop: insets.top }]}>
@@ -413,30 +323,123 @@ export default function LibraryScreen() {
         </View>
       )}
 
-      <FlatList
-        key={viewMode}
-        data={loading ? [] : saves}
-        keyExtractor={s => s.id}
-        renderItem={renderSave}
-        numColumns={viewMode === 'grid' ? 2 : 1}
-        columnWrapperStyle={viewMode === 'grid' ? styles.gridRow : undefined}
-        ListHeaderComponent={listHeader}
-        ListEmptyComponent={listEmpty}
-        ListFooterComponent={loadingMore ? (
-          <ActivityIndicator color={COLORS.accent} style={styles.loadMore} />
-        ) : null}
+      <ScrollView
+        style={styles.container}
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} colors={[COLORS.accent]} />
         }
         showsVerticalScrollIndicator={false}
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.4}
-        initialNumToRender={12}
-        maxToRenderPerBatch={8}
-        windowSize={7}
-        removeClippedSubviews
-      />
+        onScroll={handleScroll}
+        scrollEventThrottle={200}
+      >
+        {!selectionMode && profileReady && (
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <Text style={styles.greetingLine} numberOfLines={2}>{greetingLine}</Text>
+              <View style={styles.subRow}>
+                <Text style={styles.kicker}>{libraryTotal} SAVED</Text>
+                <View style={styles.dot} />
+                <Text style={styles.kickerAccent}>{dateLabel}</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              onPress={() => router.push('/account')}
+              activeOpacity={0.75}
+              style={styles.settingsBtn}
+              accessibilityLabel="Account settings"
+            >
+              <Ionicons name="settings-outline" size={22} color={COLORS.text} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={styles.filterBar}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.chipScroll}
+            contentContainerStyle={styles.chipRow}
+          >
+            {CHIPS.map(c => {
+              const on = filter === c.id
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[styles.chip, on && styles.chipOn]}
+                  onPress={() => setFilter(c.id)}
+                  activeOpacity={0.7}
+                >
+                  {c.icon && <Ionicons name={c.icon} size={15} color={on ? '#fff' : COLORS.text} />}
+                  <Text style={[styles.chipText, on && styles.chipTextOn]}>{c.label}</Text>
+                </TouchableOpacity>
+              )
+            })}
+          </ScrollView>
+          <TouchableOpacity
+            style={styles.viewToggle}
+            onPress={toggleViewMode}
+            activeOpacity={0.7}
+            accessibilityLabel={viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
+          >
+            <Ionicons
+              name={viewMode === 'grid' ? 'list-outline' : 'grid-outline'}
+              size={20}
+              color={COLORS.text}
+            />
+          </TouchableOpacity>
+        </View>
+
+        {!selectionMode && inboxSaves.length > 0 && (
+          <View style={styles.banner}>
+            <View style={styles.bannerOrb}>
+              <Ionicons name="sparkles" size={20} color="#fff" />
+            </View>
+            <View style={styles.bannerText}>
+              <Text style={styles.bannerTitle}>
+                {inboxSaves.length} {inboxSaves.length === 1 ? 'save' : 'saves'} waiting to be sorted
+              </Text>
+              <Text style={styles.bannerSub}>
+                {organizeRemaining > 0
+                  ? `AI will organize up to ${ORGANIZE_BATCH_LIMIT} at a time`
+                  : 'Let AI file them into collections'}
+              </Text>
+            </View>
+            <TouchableOpacity style={styles.bannerBtn} onPress={() => setAiVisible(true)} activeOpacity={0.85}>
+              <Text style={styles.bannerBtnText}>Organize</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {loading ? (
+          <ActivityIndicator color={COLORS.accent} style={styles.loader} />
+        ) : filteredTotal === 0 ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyIcon}>◇</Text>
+            <Text style={styles.emptyTitle}>
+              {filter === 'all' ? 'Nothing saved yet' : 'No matches'}
+            </Text>
+            <Text style={styles.emptySubtitle}>
+              {filter === 'all'
+                ? 'Tap + to save your first link, note, or image.'
+                : 'Try a different filter or save something new.'}
+            </Text>
+          </View>
+        ) : viewMode === 'list' ? (
+          <View style={styles.list}>
+            {saves.map(renderSaveCard)}
+          </View>
+        ) : (
+          <View style={styles.grid}>
+            <View style={styles.col}>{leftCol.map(renderSaveCard)}</View>
+            <View style={styles.col}>{rightCol.map(renderSaveCard)}</View>
+          </View>
+        )}
+
+        {loadingMore && (
+          <ActivityIndicator color={COLORS.accent} style={styles.loadMore} />
+        )}
+      </ScrollView>
 
       <MoveToCollectionModal
         visible={showMoveModal}
@@ -458,8 +461,8 @@ export default function LibraryScreen() {
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: COLORS.bg },
-  content: { paddingBottom: SPACING.xl * 2, paddingHorizontal: SPACING.lg, flexGrow: 1 },
-  gridRow: { gap: SPACING.sm },
+  container: { flex: 1 },
+  content: { paddingBottom: SPACING.xl * 2, paddingHorizontal: SPACING.lg },
 
   selectionBar: {
     flexDirection: 'row', alignItems: 'center',
@@ -475,7 +478,7 @@ const styles = StyleSheet.create({
 
   header: {
     flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between',
-    paddingTop: SPACING.md, paddingBottom: SPACING.lg,
+    paddingTop: SPACING.lg, paddingBottom: SPACING.lg,
   },
   headerLeft: { flex: 1, paddingRight: SPACING.md },
   greetingLine: {
@@ -490,7 +493,7 @@ const styles = StyleSheet.create({
   kickerAccent: { fontSize: 11, fontFamily: FONTS.monoMed, color: COLORS.accent, letterSpacing: 1 },
   dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: COLORS.muted },
   settingsBtn: {
-    marginTop: SPACING.sm,
+    marginTop: SPACING.md,
     width: 40,
     height: 40,
     borderRadius: RADIUS.md,
@@ -548,6 +551,9 @@ const styles = StyleSheet.create({
 
   loader: { marginTop: SPACING.xl * 3 },
   loadMore: { marginVertical: SPACING.lg },
+  grid: { flexDirection: 'row', gap: SPACING.sm },
+  list: { gap: SPACING.sm },
+  col: { flex: 1 },
   empty: { alignItems: 'center', paddingTop: SPACING.xl * 3, gap: SPACING.md },
   emptyIcon: { fontSize: 40, color: COLORS.border, marginBottom: SPACING.sm },
   emptyTitle: { fontSize: 20, fontFamily: FONTS.serif, color: COLORS.textSub },

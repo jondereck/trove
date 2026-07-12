@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <rect width="1024" height="1024" fill="#c0613c"/>
+
+  <!-- Bold T = chest silhouette, single shape feel -->
+  <path fill="#fdf6ef" d="M160 240h704c35 0 64 29 64 64v96c0 35-29 64-64 64H608v352c0 35-29 64-64 64H480c-35 0-64-29-64-64V464H160c-35 0-64-29-64-64V304c0-35 29-64 64-64z"/>
+
+  <!-- Lid gap / inner shadow -->
+  <path fill="#f0c4b4" d="M160 392h704v28H160z"/>
+
+  <!-- Card inside vertical stem -->
+  <rect x="420" y="520" width="184" height="140" rx="20" fill="#ffffff"/>
+  <circle cx="456" cy="558" r="8" fill="#c0613c"/>
+  <rect x="476" y="550" width="96" height="12" rx="6" fill="#e8e6e0"/>
+  <rect x="444" y="584" width="136" height="12" rx="6" fill="#e8e6e0"/>
+  <rect x="444" y="618" width="80" height="12" rx="6" fill="#e8e6e0"/>
+</svg>

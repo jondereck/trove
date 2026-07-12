@@ -20,7 +20,7 @@ export default function Avatar({
 }) {
   const initials = (
     (firstName?.trim()?.[0] ?? '') + (lastName?.trim()?.[0] ?? '')
-  ).toUpperCase() || (firstName?.trim()?.[0] ?? 'T').toUpperCase()
+  ).toUpperCase()
 
   const circle = (
     <View style={styles.shadow}>
@@ -36,7 +36,9 @@ export default function Avatar({
           end={{ x: 0.9, y: 1 }}
           style={[styles.fill, { width: size, height: size, borderRadius: size / 2 }]}
         >
-          <Text style={[styles.initials, { fontSize: size * 0.42 }]}>{initials}</Text>
+          {initials ? (
+            <Text style={[styles.initials, { fontSize: size * 0.42 }]}>{initials}</Text>
+          ) : null}
         </LinearGradient>
       )}
     </View>

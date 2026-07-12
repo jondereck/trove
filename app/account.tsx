@@ -20,6 +20,7 @@ import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme'
 import Avatar from '../components/Avatar'
 import { SettingGroup, SettingRow } from '../components/Settings'
 import { fetchCounts, fetchProfile, updateProfile } from '../lib/db'
+import { cacheProfile, clearProfileCache, formatProfileName, peekProfile } from '../lib/profileCache'
 import { supabase } from '../lib/supabase'
 import { isLoggedIn } from '../lib/session'
 import { getTier, subscribeTier } from '../lib/entitlements'
@@ -45,14 +46,16 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 export default function AccountScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const cached = peekProfile()
 
   const [loggedIn, setLoggedIn] = useState(isLoggedIn())
   const [tier, setTier] = useState(getTier())
+  const [profileReady, setProfileReady] = useState(!isLoggedIn() || !!cached)
   const [editing, setEditing] = useState(false)
-  const [first, setFirst] = useState('')
-  const [last, setLast] = useState('')
+  const [first, setFirst] = useState(cached?.first_name ?? '')
+  const [last, setLast] = useState(cached?.last_name ?? '')
   const [email, setEmail] = useState('')
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(cached?.avatar_url ?? null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [counts, setCounts] = useState({ saves: 0, collections: 0 })
 
@@ -60,12 +63,18 @@ export default function AccountScreen() {
     const signedIn = isLoggedIn()
     setLoggedIn(signedIn)
     if (signedIn) {
-      supabase.auth.getUser().then(({ data: { user } }) => setEmail(user?.email ?? ''))
+      const { data: { user } } = await supabase.auth.getUser()
+      setEmail(user?.email ?? '')
+    } else {
+      setEmail('')
+      clearProfileCache()
     }
     const profile = await fetchProfile()
     setFirst(profile?.first_name ?? '')
     setLast(profile?.last_name ?? '')
     setAvatarUrl(profile?.avatar_url ?? null)
+    if (profile) cacheProfile(profile)
+    setProfileReady(true)
   }, [])
 
   useFocusEffect(
@@ -146,7 +155,10 @@ export default function AccountScreen() {
   const handleSignOut = useCallback(() => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: () => supabase.auth.signOut() },
+      { text: 'Sign Out', style: 'destructive', onPress: () => {
+        clearProfileCache()
+        supabase.auth.signOut()
+      }},
     ])
   }, [])
 
@@ -158,6 +170,9 @@ export default function AccountScreen() {
   useEffect(() => subscribeTier(setTier), [])
 
   const planLabel = tier === 'cloud' ? 'Cloud' : tier === 'unlocked' ? 'Unlocked' : 'Free'
+  const displayName = loggedIn
+    ? formatProfileName(first, last, email)
+    : 'Guest'
 
   return (
     <View style={styles.container}>
@@ -215,10 +230,14 @@ export default function AccountScreen() {
                 style={styles.nameInput}
               />
             </View>
+          ) : profileReady ? (
+            <View style={styles.nameBlock}>
+              <Text style={styles.name}>{displayName}</Text>
+              <Text style={styles.email}>{loggedIn ? email : 'Saving on this device'}</Text>
+            </View>
           ) : (
             <View style={styles.nameBlock}>
-              <Text style={styles.name}>{loggedIn ? `${first} ${last}`.trim() || 'Trove' : 'Guest'}</Text>
-              <Text style={styles.email}>{loggedIn ? email : 'Saving on this device'}</Text>
+              <ActivityIndicator color={COLORS.accent} style={styles.nameLoader} />
             </View>
           )}
 
@@ -333,7 +352,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  nameBlock: { alignItems: 'center' },
+  nameBlock: { alignItems: 'center', minHeight: 52, justifyContent: 'center' },
+  nameLoader: { marginVertical: SPACING.sm },
   name: { fontFamily: FONTS.serif, fontSize: 30, color: COLORS.text, lineHeight: 34 },
   email: { fontFamily: FONTS.sans, fontSize: 14, color: COLORS.muted, marginTop: 3 },
   nameInputs: { flexDirection: 'row', gap: 10, width: '100%', maxWidth: 300 },

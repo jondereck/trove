@@ -4,16 +4,32 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
-### Library perf, organize fixes, pin, move, UI polish (2026-07-11)
+### App icon — flat T-chest with keyhole (2026-07-11)
+**Files:** `assets/icon-source.svg`, `assets/icon-foreground.svg`, `assets/icon-monochrome.svg`,
+`assets/icon.png`, `assets/splash-icon.png`, `assets/favicon.png`,
+`assets/android-icon-foreground.png`, `assets/android-icon-background.png`,
+`assets/android-icon-monochrome.png`, `scripts/render-icons.mjs`, `app.json`
+
+Replaced 3D clay chest icon with flat minimal **T-shaped chest**: cream `#fdf6ef` letter T on
+burnt-orange `#c0613c` background, lid seam + latch, keyhole cutout. Android adaptive icon
+background updated to match. Re-render anytime with `node scripts/render-icons.mjs`.
+
+---
+
+**Files:** `app/(tabs)/index.tsx`
+
+Greeting shows first name only; evening greeting used from 5pm onward (no "Good night").
+
+---
 **Files:** `app/(tabs)/index.tsx`, `app/(tabs)/inbox.tsx`, `app/(tabs)/collections.tsx`,
 `app/collection/[id].tsx`, `app/_layout.tsx`, `components/AIOrganize.tsx`,
 `components/SaveCard.tsx`, `components/MoveToCollectionModal.tsx`, `constants/organize.ts`,
 `lib/ai.ts`, `lib/localDb.ts`, `lib/cloudDb.ts`, `lib/organize.ts`, `types/index.ts`,
 `supabase/add-pinned.sql`
 
-**Library lag:** Replaced `ScrollView` + full render with virtualized `FlatList`
-(`initialNumToRender`, `windowSize`, `removeClippedSubviews`). Tab refocus no longer
-shows a full-screen spinner — only the first visit does.
+**Library lag:** Kept `ScrollView` + masonry two-column grid (left/right split).
+Pagination still loads in batches on scroll — the virtualized `FlatList` experiment
+was reverted because it broke the card layout.
 
 **Move saves:** Library selection bar now has Move (same sheet as Unsorted/Collection detail)
 via shared `MoveToCollectionModal`.
@@ -25,11 +41,20 @@ via shared `MoveToCollectionModal`.
 shows existing collections + “+ New”; AI collection names matched to existing collections;
 tags empty-state hint when none suggested.
 
+**AI Organize live apply + session cache:** Accept applies each save immediately (removed
+from Unsorted right away). In-memory `organizeSession` caches AI results for the app
+session — dismissing the sheet and reopening resumes without a new AI call; only new
+save ids trigger analysis. Cache clears when the app process exits.
+
 **Pin:** `is_pinned` on saves + collections (local + cloud SQL migration). Pin button on
 save cards, collection cards, and collection detail header. Pinned items sort to top.
+Cloud `cloudDb.ts` probes for pin columns and falls back gracefully until
+`supabase/add-pinned.sql` is run.
 
 **UI:** Library top-right avatar → settings icon; greeting uses first + last name once profile
 loads (no “there” flash); logged-in users skip onboarding/auth intro routes on cold start.
+Account screen uses in-memory `profileCache` (filled by Library) so settings opens with
+the real name — no “Trove” / “T” avatar flash while profile loads.
 
 ---
 

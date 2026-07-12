@@ -17,35 +17,45 @@ import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
 import { UNSORTED_LABEL } from '../constants/labels'
 import { Save, Collection, OrganizeSuggestion } from '../types'
 import { organizeInboxItems } from '../lib/ai'
+import {
+  buildQueueFromSaves,
+  cacheOrganizeSuggestions,
+  clearOrganizeSession,
+  getInflightOrganize,
+  getOrganizeEdit,
+  getOrganizeReviewIndex,
+  missingOrganizeIds,
+  organizeMissingKey,
+  removeOrganizeSave,
+  setOrganizeEdit,
+  setOrganizeReviewIndex,
+  trackInflightOrganize,
+} from '../lib/organizeSession'
 
 type Phase = 'loading' | 'review' | 'done'
-type Decision = 'accept' | 'skip'
-
-interface EditState {
-  collection: string
-  tags: string[]
-}
 
 interface AIOrganizeProps {
   visible: boolean
   onClose: () => void
   saves: Save[]
   collections: Collection[]
-  onApply: (accepted: OrganizeSuggestion[]) => void
+  onApply: (accepted: OrganizeSuggestion[]) => void | Promise<void>
 }
 
 export default function AIOrganize({ visible, onClose, saves, collections, onApply }: AIOrganizeProps) {
   const insets = useSafeAreaInsets()
   const [phase, setPhase] = useState<Phase>('loading')
-  const [suggestions, setSuggestions] = useState<OrganizeSuggestion[]>([])
+  const [queue, setQueue] = useState<OrganizeSuggestion[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [decisions, setDecisions] = useState<(Decision | null)[]>([])
-  const [edits, setEdits] = useState<Record<number, EditState>>({})
   const [editingItem, setEditingItem] = useState(false)
   const [newTag, setNewTag] = useState('')
   const [customCollection, setCustomCollection] = useState(false)
+  const [applying, setApplying] = useState(false)
+  const [appliedCount, setAppliedCount] = useState(0)
+  const [editTick, setEditTick] = useState(0)
 
-  const decisionsRef = useRef<(Decision | null)[]>([])
+  const batchIdsRef = useRef<string[]>([])
+  const mountedRef = useRef(true)
 
   const scale = useRef(new Animated.Value(1)).current
   const glowOpacity = useRef(new Animated.Value(0.4)).current
@@ -56,52 +66,9 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
   const contentOpacity = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
-    if (visible) {
-      setPhase('loading')
-      setCurrentIndex(0)
-      setDecisions([])
-      setEdits({})
-      setEditingItem(false)
-      setCustomCollection(false)
-      decisionsRef.current = []
-
-      Animated.parallel([
-        Animated.timing(backdropOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
-        Animated.timing(sheetY, { toValue: 0, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(contentOpacity, { toValue: 1, duration: 320, useNativeDriver: true }),
-      ]).start()
-
-      startPulse()
-
-      organizeInboxItems(saves, collections)
-        .then(result => {
-          setSuggestions(result)
-          decisionsRef.current = new Array(result.length).fill(null)
-          setDecisions(decisionsRef.current)
-          stopPulse()
-          setPhase('review')
-        })
-        .catch(() => {
-          const fallback = saves.map(s => ({
-            save: s,
-            suggested_collection: 'Read Later',
-            suggested_tags: [] as string[],
-            confidence: 0,
-          }))
-          setSuggestions(fallback)
-          decisionsRef.current = new Array(fallback.length).fill(null)
-          setDecisions(decisionsRef.current)
-          stopPulse()
-          setPhase('review')
-        })
-    } else {
-      Animated.parallel([
-        Animated.timing(backdropOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
-        Animated.timing(contentOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
-      ]).start()
-      sheetY.setValue(400)
-    }
-  }, [visible])
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
 
   const startPulse = () => {
     pulseLoop.current = Animated.loop(
@@ -124,83 +91,212 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
     Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start()
   }
 
-  const currentSuggestion = suggestions[currentIndex]
-  const currentEdit = edits[currentIndex]
+  const hydrateQueue = (saveIds: string[]) => {
+    const items = buildQueueFromSaves(saveIds)
+    setQueue(items)
+    const idx = Math.min(getOrganizeReviewIndex(), Math.max(0, items.length - 1))
+    setCurrentIndex(idx)
+    setPhase(items.length === 0 ? 'done' : 'review')
+  }
 
-  const effectiveCollection = currentEdit?.collection ?? currentSuggestion?.suggested_collection ?? 'Read Later'
-  const effectiveTags = currentEdit?.tags ?? currentSuggestion?.suggested_tags ?? []
+  const loadSuggestions = async (batch: Save[]) => {
+    const saveIds = batch.map(s => s.id)
+    batchIdsRef.current = saveIds
 
-  const updateCollection = (v: string) =>
-    setEdits(e => ({ ...e, [currentIndex]: { collection: v, tags: effectiveTags } }))
+    const missing = missingOrganizeIds(saveIds)
+    if (missing.length === 0) {
+      stopPulse()
+      hydrateQueue(saveIds)
+      return
+    }
+
+    const missingKey = organizeMissingKey(missing)
+    const missingSaves = batch.filter(s => missing.includes(s.id))
+
+    let promise = getInflightOrganize(missingKey)
+    if (!promise) {
+      promise = organizeInboxItems(missingSaves, collections)
+      trackInflightOrganize(missingKey, promise)
+    }
+
+    try {
+      const result = await promise
+      if (!mountedRef.current) return
+      cacheOrganizeSuggestions(result)
+      stopPulse()
+      hydrateQueue(saveIds)
+    } catch {
+      if (!mountedRef.current) return
+      const fallback = missingSaves.map(s => ({
+        save: s,
+        suggested_collection: 'Read Later',
+        suggested_tags: [] as string[],
+        confidence: 0,
+      }))
+      cacheOrganizeSuggestions(fallback)
+      stopPulse()
+      hydrateQueue(saveIds)
+    }
+  }
+
+  useEffect(() => {
+    if (visible) {
+      setEditingItem(false)
+      setCustomCollection(false)
+      setNewTag('')
+      setApplying(false)
+      setAppliedCount(0)
+
+      const saveIds = saves.map(s => s.id)
+      batchIdsRef.current = saveIds
+      const cached = buildQueueFromSaves(saveIds)
+      const needsAi = missingOrganizeIds(saveIds).length > 0
+
+      Animated.parallel([
+        Animated.timing(backdropOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.timing(sheetY, { toValue: 0, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(contentOpacity, { toValue: 1, duration: 320, useNativeDriver: true }),
+      ]).start()
+
+      if (!needsAi && cached.length > 0) {
+        setPhase('review')
+        setQueue(cached)
+        setCurrentIndex(Math.min(getOrganizeReviewIndex(), Math.max(0, cached.length - 1)))
+        return
+      }
+
+      setPhase('loading')
+      setCurrentIndex(getOrganizeReviewIndex())
+      startPulse()
+      loadSuggestions(saves)
+    } else {
+      setOrganizeReviewIndex(currentIndex)
+      Animated.parallel([
+        Animated.timing(backdropOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+        Animated.timing(contentOpacity, { toValue: 0, duration: 180, useNativeDriver: true }),
+      ]).start()
+      sheetY.setValue(400)
+    }
+  }, [visible])
+
+  const currentSuggestion = queue[currentIndex]
+  const saveId = currentSuggestion?.save.id
+  void editTick
+  const cachedEdit = saveId ? getOrganizeEdit(saveId) : undefined
+
+  const effectiveCollection =
+    cachedEdit?.collection ?? currentSuggestion?.suggested_collection ?? 'Read Later'
+  const effectiveTags = cachedEdit?.tags ?? currentSuggestion?.suggested_tags ?? []
+
+  const persistEdit = (collection: string, tags: string[]) => {
+    if (!saveId) return
+    setOrganizeEdit(saveId, { collection, tags })
+    setEditTick(t => t + 1)
+  }
+
+  const updateCollection = (v: string) => persistEdit(v, effectiveTags)
 
   const pickCollection = (name: string) => {
     setCustomCollection(false)
     updateCollection(name)
   }
 
-  const removeTag = (tag: string) =>
-    setEdits(e => ({ ...e, [currentIndex]: { collection: effectiveCollection, tags: effectiveTags.filter(t => t !== tag) } }))
+  const removeTag = (tag: string) => persistEdit(effectiveCollection, effectiveTags.filter(t => t !== tag))
 
   const addTag = () => {
     const t = newTag.trim().toLowerCase().replace(/\s+/g, '-')
     if (t && !effectiveTags.includes(t)) {
-      setEdits(e => ({ ...e, [currentIndex]: { collection: effectiveCollection, tags: [...effectiveTags, t] } }))
+      persistEdit(effectiveCollection, [...effectiveTags, t])
     }
     setNewTag('')
   }
 
-  const decide = (decision: Decision) => {
-    decisionsRef.current[currentIndex] = decision
-    setDecisions([...decisionsRef.current])
-    setEditingItem(false)
-    setCustomCollection(false)
-    if (currentIndex < suggestions.length - 1) {
-      setCurrentIndex(i => i + 1)
-    } else {
-      applyAndFinish(decisionsRef.current)
+  const buildSuggestion = (s: OrganizeSuggestion): OrganizeSuggestion => {
+    const edit = getOrganizeEdit(s.save.id)
+    return {
+      ...s,
+      suggested_collection: edit?.collection ?? s.suggested_collection,
+      suggested_tags: edit?.tags ?? s.suggested_tags,
     }
   }
 
-  const acceptAll = () => {
-    const final = decisionsRef.current.map((d, i) =>
-      i < currentIndex ? d : ('accept' as Decision)
-    )
-    applyAndFinish(final)
+  const finishIfEmpty = (nextQueue: OrganizeSuggestion[]) => {
+    if (nextQueue.length === 0) {
+      clearOrganizeSession()
+      setPhase('done')
+    }
   }
 
-  const applyAndFinish = (finalDecisions: (Decision | null)[]) => {
-    const accepted: OrganizeSuggestion[] = suggestions
-      .map((s, i) => {
-        if (finalDecisions[i] === 'skip') return null
-        const edit = edits[i]
-        return {
-          ...s,
-          suggested_collection: edit?.collection ?? s.suggested_collection,
-          suggested_tags: edit?.tags ?? s.suggested_tags,
-        }
-      })
-      .filter(Boolean) as OrganizeSuggestion[]
-
-    onApply(accepted)
-    setPhase('done')
+  const advance = () => {
+    setEditingItem(false)
+    setCustomCollection(false)
+    if (currentIndex < queue.length - 1) {
+      const next = currentIndex + 1
+      setCurrentIndex(next)
+      setOrganizeReviewIndex(next)
+    } else {
+      clearOrganizeSession()
+      setPhase('done')
+    }
   }
 
-  const accepted = decisionsRef.current.filter(d => d === 'accept').length
+  const acceptCurrent = async () => {
+    if (!currentSuggestion || applying) return
+    const item = buildSuggestion(currentSuggestion)
+    setApplying(true)
+    try {
+      await onApply([item])
+      setAppliedCount(c => c + 1)
+      removeOrganizeSave(item.save.id)
+      const nextQueue = queue.filter(s => s.save.id !== item.save.id)
+      setQueue(nextQueue)
+      const nextIndex = Math.min(currentIndex, Math.max(0, nextQueue.length - 1))
+      setCurrentIndex(nextIndex)
+      setOrganizeReviewIndex(nextIndex)
+      setEditingItem(false)
+      setCustomCollection(false)
+      finishIfEmpty(nextQueue)
+    } finally {
+      if (mountedRef.current) setApplying(false)
+    }
+  }
 
-  const remaining = suggestions.length - currentIndex
+  const skipCurrent = () => advance()
+
+  const acceptAllRemaining = async () => {
+    if (applying || queue.length === 0) return
+    const remaining = queue.slice(currentIndex).map(buildSuggestion)
+    setApplying(true)
+    try {
+      await onApply(remaining)
+      setAppliedCount(c => c + remaining.length)
+      remaining.forEach(s => removeOrganizeSave(s.save.id))
+      clearOrganizeSession()
+      setQueue([])
+      setPhase('done')
+    } finally {
+      if (mountedRef.current) setApplying(false)
+    }
+  }
+
+  const handleClose = () => {
+    setOrganizeReviewIndex(currentIndex)
+    onClose()
+  }
+
+  const remaining = queue.length - currentIndex
   const collectionNames = [...new Set(collections.map(c => c.name))]
 
   return (
-    <Modal transparent visible={visible} animationType="none" onRequestClose={onClose}>
+    <Modal transparent visible={visible} animationType="none" onRequestClose={handleClose}>
       <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
-        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
+        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={handleClose} activeOpacity={1} />
       </Animated.View>
 
       <View style={[styles.container, { paddingBottom: insets.bottom }]} pointerEvents="box-none">
         <Animated.View style={[styles.sheet, { opacity: contentOpacity, transform: [{ translateY: sheetY }] }]}>
           <View style={styles.handle} />
 
-          {/* ── LOADING ── */}
           {phase === 'loading' && (
             <View style={styles.loadingWrap}>
               <View style={styles.orbContainer}>
@@ -215,18 +311,15 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
             </View>
           )}
 
-          {/* ── REVIEW ── */}
           {phase === 'review' && currentSuggestion && (
             <>
-              {/* Header */}
               <View style={styles.reviewHeader}>
                 <Text style={styles.reviewTitle}>Organize {UNSORTED_LABEL}</Text>
                 <View style={styles.progressBadge}>
-                  <Text style={styles.progressText}>{currentIndex + 1} of {suggestions.length}</Text>
+                  <Text style={styles.progressText}>{currentIndex + 1} of {queue.length}</Text>
                 </View>
               </View>
 
-              {/* Item card */}
               <View style={styles.itemCard}>
                 <View style={styles.itemTypeRow}>
                   <View style={styles.typeBadge}>
@@ -241,7 +334,6 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
                 <Text style={styles.itemTitle} numberOfLines={2}>{currentSuggestion.save.title}</Text>
               </View>
 
-              {/* Suggestion / edit area */}
               <ScrollView showsVerticalScrollIndicator={false} style={styles.editArea} keyboardShouldPersistTaps="handled">
                 <Text style={styles.sectionLabel}>Collection</Text>
                 {editingItem ? (
@@ -330,42 +422,62 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
                 </View>
               </ScrollView>
 
-              {/* Action buttons */}
               <View style={styles.actionRow}>
-                <TouchableOpacity style={styles.skipBtn} onPress={() => decide('skip')} activeOpacity={0.75}>
+                <TouchableOpacity
+                  style={styles.skipBtn}
+                  onPress={skipCurrent}
+                  disabled={applying}
+                  activeOpacity={0.75}
+                >
                   <Text style={styles.skipBtnText}>Skip</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.editBtn, editingItem && styles.editBtnActive]}
                   onPress={() => setEditingItem(e => !e)}
+                  disabled={applying}
                   activeOpacity={0.75}
                 >
                   <Text style={[styles.editBtnText, editingItem && styles.editBtnTextActive]}>
                     {editingItem ? 'Done' : 'Edit'}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.acceptBtn} onPress={() => decide('accept')} activeOpacity={0.85}>
-                  <Text style={styles.acceptBtnText}>Accept ✓</Text>
+                <TouchableOpacity
+                  style={[styles.acceptBtn, applying && styles.acceptBtnDisabled]}
+                  onPress={acceptCurrent}
+                  disabled={applying}
+                  activeOpacity={0.85}
+                >
+                  {applying ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.acceptBtnText}>Accept ✓</Text>
+                  )}
                 </TouchableOpacity>
               </View>
 
               {remaining > 1 && (
-                <TouchableOpacity style={styles.acceptAllBtn} onPress={acceptAll} activeOpacity={0.8}>
+                <TouchableOpacity
+                  style={styles.acceptAllBtn}
+                  onPress={acceptAllRemaining}
+                  disabled={applying}
+                  activeOpacity={0.8}
+                >
                   <Text style={styles.acceptAllText}>Accept All Remaining ({remaining}) →</Text>
                 </TouchableOpacity>
               )}
             </>
           )}
 
-          {/* ── DONE ── */}
           {phase === 'done' && (
             <View style={styles.doneWrap}>
               <View style={styles.doneCheck}>
                 <Text style={styles.doneCheckIcon}>✓</Text>
               </View>
               <Text style={styles.doneTitle}>All organized!</Text>
-              <Text style={styles.doneSub}>{accepted} {accepted === 1 ? 'item' : 'items'} sorted into collections.</Text>
-              <TouchableOpacity style={styles.doneBtn} onPress={onClose} activeOpacity={0.85}>
+              <Text style={styles.doneSub}>
+                {appliedCount} {appliedCount === 1 ? 'item' : 'items'} sorted into collections.
+              </Text>
+              <TouchableOpacity style={styles.doneBtn} onPress={handleClose} activeOpacity={0.85}>
                 <Text style={styles.doneBtnText}>Done</Text>
               </TouchableOpacity>
             </View>
@@ -378,7 +490,7 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
   container: {
@@ -407,8 +519,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.border,
     marginBottom: SPACING.xl,
   },
-
-  // Loading
   loadingWrap: {
     alignItems: 'center',
     paddingVertical: SPACING.xl * 2,
@@ -452,8 +562,6 @@ const styles = StyleSheet.create({
     color: COLORS.textSub,
     textAlign: 'center',
   },
-
-  // Review
   reviewHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -619,8 +727,6 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     minWidth: 56,
   },
-
-  // Action row
   actionRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
@@ -666,6 +772,9 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
     backgroundColor: COLORS.accent,
   },
+  acceptBtnDisabled: {
+    opacity: 0.7,
+  },
   acceptBtnText: {
     fontSize: 14,
     fontFamily: FONTS.sansSemi,
@@ -681,8 +790,6 @@ const styles = StyleSheet.create({
     color: COLORS.accent,
     letterSpacing: 0.2,
   },
-
-  // Done
   doneWrap: {
     alignItems: 'center',
     paddingVertical: SPACING.xl * 2,

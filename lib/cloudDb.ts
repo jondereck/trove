@@ -2,6 +2,47 @@ import { supabase } from './supabase'
 import { Save, Collection, LibraryFilter, LibraryPageOptions, LibraryPageResult } from '../types'
 import { normalizeUrl } from './url'
 
+// Pin columns (`is_pinned`) are optional until supabase/add-pinned.sql is run.
+// Probed once per session; queries fall back to created_at/name ordering.
+
+let pinColumnsAvailable: boolean | null = null
+
+const byNewest = (a: Save, b: Save) => b.created_at.localeCompare(a.created_at)
+
+const byPinnedThenNewest = (a: Save, b: Save) => {
+  const pinDiff = Number(!!b.is_pinned) - Number(!!a.is_pinned)
+  return pinDiff !== 0 ? pinDiff : byNewest(a, b)
+}
+
+const byPinnedThenName = (a: Collection, b: Collection) => {
+  const pinDiff = Number(!!b.is_pinned) - Number(!!a.is_pinned)
+  return pinDiff !== 0 ? pinDiff : a.name.localeCompare(b.name)
+}
+
+function missingPinColumn(err: { message?: string } | null): boolean {
+  return !!err?.message?.includes('is_pinned')
+}
+
+async function hasPinColumns(): Promise<boolean> {
+  if (pinColumnsAvailable !== null) return pinColumnsAvailable
+  const { error } = await supabase.from('collections').select('is_pinned').limit(1)
+  pinColumnsAvailable = !error
+  return pinColumnsAvailable
+}
+
+function omitPin<T extends { is_pinned?: boolean }>(updates: T): Omit<T, 'is_pinned'> {
+  const { is_pinned: _, ...rest } = updates
+  return rest
+}
+
+async function pinSafeUpdates<T extends { is_pinned?: boolean }>(
+  updates: T,
+): Promise<T | Omit<T, 'is_pinned'>> {
+  if (!('is_pinned' in updates) || updates.is_pinned === undefined) return updates
+  if (await hasPinColumns()) return updates
+  return omitPin(updates)
+}
+
 // Supabase-backed data layer — used when the user is signed in.
 // Mirrored by lib/localDb.ts for the logged-out (local-only) case.
 // lib/db.ts routes between the two.
@@ -33,19 +74,27 @@ export async function fetchLibrarySavesPage({
   offset,
   filter,
 }: LibraryPageOptions): Promise<LibraryPageResult> {
-  let query = supabase
-    .from('saves')
-    .select('*', { count: 'exact' })
-    .order('is_pinned', { ascending: false })
-    .order('created_at', { ascending: false })
+  const pinOk = await hasPinColumns()
+  let query = supabase.from('saves').select('*', { count: 'exact' })
+  if (pinOk) query = query.order('is_pinned', { ascending: false })
+  query = query.order('created_at', { ascending: false })
   query = applyLibraryFilter(query, filter)
 
-  const { data, error, count } = await query.range(offset, offset + limit - 1)
+  let { data, error, count } = await query.range(offset, offset + limit - 1)
+  if (error && missingPinColumn(error)) {
+    pinColumnsAvailable = false
+    query = supabase
+      .from('saves')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+    query = applyLibraryFilter(query, filter)
+    ;({ data, error, count } = await query.range(offset, offset + limit - 1))
+  }
   if (error) {
     console.error('fetchLibrarySavesPage:', error.message)
     return { saves: [], total: 0 }
   }
-  return { saves: (data ?? []) as Save[], total: count ?? 0 }
+  return { saves: [...(data ?? []) as Save[]].sort(byPinnedThenNewest), total: count ?? 0 }
 }
 
 export async function fetchLibraryCount(): Promise<number> {
@@ -78,14 +127,22 @@ export async function fetchSave(id: string): Promise<Save | null> {
 }
 
 export async function fetchCollectionSaves(collectionId: string): Promise<Save[]> {
-  const { data, error } = await supabase
-    .from('saves')
-    .select('*')
-    .eq('collection_id', collectionId)
-    .order('is_pinned', { ascending: false })
-    .order('created_at', { ascending: false })
+  const pinOk = await hasPinColumns()
+  let query = supabase.from('saves').select('*').eq('collection_id', collectionId)
+  if (pinOk) query = query.order('is_pinned', { ascending: false })
+  query = query.order('created_at', { ascending: false })
+
+  let { data, error } = await query
+  if (error && missingPinColumn(error)) {
+    pinColumnsAvailable = false
+    ;({ data, error } = await supabase
+      .from('saves')
+      .select('*')
+      .eq('collection_id', collectionId)
+      .order('created_at', { ascending: false }))
+  }
   if (error) { console.error('fetchCollectionSaves:', error.message); return [] }
-  return (data ?? []) as Save[]
+  return [...(data ?? []) as Save[]].sort(byPinnedThenNewest)
 }
 
 export function tokenizeSearchQuery(query: string): string[] {
@@ -217,7 +274,16 @@ export async function createSave(input: {
 }
 
 export async function updateSave(id: string, updates: Partial<Omit<Save, 'id' | 'user_id' | 'created_at'>>): Promise<boolean> {
-  const { error } = await supabase.from('saves').update(updates).eq('id', id)
+  let payload = await pinSafeUpdates(updates)
+  if (Object.keys(payload).length === 0) return false
+
+  let { error } = await supabase.from('saves').update(payload).eq('id', id)
+  if (error && missingPinColumn(error) && 'is_pinned' in updates) {
+    pinColumnsAvailable = false
+    payload = omitPin(updates)
+    if (Object.keys(payload).length === 0) return false
+    ;({ error } = await supabase.from('saves').update(payload).eq('id', id))
+  }
   if (error) { console.error('updateSave:', error.message); return false }
   return true
 }
@@ -231,11 +297,16 @@ export async function deleteSave(id: string): Promise<boolean> {
 // ── Collections ───────────────────────────────────────────────────────────────
 
 export async function fetchCollections(): Promise<Collection[]> {
-  const { data: cols, error } = await supabase
-    .from('collections')
-    .select('*')
-    .order('is_pinned', { ascending: false })
-    .order('name')
+  const pinOk = await hasPinColumns()
+  let query = supabase.from('collections').select('*')
+  if (pinOk) query = query.order('is_pinned', { ascending: false })
+  query = query.order('name')
+
+  let { data: cols, error } = await query
+  if (error && missingPinColumn(error)) {
+    pinColumnsAvailable = false
+    ;({ data: cols, error } = await supabase.from('collections').select('*').order('name'))
+  }
   if (error) { console.error('fetchCollections:', error.message); return [] }
   if (!cols?.length) return []
 
@@ -257,7 +328,7 @@ export async function fetchCollections(): Promise<Collection[]> {
     }
   })
 
-  return cols.map(c => {
+  return [...cols.map(c => {
     const recent = coverMap[c.id] ?? []
     const custom = c.cover_image_url
     const cover_urls = custom
@@ -268,7 +339,7 @@ export async function fetchCollections(): Promise<Collection[]> {
       save_count: countMap[c.id] ?? 0,
       cover_urls,
     }
-  }) as Collection[]
+  }) as Collection[]].sort(byPinnedThenName)
 }
 
 export async function fetchCollection(id: string): Promise<Collection | null> {
@@ -304,7 +375,16 @@ export async function updateCollection(
   id: string,
   updates: Partial<Pick<Collection, 'name' | 'icon' | 'color' | 'description' | 'cover_image_url' | 'is_pinned'>>
 ): Promise<boolean> {
-  const { error } = await supabase.from('collections').update(updates).eq('id', id)
+  let payload = await pinSafeUpdates(updates)
+  if (Object.keys(payload).length === 0) return false
+
+  let { error } = await supabase.from('collections').update(payload).eq('id', id)
+  if (error && missingPinColumn(error) && 'is_pinned' in updates) {
+    pinColumnsAvailable = false
+    payload = omitPin(updates)
+    if (Object.keys(payload).length === 0) return false
+    ;({ error } = await supabase.from('collections').update(payload).eq('id', id))
+  }
   if (error) { console.error('updateCollection:', error.message); return false }
   return true
 }
