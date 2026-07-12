@@ -181,7 +181,7 @@ export default function ShareSaveAnimation({
 
 const styles = StyleSheet.create({
   container: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: COLORS.bg,
     alignItems: 'center',
     justifyContent: 'center',
