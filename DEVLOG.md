@@ -4,6 +4,22 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Chest loader — 6-scene storyboard implementation (2026-07-12)
+**Files:** `lib/chestLoaderTimeline.ts`, `lib/chestLoaderTimeline.test.ts`,
+`assets/lottie/chest-save.json`, `components/ShareSaveAnimation.tsx`, `app/share.tsx`,
+`package.json`
+
+Implemented the auto-share chest loader to the 6-scene storyboard (prepare → drop-in →
+organize → close → finalize → green check) at 3.2s / 60fps. Scene copy is driven by
+`chestLoaderTimeline.resolveLoaderPhase`. While the network save is still in flight the
+cycle loops (check fades before restart). On `saved` it finishes the current cycle, freezes
+on the peak check frame for 800ms, then fades out before the snackbar. Duplicate/error
+fades out immediately. Spec/plan:
+`docs/superpowers/specs/2026-07-12-trove-chest-loader.md`,
+`docs/superpowers/plans/2026-07-12-trove-chest-loader.md`.
+
+---
+
 ### Unread saves clarity (2026-07-12)
 **Files:** `components/SaveCard.tsx`, `app/(tabs)/index.tsx`, `app/(tabs)/inbox.tsx`,
 `app/(tabs)/_layout.tsx`, `types/index.ts`, `lib/db.ts`, `lib/localDb.ts`, `lib/cloudDb.ts`

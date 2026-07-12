@@ -2,45 +2,161 @@ import { useEffect, useRef, useState } from 'react'
 import { Animated, StyleSheet, Text, View } from 'react-native'
 import LottieView from 'lottie-react-native'
 import { COLORS, FONTS, SPACING } from '../constants/theme'
-import { UNSORTED_LABEL } from '../constants/labels'
+import {
+  CYCLE_MS,
+  FADE_OUT_MS,
+  SUCCESS_HOLD_MS,
+  resolveLoaderPhase,
+  sceneAt,
+  type SaveOutcome,
+} from '../lib/chestLoaderTimeline'
 
-const MIN_DISPLAY_MS = 900
+export { CYCLE_MS, SUCCESS_HOLD_MS, FADE_OUT_MS }
+
+/** Peak check frame before the loop-fade keys (see chest-save checkBadge). */
+const HOLD_FRAME = 184
 
 interface ShareSaveAnimationProps {
   active: boolean
+  /** Becomes true once quickSaveSharedUrl settles (any outcome). */
+  saveCompleted: boolean
+  outcome: SaveOutcome
+  /** Called after success hold (saved) or immediate fade (duplicate/error), once fade-out finishes. */
+  onFinished?: () => void
 }
 
-export { MIN_DISPLAY_MS }
-
-export default function ShareSaveAnimation({ active }: ShareSaveAnimationProps) {
+export default function ShareSaveAnimation({
+  active,
+  saveCompleted,
+  outcome,
+  onFinished,
+}: ShareSaveAnimationProps) {
   const [visible, setVisible] = useState(active)
+  const [scene, setScene] = useState(() => sceneAt(0))
   const containerOpacity = useRef(new Animated.Value(0)).current
-  const dotOpacity = useRef(new Animated.Value(0.3)).current
-  const dotLoop = useRef<Animated.CompositeAnimation | null>(null)
+  const lottieRef = useRef<LottieView>(null)
+  const cycleStartedAt = useRef(0)
+  const holdStartedAt = useRef<number | null>(null)
+  const tickTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+  const finishedRef = useRef(false)
+  const saveCompletedRef = useRef(saveCompleted)
+  const outcomeRef = useRef(outcome)
+  const onFinishedRef = useRef(onFinished)
+  const holdingRef = useRef(false)
+
+  saveCompletedRef.current = saveCompleted
+  outcomeRef.current = outcome
+  onFinishedRef.current = onFinished
+
+  const clearTimers = () => {
+    if (tickTimer.current) clearInterval(tickTimer.current)
+    tickTimer.current = null
+  }
+
+  const fadeOutAndFinish = () => {
+    if (finishedRef.current) return
+    finishedRef.current = true
+    clearTimers()
+    Animated.timing(containerOpacity, {
+      toValue: 0,
+      duration: FADE_OUT_MS,
+      useNativeDriver: true,
+    }).start(() => {
+      setVisible(false)
+      onFinishedRef.current?.()
+    })
+  }
+
+  const beginCycle = () => {
+    holdingRef.current = false
+    holdStartedAt.current = null
+    cycleStartedAt.current = Date.now()
+    setScene(sceneAt(0))
+    lottieRef.current?.reset()
+    lottieRef.current?.play()
+  }
+
+  const enterHoldSuccess = () => {
+    if (holdingRef.current) return
+    holdingRef.current = true
+    holdStartedAt.current = Date.now()
+    setScene(sceneAt(CYCLE_MS - 1))
+    // Freeze on the peak check frame so loop-fade keys do not run during hold.
+    lottieRef.current?.pause()
+    lottieRef.current?.play(HOLD_FRAME, HOLD_FRAME)
+  }
+
+  const evaluatePhase = () => {
+    if (!active || finishedRef.current) return
+
+    const cycleElapsedMs = Date.now() - cycleStartedAt.current
+    const holdElapsedMs =
+      holdStartedAt.current == null ? 0 : Date.now() - holdStartedAt.current
+
+    const phase = resolveLoaderPhase({
+      saveCompleted: saveCompletedRef.current,
+      outcome: outcomeRef.current,
+      cycleElapsedMs: holdingRef.current ? CYCLE_MS : cycleElapsedMs,
+      holdElapsedMs,
+    })
+
+    if (!holdingRef.current) {
+      setScene(sceneAt(cycleElapsedMs))
+    }
+
+    if (phase === 'restartCycle') {
+      beginCycle()
+      return
+    }
+    if (phase === 'holdingSuccess') {
+      enterHoldSuccess()
+      return
+    }
+    if (phase === 'fadingOut') {
+      fadeOutAndFinish()
+    }
+  }
 
   useEffect(() => {
-    if (active) {
-      setVisible(true)
-      Animated.timing(containerOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start()
-
-      dotLoop.current = Animated.loop(
-        Animated.sequence([
-          Animated.timing(dotOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
-          Animated.timing(dotOpacity, { toValue: 0.3, duration: 500, useNativeDriver: true }),
-        ])
-      )
-      dotLoop.current.start()
-
-      return () => dotLoop.current?.stop()
+    if (!active) {
+      clearTimers()
+      holdingRef.current = false
+      if (visible) {
+        Animated.timing(containerOpacity, {
+          toValue: 0,
+          duration: FADE_OUT_MS,
+          useNativeDriver: true,
+        }).start(() => setVisible(false))
+      }
+      return
     }
 
-    if (visible) {
-      dotLoop.current?.stop()
-      Animated.timing(containerOpacity, { toValue: 0, duration: 260, useNativeDriver: true }).start(
-        () => setVisible(false)
-      )
-    }
+    finishedRef.current = false
+    setVisible(true)
+    Animated.timing(containerOpacity, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start()
+
+    beginCycle()
+    tickTimer.current = setInterval(evaluatePhase, 50)
+
+    return () => clearTimers()
   }, [active])
+
+  // Duplicate/error (and late saved) re-evaluate immediately without waiting for the next tick.
+  useEffect(() => {
+    if (!active) return
+    evaluatePhase()
+  }, [active, saveCompleted, outcome])
+
+  const handleAnimationFinish = () => {
+    // Lottie finished one play-through; force a phase evaluation at cycle boundary.
+    if (!active || finishedRef.current || holdingRef.current) return
+    cycleStartedAt.current = Date.now() - CYCLE_MS
+    evaluatePhase()
+  }
 
   if (!visible) return null
 
@@ -48,17 +164,16 @@ export default function ShareSaveAnimation({ active }: ShareSaveAnimationProps) 
     <Animated.View style={[styles.container, { opacity: containerOpacity }]}>
       <View style={styles.content}>
         <LottieView
+          ref={lottieRef}
           source={require('../assets/lottie/chest-save.json')}
-          autoPlay
-          loop
+          autoPlay={false}
+          loop={false}
           style={styles.lottie}
+          onAnimationFinish={handleAnimationFinish}
         />
 
-        <View style={styles.titleRow}>
-          <Text style={styles.title}>Stashing your link</Text>
-          <Animated.Text style={[styles.title, { opacity: dotOpacity }]}>…</Animated.Text>
-        </View>
-        <Text style={styles.subtitle}>Saving to {UNSORTED_LABEL}</Text>
+        <Text style={styles.title}>{scene.title}</Text>
+        <Text style={styles.subtitle}>{scene.subtitle}</Text>
       </View>
     </Animated.View>
   )
@@ -66,7 +181,7 @@ export default function ShareSaveAnimation({ active }: ShareSaveAnimationProps) 
 
 const styles = StyleSheet.create({
   container: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: COLORS.bg,
     alignItems: 'center',
     justifyContent: 'center',
@@ -80,10 +195,6 @@ const styles = StyleSheet.create({
     width: 240,
     height: 240,
     marginBottom: SPACING.md,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
   },
   title: {
     fontFamily: FONTS.serif,

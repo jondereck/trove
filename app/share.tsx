@@ -4,7 +4,8 @@ import { useRouter } from 'expo-router'
 import { useShareIntentContext } from 'expo-share-intent'
 import QuickSave, { type Draft } from '../components/QuickSave'
 import SaveToast from '../components/SaveToast'
-import ShareSaveAnimation, { MIN_DISPLAY_MS } from '../components/ShareSaveAnimation'
+import ShareSaveAnimation from '../components/ShareSaveAnimation'
+import type { SaveOutcome } from '../lib/chestLoaderTimeline'
 import { COLORS, FONTS, SPACING } from '../constants/theme'
 import { UNSORTED_LABEL } from '../constants/labels'
 import { createSave, upsertCollectionByName } from '../lib/db'
@@ -23,14 +24,20 @@ export default function ShareScreen() {
   const [showModal, setShowModal] = useState(false)
   const [invalidShare, setInvalidShare] = useState(false)
   const [isAutoSaving, setIsAutoSaving] = useState(false)
+  const [saveCompleted, setSaveCompleted] = useState(false)
+  const [saveOutcome, setSaveOutcome] = useState<SaveOutcome>('pending')
   const [toast, setToast] = useState<ToastState | null>(null)
   const initialized = useRef(false)
+  const pendingToast = useRef<ToastState | null>(null)
 
   const finishShare = useCallback(() => {
     setSharedUrl(undefined)
     setShowModal(false)
     setInvalidShare(false)
     setIsAutoSaving(false)
+    setSaveCompleted(false)
+    setSaveOutcome('pending')
+    pendingToast.current = null
     setToast(null)
     initialized.current = false
     resetShareIntent()
@@ -38,35 +45,64 @@ export default function ShareScreen() {
     exitAfterShare()
   }, [resetShareIntent, router])
 
+  const handleLoaderFinished = useCallback(() => {
+    setIsAutoSaving(false)
+    const next = pendingToast.current
+    pendingToast.current = null
+    if (next) {
+      setToast(next)
+    } else {
+      finishShare()
+    }
+  }, [finishShare])
+
   const runAutoSave = useCallback(async (url: string) => {
     setIsAutoSaving(true)
-    const startedAt = Date.now()
+    setSaveCompleted(false)
+    setSaveOutcome('pending')
+    pendingToast.current = null
+
     try {
       const result = await quickSaveSharedUrl(url)
-      const elapsed = Date.now() - startedAt
-      if (elapsed < MIN_DISPLAY_MS) {
-        await new Promise<void>(resolve => setTimeout(resolve, MIN_DISPLAY_MS - elapsed))
-      }
-      setIsAutoSaving(false)
       if (result === 'saved') {
-        setToast({ id: Date.now(), message: `Saved to ${UNSORTED_LABEL}`, tone: 'success' })
+        pendingToast.current = {
+          id: Date.now(),
+          message: `Saved to ${UNSORTED_LABEL}`,
+          tone: 'success',
+        }
+        setSaveOutcome('saved')
       } else if (result === 'duplicate') {
-        setToast({ id: Date.now(), message: 'Already in Trove', tone: 'neutral' })
+        pendingToast.current = {
+          id: Date.now(),
+          message: 'Already in Trove',
+          tone: 'neutral',
+        }
+        setSaveOutcome('duplicate')
       } else {
-        setToast({ id: Date.now(), message: 'Could not save this link', tone: 'error' })
+        pendingToast.current = {
+          id: Date.now(),
+          message: 'Could not save this link',
+          tone: 'error',
+        }
+        setSaveOutcome('error')
       }
+      setSaveCompleted(true)
     } catch (e) {
-      const elapsed = Date.now() - startedAt
-      if (elapsed < MIN_DISPLAY_MS) {
-        await new Promise<void>(resolve => setTimeout(resolve, MIN_DISPLAY_MS - elapsed))
-      }
-      setIsAutoSaving(false)
       if (isLimitError(e)) {
+        setSaveOutcome('error')
+        setSaveCompleted(true)
+        setIsAutoSaving(false)
         showLimitAlert(e)
         finishShare()
-      } else {
-        setToast({ id: Date.now(), message: 'Could not save this link', tone: 'error' })
+        return
       }
+      pendingToast.current = {
+        id: Date.now(),
+        message: 'Could not save this link',
+        tone: 'error',
+      }
+      setSaveOutcome('error')
+      setSaveCompleted(true)
     }
   }, [finishShare])
 
@@ -141,7 +177,12 @@ export default function ShareScreen() {
         </View>
       )}
 
-      <ShareSaveAnimation active={isAutoSaving} />
+      <ShareSaveAnimation
+        active={isAutoSaving}
+        saveCompleted={saveCompleted}
+        outcome={saveOutcome}
+        onFinished={handleLoaderFinished}
+      />
 
       <QuickSave
         visible={showModal && !!sharedUrl}
