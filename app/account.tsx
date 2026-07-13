@@ -25,7 +25,6 @@ import { cacheProfile, clearProfileCache, formatProfileName, peekProfile } from 
 import { supabase } from '../lib/supabase'
 import { isLoggedIn } from '../lib/session'
 import { getTier, subscribeTier } from '../lib/entitlements'
-import { PRICES } from '../constants/limits'
 import { exportData, importData } from '../lib/transfer'
 import { AvatarTooLargeError, pickAndUploadAvatar } from '../lib/storage'
 import { requestAuthFlow } from '../lib/authNavigation'
@@ -37,14 +36,36 @@ function faintColor(c: ColorPalette) {
   return c.bg === '#121110' ? '#6a6560' : '#bdb9b0'
 }
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+function Stat({
+  label,
+  value,
+  onPress,
+  highlight,
+}: {
+  label: string
+  value: string | number
+  onPress?: () => void
+  highlight?: boolean
+}) {
+  const colors = useColors()
   const styles = useThemedStyles(createStyles)
-  return (
-    <View style={styles.stat}>
-      <Text style={styles.statValue}>{value}</Text>
+  const content = (
+    <>
+      <Text style={[styles.statValue, highlight && styles.statValueHighlight]}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
+    </>
   )
+
+  if (onPress) {
+    return (
+      <TouchableOpacity style={[styles.stat, styles.statPressable]} onPress={onPress} activeOpacity={0.7}>
+        {content}
+        <Ionicons name="chevron-forward" size={12} color={faintColor(colors)} style={styles.statChevron} />
+      </TouchableOpacity>
+    )
+  }
+
+  return <View style={styles.stat}>{content}</View>
 }
 
 export default function AccountScreen() {
@@ -53,6 +74,7 @@ export default function AccountScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const cached = peekProfile()
+  const upgradeGradient = [colors.accent, '#7a4f86'] as const
 
   const [loggedIn, setLoggedIn] = useState(isLoggedIn())
   const [tier, setTier] = useState(getTier())
@@ -64,8 +86,6 @@ export default function AccountScreen() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(cached?.avatar_url ?? null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [counts, setCounts] = useState({ saves: 0, collections: 0 })
-
-  const upgradeGradient = [colors.accent, '#7a4f86'] as const
 
   const loadProfile = useCallback(async () => {
     const signedIn = isLoggedIn()
@@ -89,7 +109,7 @@ export default function AccountScreen() {
     useCallback(() => {
       loadProfile()
       fetchCounts().then(setCounts)
-    }, [loadProfile])
+    }, [loadProfile]),
   )
 
   const handleChangeAvatar = useCallback(async () => {
@@ -145,7 +165,7 @@ export default function AccountScreen() {
     } catch (e: any) {
       Alert.alert('Import failed', e?.message ?? String(e))
     }
-  }, [])
+  }, [router])
 
   const toggleEditing = useCallback(async () => {
     if (editing) {
@@ -163,10 +183,14 @@ export default function AccountScreen() {
   const handleSignOut = useCallback(() => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: () => {
-        clearProfileCache()
-        supabase.auth.signOut()
-      }},
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: () => {
+          clearProfileCache()
+          supabase.auth.signOut()
+        },
+      },
     ])
   }, [])
 
@@ -185,16 +209,16 @@ export default function AccountScreen() {
   const displayName = loggedIn
     ? formatProfileName(first, last, email)
     : 'Guest'
+  const needsCloudAccount = !loggedIn && shouldPromptAccountForCloud()
 
   return (
     <View style={styles.container}>
-      {/* top bar */}
       <View style={[styles.topBar, { paddingTop: insets.top + SPACING.sm }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.6}>
           <Ionicons name="chevron-back" size={20} color={colors.accent} />
           <Text style={styles.topAction}>Library</Text>
         </TouchableOpacity>
-        <Text style={styles.topTitle}>Account</Text>
+        <Text style={styles.topTitle}>Settings</Text>
         <TouchableOpacity onPress={toggleEditing} activeOpacity={0.6} style={styles.editBtn}>
           <Text style={styles.topAction}>{editing ? 'Done' : 'Edit'}</Text>
         </TouchableOpacity>
@@ -205,7 +229,6 @@ export default function AccountScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* profile */}
         <View style={styles.profile}>
           <View>
             <Avatar firstName={first} lastName={last} imageUrl={avatarUrl} size={92} ring />
@@ -259,18 +282,18 @@ export default function AccountScreen() {
               <View style={styles.statDivider} />
               <Stat label="Collections" value={counts.collections} />
               <View style={styles.statDivider} />
-              <Stat label="Plan" value={planLabel} />
+              <Stat
+                label="Plan"
+                value={planLabel}
+                onPress={() => router.push('/plan')}
+                highlight={tier === 'free'}
+              />
             </View>
           )}
         </View>
 
-        {/* Guest with Cloud but no account yet */}
-        {!loggedIn && shouldPromptAccountForCloud() && (
-          <TouchableOpacity
-            activeOpacity={0.9}
-            style={styles.bannerWrap}
-            onPress={openCloudSignup}
-          >
+        {needsCloudAccount && (
+          <TouchableOpacity activeOpacity={0.9} style={styles.bannerWrap} onPress={openCloudSignup}>
             <LinearGradient
               colors={upgradeGradient}
               start={{ x: 0, y: 0 }}
@@ -291,53 +314,19 @@ export default function AccountScreen() {
           </TouchableOpacity>
         )}
 
-        {/* banner: plan upsell — hidden once the user is on Cloud */}
-        {tier !== 'cloud' && (
-          <TouchableOpacity
-            activeOpacity={0.9}
-            style={styles.bannerWrap}
-            onPress={() => router.push('/upgrade')}
-          >
-            <LinearGradient
-              colors={upgradeGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.banner}
-            >
-              <View style={styles.bannerIcon}>
-                <Ionicons name={tier === 'unlocked' ? 'cloud-upload' : 'sparkles'} size={22} color="#fff" />
-              </View>
-              <View style={styles.bannerText}>
-                <Text style={styles.bannerTitle}>
-                  {loggedIn && tier !== 'cloud'
-                    ? 'Sync with Trove Cloud'
-                    : tier === 'unlocked'
-                      ? 'Add Trove Cloud'
-                      : 'Unlock Trove'}
-                </Text>
-                <Text style={styles.bannerSub}>
-                  {loggedIn && tier !== 'cloud'
-                    ? 'Subscribe or restore purchases to sync this library'
-                    : tier === 'unlocked'
-                      ? `Sync across devices · ${PRICES.cloudMonthly}`
-                      : `Unlimited saves for ${PRICES.unlockedOneTime}, once`}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#fff" />
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
-
-        {/* settings */}
         <SettingGroup title="Account">
           {loggedIn ? (
             <>
               <SettingRow icon="mail-outline" label="Email" value={email} />
-              <SettingRow icon="lock-closed-outline" label="Change password" onPress={() => router.push('/change-password')} />
+              <SettingRow
+                icon="lock-closed-outline"
+                label="Change password"
+                onPress={() => router.push('/change-password')}
+              />
             </>
           ) : (
             <>
-              {shouldPromptAccountForCloud() && (
+              {needsCloudAccount && (
                 <SettingRow
                   icon="person-add-outline"
                   label="Create account to sync"
@@ -348,11 +337,6 @@ export default function AccountScreen() {
                 icon="log-in-outline"
                 label="Already have Cloud? Sign in"
                 onPress={openLogin}
-              />
-              <SettingRow
-                icon="cloud-upload-outline"
-                label="Get Trove Cloud"
-                onPress={() => router.push('/upgrade')}
               />
             </>
           )}
@@ -446,7 +430,10 @@ function createStyles(c: ColorPalette) {
       overflow: 'hidden',
     },
     stat: { paddingVertical: 12, paddingHorizontal: 20, alignItems: 'center', minWidth: 76 },
+    statPressable: { position: 'relative', paddingRight: 24 },
+    statChevron: { position: 'absolute', right: 8, top: 14 },
     statValue: { fontFamily: FONTS.serif, fontSize: 24, color: c.text, lineHeight: 26 },
+    statValueHighlight: { color: c.accent },
     statLabel: { fontFamily: FONTS.sansSemi, fontSize: 11.5, color: c.muted, marginTop: 4 },
     statDivider: { width: 1, backgroundColor: c.border },
 

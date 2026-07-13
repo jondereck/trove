@@ -1,6 +1,6 @@
 export type SaveType = 'link' | 'image' | 'video' | 'note'
 
-export type LibraryFilter = 'all' | 'fav' | SaveType
+export type LibraryFilter = 'all' | 'unread' | 'fav' | SaveType
 
 export interface LibraryPageOptions {
   limit: number

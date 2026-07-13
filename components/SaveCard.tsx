@@ -139,10 +139,26 @@ export default function SaveCard({ save, onPress, onLongPress, selected, onFavor
   const [isFav, setIsFav] = useState(!!save.is_favorite)
   const [isPinned, setIsPinned] = useState(!!save.is_pinned)
   const [favAnimScale] = useState(new Animated.Value(1))
-  const isUnread = save.is_viewed === false
+  const [isUnread, setIsUnread] = useState(save.is_viewed === false)
+
+  useEffect(() => {
+    setIsUnread(save.is_viewed === false)
+  }, [save.id, save.is_viewed])
+
+  const markViewed = async () => {
+    if (!isUnread) return
+    setIsUnread(false)
+    try {
+      await updateSave(save.id, { is_viewed: true })
+    } catch {
+      setIsUnread(true)
+    }
+  }
 
   const openLink = () => {
-    if (save.url) Linking.openURL(save.url).catch(() => {})
+    if (!save.url) return
+    markViewed()
+    Linking.openURL(save.url).catch(() => {})
   }
 
   const onPressIn = () =>
@@ -180,11 +196,20 @@ export default function SaveCard({ save, onPress, onLongPress, selected, onFavor
   return (
     <Animated.View style={[
       styles.card,
-      { transform: [{ scale }], backgroundColor: colors.card, borderColor: colors.border },
-      save.type === 'note' && [styles.cardNote, { backgroundColor: colors.cream, borderColor: colors.border }],
-      isUnread && { borderLeftWidth: 3, borderLeftColor: colors.accent },
+      {
+        transform: [{ scale }],
+        backgroundColor: isUnread ? colors.accentSoft : colors.card,
+        borderColor: isUnread ? colors.accentBorder : colors.border,
+      },
+      save.type === 'note' && !isUnread && [styles.cardNote, { backgroundColor: colors.cream, borderColor: colors.border }],
+      isUnread && { borderLeftWidth: 4, borderLeftColor: colors.accent },
       selected && [styles.cardSelected, { borderColor: colors.accent }],
     ]}>
+      {isUnread ? (
+        <View style={[styles.newBadge, { backgroundColor: colors.accent }]}>
+          <Text style={styles.newBadgeText}>NEW</Text>
+        </View>
+      ) : null}
       <Pressable onPress={onPress} onLongPress={onLongPress} onPressIn={onPressIn} onPressOut={onPressOut}>
         {layout === 'list' ? (
           <ListCard save={save} isUnread={isUnread} onOpenLink={openLink} colors={colors} />
@@ -513,15 +538,30 @@ function createStyles(c: ColorPalette) {
   cardSelected: {
     borderWidth: 2,
   },
+  newBadge: {
+    position: 'absolute',
+    top: SPACING.sm,
+    left: SPACING.sm,
+    zIndex: 2,
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  newBadgeText: {
+    fontSize: 9,
+    fontFamily: FONTS.sansBold,
+    color: '#fff',
+    letterSpacing: 0.6,
+  },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
   unreadDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
   },
   linkTitleUnread: {
     fontFamily: FONTS.sansBold,

@@ -134,6 +134,7 @@ export default function InboxScreen() {
 
   const leftCol = saves.filter((_, i) => i % 2 === 0)
   const rightCol = saves.filter((_, i) => i % 2 === 1)
+  const unreadCount = saves.filter(s => s.is_viewed === false).length
   const organizeBatch = saves.slice(0, ORGANIZE_BATCH_LIMIT)
   const organizeRemaining = Math.max(0, saves.length - ORGANIZE_BATCH_LIMIT)
 
@@ -218,11 +219,15 @@ export default function InboxScreen() {
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <Text style={styles.title}>{UNSORTED_LABEL}</Text>
-              {saves.length > 0 && (
+              {unreadCount > 0 ? (
                 <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadCount} new</Text>
+                </View>
+              ) : saves.length > 0 ? (
+                <View style={[styles.badge, styles.badgeMuted]}>
                   <Text style={styles.badgeText}>{saves.length}</Text>
                 </View>
-              )}
+              ) : null}
             </View>
           </View>
         )}
@@ -322,6 +327,9 @@ function createStyles(c: ColorPalette) {
     paddingVertical: 2,
     minWidth: 22,
     alignItems: 'center',
+  },
+  badgeMuted: {
+    backgroundColor: COLORS.muted,
   },
   badgeText: { fontSize: 11, fontFamily: FONTS.sansBold, color: '#fff' },
   loader: { marginTop: SPACING.xl * 3 },

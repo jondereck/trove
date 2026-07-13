@@ -4,6 +4,15 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Merge — cloud-first auth + settings/plan + chest loader (2026-07-13)
+**Files:** merge resolution across `account`, `plan`, share animation, `DEVLOG`, deps
+
+Combined local cloud-first auth / soft Cloud verify with origin Settings→Plan screen,
+chest loader timeline, and unread-save polish. Kept guest “Already have Cloud? Sign in”
+and post-Cloud account prompt; Plan CTA uses `requestAuthFlow` + auth gate.
+
+---
+
 ### Soft Cloud verify after sign-in (2026-07-12)
 **Files:** `lib/authNavigation.ts`, `app/_layout.tsx`, `app/(auth)/index.tsx`,
 `app/(auth)/login.tsx`
@@ -83,6 +92,80 @@ Library: root navigator redirected all `(auth)` routes to tabs without checking
 
 ---
 
+### Settings & plan UX cleanup (2026-07-12)
+**Files:** `app/account.tsx`, `app/plan.tsx`, `app/_layout.tsx`, `app/ai-preferences.tsx`,
+`app/appearance.tsx`, `app/change-password.tsx`, `app/(tabs)/index.tsx`
+
+**Settings screen:** Top bar title renamed from Account → Settings; sub-screen back links match.
+
+**Removed upsells from settings:** Dropped the gradient Unlock Trove / Get Trove Cloud banner and
+the guest "Sign in or create account" row from the Account settings group.
+
+**Clickable plan stat:** Plan column in the profile stats row opens a new Your plan screen with
+current tier, included features, and usage meters (saves / collections / AI) on the free plan.
+
+**Upgrade funnel:** Free guests tap Plan → "Create an account to sync" → Trove plans (`/upgrade`)
+where Restore purchases lives for returning subscribers. Logged-in users see "See Trove plans" or
+"Get Trove Cloud" instead.
+
+---
+
+### Chest loader — 6-scene storyboard implementation (2026-07-12)
+**Files:** `lib/chestLoaderTimeline.ts`, `lib/chestLoaderTimeline.test.ts`,
+`assets/lottie/chest-save.json`, `components/ShareSaveAnimation.tsx`, `app/share.tsx`,
+`package.json`
+
+Implemented the auto-share chest loader to the 6-scene storyboard (prepare → drop-in →
+organize → close → finalize → green check) at 3.2s / 60fps. Scene copy is driven by
+`chestLoaderTimeline.resolveLoaderPhase`. While the network save is still in flight the
+cycle loops (check fades before restart). On `saved` it finishes the current cycle, freezes
+on the peak check frame for 800ms, then fades out before the snackbar. Duplicate/error
+fades out immediately. Spec/plan:
+`docs/superpowers/specs/2026-07-12-trove-chest-loader.md`,
+`docs/superpowers/plans/2026-07-12-trove-chest-loader.md`.
+
+---
+
+### Unread saves clarity (2026-07-12)
+**Files:** `components/SaveCard.tsx`, `app/(tabs)/index.tsx`, `app/(tabs)/inbox.tsx`,
+`app/(tabs)/_layout.tsx`, `types/index.ts`, `lib/db.ts`, `lib/localDb.ts`, `lib/cloudDb.ts`
+
+**Stronger unread visuals:** Unread cards use `accentSoft` background, accent border, 4px left
+stripe, larger dot, bold title, and a `NEW` pill badge.
+
+**Unread filter:** Library filter chip filters `is_viewed === false` (local + cloud).
+
+**Mark read on link open:** Tapping a link thumbnail / hero image marks the save viewed without
+opening the detail screen.
+
+**Unsorted counts:** Inbox header shows `N new` for unread items; tab bar badge on Unsorted when
+inbox has unread saves.
+
+**Cloud createSave:** Explicitly sets `is_viewed: false` on insert.
+
+---
+
+### Plan — 6-scene chest loader storyboard (2026-07-12)
+**Files:** `docs/superpowers/specs/2026-07-12-trove-chest-loader.md`,
+`docs/superpowers/plans/2026-07-12-trove-chest-loader.md`
+
+Locked the auto-share saving-loader storyboard (3.2s / 60fps, six scenes, loop + 800ms
+success hold) and wrote a task-by-task implementation plan: pure `chestLoaderTimeline`
+phase machine, rebuilt Lottie with fading green check, `ShareSaveAnimation` orchestrator,
+and `app/share.tsx` completion wiring. Prefer this refined plan over the earlier draft in
+`docs/superpowers/plans/2026-07-12-chest-loader-animation.md`.
+
+---
+
+### Chest loader storyboard — earlier draft plan (2026-07-12)
+**Files:** `docs/superpowers/specs/2026-07-12-trove-chest-loader-spec.md`,
+`docs/superpowers/plans/2026-07-12-chest-loader-animation.md`
+
+Earlier draft of the same feature (30fps Lottie). Superseded by the refined 60fps plan above.
+
+---
+
+### App icon — flat T-chest with keyhole (2026-07-11)
 **Files:** `assets/icon-source.svg`, `assets/icon-foreground.svg`, `assets/icon-monochrome.svg`,
 `assets/icon.png`, `assets/splash-icon.png`, `assets/favicon.png`,
 `assets/android-icon-foreground.png`, `assets/android-icon-background.png`,

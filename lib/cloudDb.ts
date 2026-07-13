@@ -54,6 +54,7 @@ function applyLibraryFilter<T extends { eq: (col: string, val: unknown) => T }>(
   filter: LibraryFilter,
 ): T {
   let q = query.eq('is_inbox', false)
+  if (filter === 'unread') return q.eq('is_viewed', false)
   if (filter === 'fav') return q.eq('is_favorite', true)
   if (filter !== 'all') return q.eq('type', filter)
   return q
@@ -114,6 +115,16 @@ export async function fetchInboxSaves(): Promise<Save[]> {
     .order('created_at', { ascending: false })
   if (error) { console.error('fetchInboxSaves:', error.message); return [] }
   return (data ?? []) as Save[]
+}
+
+export async function fetchInboxUnreadCount(): Promise<number> {
+  const { count, error } = await supabase
+    .from('saves')
+    .select('*', { count: 'exact', head: true })
+    .eq('is_inbox', true)
+    .eq('is_viewed', false)
+  if (error) { console.error('fetchInboxUnreadCount:', error.message); return 0 }
+  return count ?? 0
 }
 
 export async function fetchSave(id: string): Promise<Save | null> {
@@ -266,7 +277,14 @@ export async function createSave(input: {
   }
   const { data, error } = await supabase
     .from('saves')
-    .insert({ ...input, url, user_id: user.id, tags: input.tags ?? [], is_inbox: input.is_inbox ?? true })
+    .insert({
+      ...input,
+      url,
+      user_id: user.id,
+      tags: input.tags ?? [],
+      is_inbox: input.is_inbox ?? true,
+      is_viewed: false,
+    })
     .select()
     .single()
   if (error) { console.error('createSave:', error.message); return null }

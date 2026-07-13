@@ -41,6 +41,7 @@ type LibraryView = 'grid' | 'list'
 
 const CHIPS: { id: LibraryFilter; label: string; icon?: keyof typeof Ionicons.glyphMap }[] = [
   { id: 'all', label: 'All' },
+  { id: 'unread', label: 'Unread', icon: 'mail-unread-outline' },
   { id: 'fav', label: 'Favorites', icon: 'star-outline' },
   { id: 'link', label: 'Links', icon: 'link-outline' },
   { id: 'image', label: 'Images', icon: 'image-outline' },
@@ -350,7 +351,7 @@ export default function LibraryScreen() {
               onPress={() => router.push('/account')}
               activeOpacity={0.75}
               style={styles.settingsBtn}
-              accessibilityLabel="Account settings"
+              accessibilityLabel="Settings"
             >
               <Ionicons name="settings-outline" size={22} color={colors.text} />
             </TouchableOpacity>
@@ -420,12 +421,18 @@ export default function LibraryScreen() {
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>◇</Text>
             <Text style={styles.emptyTitle}>
-              {filter === 'all' ? 'Nothing saved yet' : 'No matches'}
+              {filter === 'all'
+                ? 'Nothing saved yet'
+                : filter === 'unread'
+                  ? 'All caught up'
+                  : 'No matches'}
             </Text>
             <Text style={styles.emptySubtitle}>
               {filter === 'all'
                 ? 'Tap + to save your first link, note, or image.'
-                : 'Try a different filter or save something new.'}
+                : filter === 'unread'
+                  ? 'Every item in your library has been opened at least once.'
+                  : 'Try a different filter or save something new.'}
             </Text>
           </View>
         ) : viewMode === 'list' ? (

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import * as Clipboard from 'expo-clipboard'
 import { Tabs } from 'expo-router'
@@ -9,7 +9,8 @@ import { useColors } from '../../contexts/ThemeContext'
 import { UNSORTED_LABEL } from '../../constants/labels'
 import QuickSave from '../../components/QuickSave'
 import SaveToast from '../../components/SaveToast'
-import { createSave, upsertCollectionByName } from '../../lib/db'
+import { createSave, fetchInboxUnreadCount, upsertCollectionByName } from '../../lib/db'
+import { subscribeDataChanges } from '../../lib/dataEvents'
 import { isLimitError, showLimitAlert } from '../../lib/upgradeAlert'
 import type { Draft } from '../../components/QuickSave'
 
@@ -24,7 +25,7 @@ const TAB_CONFIG: Record<string, { label: string; icon: IoniconName; activeIcon:
   inbox:       { label: UNSORTED_LABEL, icon: 'file-tray-outline', activeIcon: 'file-tray' },
 }
 
-function CustomTabBar({ state, navigation, onQuickSave }: any) {
+function CustomTabBar({ state, navigation, onQuickSave, inboxUnreadCount }: any) {
   const insets = useSafeAreaInsets()
   const colors = useColors()
   const routes = state.routes
@@ -33,6 +34,7 @@ function CustomTabBar({ state, navigation, onQuickSave }: any) {
     const config = TAB_CONFIG[route.name]
     if (!config) return null
     const isFocused = state.index === index
+    const showUnreadBadge = route.name === 'inbox' && inboxUnreadCount > 0
 
     const onPress = () => {
       const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true })
@@ -43,11 +45,20 @@ function CustomTabBar({ state, navigation, onQuickSave }: any) {
 
     return (
       <TouchableOpacity key={route.key} style={styles.tab} onPress={onPress} activeOpacity={0.7}>
-        <Ionicons
-          name={isFocused ? config.activeIcon : config.icon}
-          size={23}
-          color={isFocused ? colors.accent : colors.muted}
-        />
+        <View style={styles.tabIconWrap}>
+          <Ionicons
+            name={isFocused ? config.activeIcon : config.icon}
+            size={23}
+            color={isFocused ? colors.accent : colors.muted}
+          />
+          {showUnreadBadge ? (
+            <View style={[styles.tabBadge, { backgroundColor: colors.accent }]}>
+              <Text style={styles.tabBadgeText}>
+                {inboxUnreadCount > 9 ? '9+' : inboxUnreadCount}
+              </Text>
+            </View>
+          ) : null}
+        </View>
         <Text style={[styles.tabLabel, { color: colors.muted }, isFocused && { color: colors.accent, fontFamily: FONTS.sansSemi }]}>
           {config.label}
         </Text>
@@ -74,6 +85,16 @@ export default function TabsLayout() {
   const [quickSaveVisible, setQuickSaveVisible] = useState(false)
   const [sharedUrl, setSharedUrl] = useState<string | undefined>()
   const [toast, setToast] = useState<ToastState | null>(null)
+  const [inboxUnreadCount, setInboxUnreadCount] = useState(0)
+
+  const refreshInboxUnreadCount = useCallback(() => {
+    fetchInboxUnreadCount().then(setInboxUnreadCount).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    refreshInboxUnreadCount()
+    return subscribeDataChanges(() => refreshInboxUnreadCount())
+  }, [refreshInboxUnreadCount])
 
   const hideToast = useCallback(() => setToast(null), [])
 
@@ -133,7 +154,7 @@ export default function TabsLayout() {
     <>
       <Tabs
         tabBar={(props) => (
-          <CustomTabBar {...props} onQuickSave={handleQuickSave} />
+          <CustomTabBar {...props} onQuickSave={handleQuickSave} inboxUnreadCount={inboxUnreadCount} />
         )}
         screenOptions={{ headerShown: false }}
       >
@@ -188,6 +209,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 3,
     paddingVertical: SPACING.xs,
+  },
+  tabIconWrap: {
+    position: 'relative',
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  tabBadgeText: {
+    fontSize: 9,
+    fontFamily: FONTS.sansBold,
+    color: '#fff',
   },
   tabLabel: {
     fontSize: 10,
