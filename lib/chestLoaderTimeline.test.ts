@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { readFileSync } from 'node:fs'
 import {
   CYCLE_MS,
   SUCCESS_HOLD_MS,
@@ -138,5 +139,19 @@ describe('chestLoaderTimeline', () => {
       }),
       'fadingOut'
     )
+  })
+})
+
+
+describe('chest-save Lottie topology', () => {
+  it('parents the chest lid and body to chestRoot', () => {
+    const asset = JSON.parse(readFileSync(new URL('../assets/lottie/chest-save.json', import.meta.url), 'utf8'))
+    const chestRoot = asset.layers.find((layer: { nm: string }) => layer.nm === 'chestRoot')
+    const lid = asset.layers.find((layer: { nm: string }) => layer.nm === 'lid')
+    const body = asset.layers.find((layer: { nm: string }) => layer.nm === 'body')
+
+    assert.ok(chestRoot)
+    assert.equal(lid?.parent, chestRoot.ind)
+    assert.equal(body?.parent, chestRoot.ind)
   })
 })

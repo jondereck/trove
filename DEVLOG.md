@@ -4,6 +4,15 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Chest loader — restore detached chest layers (2026-07-13)
+**Files:** `assets/lottie/chest-save.json`, `lib/chestLoaderTimeline.test.ts`
+
+Restored the Lottie `lid` and `body` parent links to `chestRoot`, fixing the Android
+render where only detached layer fragments appeared. Added a regression test that
+asserts both parent relationships.
+
+---
+
 ### Settings & plan UX cleanup (2026-07-12)
 **Files:** `app/account.tsx`, `app/plan.tsx`, `app/_layout.tsx`, `app/ai-preferences.tsx`,
 `app/appearance.tsx`, `app/change-password.tsx`, `app/(tabs)/index.tsx`
