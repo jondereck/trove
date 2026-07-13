@@ -1,8 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
   <rect width="1024" height="1024" fill="#c0613c"/>
+
+  <!-- Cream T chest -->
   <path fill="#fdf6ef" d="M148 228h728c40 0 72 32 72 72v104c0 40-32 72-72 72H604v368c0 40-32 72-72 72H420c-40 0-72-32-72-72V476H148c-40 0-72-32-72-72V300c0-40 32-72 72-72z"/>
-  <rect x="148" y="384" width="728" height="22" fill="#e8a88a"/>
-  <path fill="#e8a88a" d="M476 384h72v52c0 10-8 18-18 18h-36c-10 0-18-8-18-18V384z"/>
-  <circle cx="512" cy="552" r="32" fill="#c0613c"/>
-  <path fill="#c0613c" d="M484 572c0-11 9-20 20-20h28c11 0 20 9 20 20v36c0 8-7 15-15 15H499c-8 0-15-7-15-15V572z"/>
+
+  <!-- Lid seam (cut through to orange) -->
+  <rect x="148" y="384" width="728" height="20" fill="#c0613c"/>
+
+  <!-- Latch (cutout, hangs below seam) -->
+  <path fill="#c0613c" d="M476 384h72v52c0 12-10 22-22 22h-28c-12 0-22-10-22-22V384z"/>
+
+  <!-- Classic keyhole -->
+  <circle cx="512" cy="560" r="34" fill="#c0613c"/>
+  <path fill="#c0613c" d="M490 578c0-8 6-14 14-14h16c8 0 14 6 14 14v42c0 10-8 18-18 18h-8c-10 0-18-8-18-18V578z"/>
 </svg>

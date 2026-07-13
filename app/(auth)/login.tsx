@@ -15,15 +15,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../lib/supabase'
 import { signInWithGoogle, sendPasswordReset } from '../../lib/auth'
-import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { ColorPalette, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { useColors, useThemedStyles } from '../../contexts/ThemeContext'
 import { BRAND } from '../../constants/branding'
 import BrandLogo from '../../components/BrandLogo'
-import { clearAuthFlow } from '../../lib/authNavigation'
+import { clearAuthFlow, clearCloudVerifyPending } from '../../lib/authNavigation'
 import { dismissOnboarding } from '../../lib/firstLaunch'
+import { canOpenSignUp } from '../../lib/authGate'
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -71,6 +75,7 @@ export default function LoginScreen() {
 
   const handleSkip = () => {
     clearAuthFlow()
+    clearCloudVerifyPending()
     dismissOnboarding()
     router.replace('/(tabs)')
   }
@@ -92,7 +97,7 @@ export default function LoginScreen() {
       >
         {/* Logo */}
         <View style={styles.logoWrap}>
-          <BrandLogo size={56} style={styles.logoImage} />
+          <BrandLogo size={72} style={styles.logoImage} />
           <Text style={styles.wordmark}>{BRAND.name}</Text>
           <Text style={styles.tagline}>{BRAND.tagline}.</Text>
         </View>
@@ -105,10 +110,10 @@ export default function LoginScreen() {
           activeOpacity={0.85}
         >
           {googleLoading ? (
-            <ActivityIndicator color={COLORS.text} />
+            <ActivityIndicator color={colors.text} />
           ) : (
             <>
-              <Ionicons name="logo-google" size={18} color={COLORS.text} />
+              <Ionicons name="logo-google" size={18} color={colors.text} />
               <Text style={styles.googleBtnText}>Continue with Google</Text>
             </>
           )}
@@ -131,7 +136,7 @@ export default function LoginScreen() {
               onFocus={() => setEmailFocused(true)}
               onBlur={() => setEmailFocused(false)}
               placeholder="you@example.com"
-              placeholderTextColor={COLORS.muted}
+              placeholderTextColor={colors.muted}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -149,7 +154,7 @@ export default function LoginScreen() {
                 onFocus={() => setPasswordFocused(true)}
                 onBlur={() => setPasswordFocused(false)}
                 placeholder="••••••••"
-                placeholderTextColor={COLORS.muted}
+                placeholderTextColor={colors.muted}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -191,195 +196,208 @@ export default function LoginScreen() {
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>New to {BRAND.name}? </Text>
-          <Link href="/(auth)/signup" asChild>
-            <TouchableOpacity activeOpacity={0.7}>
-              <Text style={styles.footerLink}>Create an account</Text>
-            </TouchableOpacity>
-          </Link>
+          {canOpenSignUp() ? (
+            <>
+              <Text style={styles.footerText}>New to {BRAND.name}? </Text>
+              <Link href="/(auth)/signup" asChild>
+                <TouchableOpacity activeOpacity={0.7}>
+                  <Text style={styles.footerLink}>Create an account</Text>
+                </TouchableOpacity>
+              </Link>
+            </>
+          ) : (
+            <>
+              <Text style={styles.footerText}>Need sync? </Text>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/upgrade')}>
+                <Text style={styles.footerLink}>Get Trove Cloud</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   )
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
-  topBar: {
-    minHeight: 40,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    paddingHorizontal: SPACING.lg,
-  },
-  skip: {
-    color: COLORS.accent,
-    fontFamily: FONTS.sansSemi,
-    fontSize: 15,
-  },
-  scroll: {
-    flexGrow: 1,
-    paddingHorizontal: SPACING.xl,
-    justifyContent: 'center',
-  },
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: c.bg,
+    },
+    topBar: {
+      minHeight: 40,
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+      paddingHorizontal: SPACING.lg,
+    },
+    skip: {
+      color: c.accent,
+      fontFamily: FONTS.sansSemi,
+      fontSize: 15,
+    },
+    scroll: {
+      flexGrow: 1,
+      paddingHorizontal: SPACING.xl,
+      justifyContent: 'center',
+    },
 
-  // Logo
-  logoWrap: {
-    alignItems: 'center',
-    marginBottom: SPACING.xl * 2,
-  },
-  logoImage: {
-    marginBottom: SPACING.sm,
-  },
-  wordmark: {
-    fontSize: 48,
-    fontFamily: FONTS.serif,
-    color: COLORS.text,
-    letterSpacing: -1,
-    lineHeight: 52,
-  },
-  tagline: {
-    fontSize: 16,
-    fontFamily: FONTS.serifItal,
-    color: COLORS.muted,
-    marginTop: SPACING.xs,
-  },
+    // Logo
+    logoWrap: {
+      alignItems: 'center',
+      marginBottom: SPACING.xl * 2,
+    },
+    logoImage: {
+      marginBottom: SPACING.sm,
+    },
+    wordmark: {
+      fontSize: 48,
+      fontFamily: FONTS.serif,
+      color: c.text,
+      letterSpacing: -1,
+      lineHeight: 52,
+    },
+    tagline: {
+      fontSize: 16,
+      fontFamily: FONTS.serifItal,
+      color: c.muted,
+      marginTop: SPACING.xs,
+    },
 
-  // Google + divider
-  googleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.sm,
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.md,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    paddingVertical: SPACING.md + 2,
-  },
-  googleBtnText: {
-    fontSize: 16,
-    fontFamily: FONTS.sansSemi,
-    color: COLORS.text,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    marginVertical: SPACING.lg,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: COLORS.border,
-  },
-  dividerText: {
-    fontSize: 13,
-    fontFamily: FONTS.sans,
-    color: COLORS.muted,
-  },
+    // Google + divider
+    googleBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SPACING.sm,
+      backgroundColor: c.card,
+      borderRadius: RADIUS.md,
+      borderWidth: 1.5,
+      borderColor: c.border,
+      paddingVertical: SPACING.md + 2,
+    },
+    googleBtnText: {
+      fontSize: 16,
+      fontFamily: FONTS.sansSemi,
+      color: c.text,
+    },
+    divider: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      marginVertical: SPACING.lg,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: c.border,
+    },
+    dividerText: {
+      fontSize: 13,
+      fontFamily: FONTS.sans,
+      color: c.muted,
+    },
 
-  // Form
-  form: {
-    gap: SPACING.md,
-    marginBottom: SPACING.xl,
-  },
-  forgotBtn: {
-    alignSelf: 'flex-end',
-    marginTop: -SPACING.xs,
-  },
-  forgotText: {
-    fontSize: 13,
-    fontFamily: FONTS.sansMed,
-    color: COLORS.accent,
-  },
-  field: {
-    gap: SPACING.xs,
-  },
-  label: {
-    fontSize: 10,
-    fontFamily: FONTS.sansSemi,
-    color: COLORS.muted,
-    letterSpacing: 1,
-  },
-  input: {
-    backgroundColor: COLORS.card,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    fontSize: 15,
-    fontFamily: FONTS.sans,
-    color: COLORS.text,
-  },
-  inputFocused: {
-    borderColor: COLORS.accent,
-  },
-  passwordWrap: {
-    position: 'relative',
-  },
-  passwordInput: {
-    paddingRight: 48,
-  },
-  eyeBtn: {
-    position: 'absolute',
-    right: SPACING.md,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
-  },
-  eyeIcon: {
-    fontSize: 12,
-    color: COLORS.muted,
-  },
-  errorWrap: {
-    backgroundColor: '#fef2f2',
-    borderRadius: RADIUS.sm,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderWidth: 1,
-    borderColor: '#fecaca',
-  },
-  errorText: {
-    fontSize: 13,
-    fontFamily: FONTS.sans,
-    color: '#dc2626',
-  },
-  primaryBtn: {
-    backgroundColor: COLORS.accent,
-    borderRadius: RADIUS.md,
-    paddingVertical: SPACING.md + 2,
-    alignItems: 'center',
-    marginTop: SPACING.sm,
-  },
-  btnDisabled: {
-    opacity: 0.45,
-  },
-  primaryBtnText: {
-    fontSize: 16,
-    fontFamily: FONTS.sansSemi,
-    color: '#fff',
-    letterSpacing: 0.2,
-  },
+    // Form
+    form: {
+      gap: SPACING.md,
+      marginBottom: SPACING.xl,
+    },
+    forgotBtn: {
+      alignSelf: 'flex-end',
+      marginTop: -SPACING.xs,
+    },
+    forgotText: {
+      fontSize: 13,
+      fontFamily: FONTS.sansMed,
+      color: c.accent,
+    },
+    field: {
+      gap: SPACING.xs,
+    },
+    label: {
+      fontSize: 10,
+      fontFamily: FONTS.sansSemi,
+      color: c.muted,
+      letterSpacing: 1,
+    },
+    input: {
+      backgroundColor: c.card,
+      borderWidth: 1.5,
+      borderColor: c.border,
+      borderRadius: RADIUS.md,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.md,
+      fontSize: 15,
+      fontFamily: FONTS.sans,
+      color: c.text,
+    },
+    inputFocused: {
+      borderColor: c.accent,
+    },
+    passwordWrap: {
+      position: 'relative',
+    },
+    passwordInput: {
+      paddingRight: 48,
+    },
+    eyeBtn: {
+      position: 'absolute',
+      right: SPACING.md,
+      top: 0,
+      bottom: 0,
+      justifyContent: 'center',
+    },
+    eyeIcon: {
+      fontSize: 12,
+      color: c.muted,
+    },
+    errorWrap: {
+      backgroundColor: '#fef2f2',
+      borderRadius: RADIUS.sm,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      borderWidth: 1,
+      borderColor: '#fecaca',
+    },
+    errorText: {
+      fontSize: 13,
+      fontFamily: FONTS.sans,
+      color: '#dc2626',
+    },
+    primaryBtn: {
+      backgroundColor: c.accent,
+      borderRadius: RADIUS.md,
+      paddingVertical: SPACING.md + 2,
+      alignItems: 'center',
+      marginTop: SPACING.sm,
+    },
+    btnDisabled: {
+      opacity: 0.45,
+    },
+    primaryBtnText: {
+      fontSize: 16,
+      fontFamily: FONTS.sansSemi,
+      color: '#fff',
+      letterSpacing: 0.2,
+    },
 
-  // Footer
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingBottom: SPACING.xl,
-  },
-  footerText: {
-    fontSize: 14,
-    fontFamily: FONTS.sans,
-    color: COLORS.muted,
-  },
-  footerLink: {
-    fontSize: 14,
-    fontFamily: FONTS.sansSemi,
-    color: COLORS.accent,
-  },
-})
+    // Footer
+    footer: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingBottom: SPACING.xl,
+    },
+    footerText: {
+      fontSize: 14,
+      fontFamily: FONTS.sans,
+      color: c.muted,
+    },
+    footerLink: {
+      fontSize: 14,
+      fontFamily: FONTS.sansSemi,
+      color: c.accent,
+    },
+  })
+}

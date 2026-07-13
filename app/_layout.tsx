@@ -27,7 +27,12 @@ import { isOnboardingDismissed, subscribeOnboarding } from '../lib/firstLaunch'
 import { hasLocalData } from '../lib/localDb'
 import { migrateLocalToCloud } from '../lib/migrateLocal'
 import { syncProviderProfile } from '../lib/auth'
-import { clearAuthFlow } from '../lib/authNavigation'
+import {
+  clearAuthFlow,
+  clearCloudVerifyPending,
+  consumeCloudVerifyPending,
+  isAuthFlowRequested,
+} from '../lib/authNavigation'
 import { clearProfileCache } from '../lib/profileCache'
 import { isLoggedIn } from '../lib/session'
 import {
@@ -35,6 +40,7 @@ import {
   hasCloud,
   logInPurchases,
   logOutPurchases,
+  restorePurchases,
   subscribeTier,
 } from '../lib/entitlements'
 
@@ -48,6 +54,40 @@ async function maybeMigrateToCloud() {
   if (saves || collections) {
     Alert.alert('Synced to your account', `Moved ${saves} saves and ${collections} collections to the cloud.`)
   }
+}
+
+function maybeVerifyCloudAfterSignIn(router: ReturnType<typeof useRouter>) {
+  if (!consumeCloudVerifyPending()) return
+  if (hasCloud()) return
+
+  Alert.alert(
+    'No Cloud on this account',
+    "You're signed in, but this account has no Trove Cloud subscription. Subscribe or restore purchases to sync across devices.",
+    [
+      { text: 'OK', style: 'cancel' },
+      {
+        text: 'Restore',
+        onPress: () => {
+          restorePurchases().then(tier => {
+            if (tier === 'cloud') {
+              maybeMigrateToCloud().catch(() => {})
+              Alert.alert('Restored', 'Trove Cloud is active on this account.')
+            } else {
+              Alert.alert(
+                'Nothing to restore',
+                'No Cloud subscription was found for this store account. You can subscribe from Plans.',
+                [
+                  { text: 'OK', style: 'cancel' },
+                  { text: 'See plans', onPress: () => router.push('/upgrade') },
+                ],
+              )
+            }
+          })
+        },
+      },
+      { text: 'See plans', onPress: () => router.push('/upgrade') },
+    ],
+  )
 }
 
 interface RootNavigatorProps {
@@ -95,7 +135,7 @@ function RootNavigator({ session, hasData, dismissed, fontsLoaded, fontError }: 
 
     if (inOnboarding) {
       router.replace('/(tabs)')
-    } else if (inAuthGroup) {
+    } else if (inAuthGroup && !isAuthFlowRequested()) {
       router.replace('/(tabs)')
     }
   }, [hasShareIntent, session, hasData, dismissed, fontsLoaded, fontError, segments, router])
@@ -166,9 +206,12 @@ export default function RootLayout() {
         const linkThenMigrate = session?.user.id
           ? logInPurchases(session.user.id)
           : Promise.resolve()
-        linkThenMigrate.then(() => maybeMigrateToCloud().catch(() => {}))
+        linkThenMigrate
+          .then(() => maybeMigrateToCloud().catch(() => {}))
+          .then(() => maybeVerifyCloudAfterSignIn(router))
       }
       if (event === 'SIGNED_OUT') {
+        clearCloudVerifyPending()
         logOutPurchases()
         clearProfileCache()
       }

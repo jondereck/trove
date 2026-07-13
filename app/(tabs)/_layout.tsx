@@ -4,7 +4,7 @@ import * as Clipboard from 'expo-clipboard'
 import { Tabs } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { FONTS, SPACING, LIGHT_COLORS } from '../../constants/theme'
+import { FONTS, SPACING } from '../../constants/theme'
 import { useColors } from '../../contexts/ThemeContext'
 import { UNSORTED_LABEL } from '../../constants/labels'
 import QuickSave from '../../components/QuickSave'
@@ -175,9 +175,7 @@ const styles = StyleSheet.create({
     height: 62,
     marginHorizontal: SPACING.lg,
     borderRadius: 24,
-    backgroundColor: LIGHT_COLORS.card,
     borderWidth: 1,
-    borderColor: LIGHT_COLORS.border,
     shadowColor: '#1e140a',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.12,

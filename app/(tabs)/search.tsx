@@ -12,7 +12,8 @@ import {
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { ColorPalette, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { useColors, useThemedStyles } from '../../contexts/ThemeContext'
 import { DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
 import { Save, SaveType, Collection } from '../../types'
 import SaveCard from '../../components/SaveCard'
@@ -45,6 +46,8 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export default function SearchScreen() {
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const [query, setQuery] = useState('')
@@ -106,11 +109,11 @@ export default function SearchScreen() {
       <View style={styles.headerWrap}>
         <Text style={styles.title}>Search</Text>
         <View style={styles.searchBar}>
-          <Ionicons name="search" size={20} color={COLORS.muted} />
+          <Ionicons name="search" size={20} color={colors.muted} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search your saves…"
-            placeholderTextColor={COLORS.muted}
+            placeholderTextColor={colors.muted}
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={() => query.trim() && runSearch(query)}
@@ -120,7 +123,7 @@ export default function SearchScreen() {
           />
           {query.length > 0 && (
             <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}>
-              <Ionicons name="close" size={18} color={COLORS.muted} />
+              <Ionicons name="close" size={18} color={colors.muted} />
             </TouchableOpacity>
           )}
         </View>
@@ -130,14 +133,14 @@ export default function SearchScreen() {
         {!hasQuery && (
           <>
             <View style={styles.tryHeader}>
-              <Ionicons name="sparkles" size={16} color={COLORS.accent} />
+              <Ionicons name="sparkles" size={16} color={colors.accent} />
               <Text style={styles.tryHeaderText}>Try asking</Text>
             </View>
             <View style={styles.suggestList}>
               {suggestions.map(s => (
                 <TouchableOpacity key={s} style={styles.suggestRow} onPress={() => runSearch(s)} activeOpacity={0.8}>
                   <Text style={styles.suggestText}>"{s}"</Text>
-                  <Ionicons name="arrow-forward" size={16} color={COLORS.muted} />
+                  <Ionicons name="arrow-forward" size={16} color={colors.muted} />
                 </TouchableOpacity>
               ))}
             </View>
@@ -148,7 +151,7 @@ export default function SearchScreen() {
                 <View style={styles.recentRow}>
                   {recents.map(r => (
                     <TouchableOpacity key={r} style={styles.recentChip} onPress={() => runSearch(r)} activeOpacity={0.8}>
-                      <Ionicons name="time-outline" size={14} color={COLORS.muted} />
+                      <Ionicons name="time-outline" size={14} color={colors.muted} />
                       <Text style={styles.recentChipText}>{r}</Text>
                     </TouchableOpacity>
                   ))}
@@ -175,14 +178,14 @@ export default function SearchScreen() {
                     onPress={() => setType(t.id)}
                     activeOpacity={0.8}
                   >
-                    {t.icon && <Ionicons name={t.icon} size={14} color={on ? '#fff' : COLORS.text} />}
+                    {t.icon && <Ionicons name={t.icon} size={14} color={on ? '#fff' : colors.text} />}
                     <Text style={[styles.typeChipText, on && styles.typeChipTextOn]}>{t.label}</Text>
                   </TouchableOpacity>
                 )
               })}
             </ScrollView>
 
-            {searching && <ActivityIndicator color={COLORS.accent} style={styles.loader} />}
+            {searching && <ActivityIndicator color={colors.accent} style={styles.loader} />}
 
             {!searching && collectionHits.length > 0 && (
               <>
@@ -193,17 +196,17 @@ export default function SearchScreen() {
                   style={styles.collScroll}
                   contentContainerStyle={styles.collRow}
                 >
-                  {collectionHits.map(c => (
+                  {collectionHits.map(col => (
                     <TouchableOpacity
-                      key={c.id}
+                      key={col.id}
                       style={styles.collChip}
-                      onPress={() => openCollection(c.id)}
+                      onPress={() => openCollection(col.id)}
                       activeOpacity={0.8}
                     >
-                      <View style={[styles.collChipIcon, { backgroundColor: c.color + '22' }]}>
-                        <Ionicons name={(c.icon as IoniconName) ?? DEFAULT_COLLECTION_ICON} size={14} color={c.color} />
+                      <View style={[styles.collChipIcon, { backgroundColor: col.color + '22' }]}>
+                        <Ionicons name={(col.icon as IoniconName) ?? DEFAULT_COLLECTION_ICON} size={14} color={col.color} />
                       </View>
-                      <Text style={styles.collChipText}>{c.name}</Text>
+                      <Text style={styles.collChipText}>{col.name}</Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -212,7 +215,7 @@ export default function SearchScreen() {
 
             {!searching && nothingFound && (
               <View style={styles.noResults}>
-                <Ionicons name="search-outline" size={40} color={COLORS.border} />
+                <Ionicons name="search-outline" size={40} color={colors.border} />
                 <Text style={styles.noResultsTitle}>No results for "{debouncedQuery.trim()}"</Text>
                 <Text style={styles.noResultsSub}>Try fewer or different words, or check the type filter.</Text>
               </View>
@@ -235,65 +238,67 @@ export default function SearchScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.bg },
   headerWrap: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, paddingBottom: SPACING.md, gap: SPACING.md },
-  title: { fontSize: 38, fontFamily: FONTS.serif, color: COLORS.text, letterSpacing: -0.5 },
+  title: { fontSize: 38, fontFamily: FONTS.serif, color: c.text, letterSpacing: -0.5 },
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    backgroundColor: COLORS.card, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border,
     paddingHorizontal: SPACING.md, height: 48,
   },
-  searchInput: { flex: 1, fontSize: 15, fontFamily: FONTS.sans, color: COLORS.text, paddingVertical: 0 },
+  searchInput: { flex: 1, fontSize: 15, fontFamily: FONTS.sans, color: c.text, paddingVertical: 0 },
   content: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: SPACING.xl * 2 },
 
   tryHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: SPACING.md },
-  tryHeaderText: { fontSize: 13, fontFamily: FONTS.sansBold, color: COLORS.accent },
+  tryHeaderText: { fontSize: 13, fontFamily: FONTS.sansBold, color: c.accent },
   suggestList: { gap: SPACING.sm },
   suggestRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm,
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.md,
-    borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card,
+    borderRadius: RADIUS.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.card,
   },
-  suggestText: { flex: 1, fontSize: 14, fontFamily: FONTS.sans, color: COLORS.text },
+  suggestText: { flex: 1, fontSize: 14, fontFamily: FONTS.sans, color: c.text },
 
-  recentLabel: { fontSize: 11, fontFamily: FONTS.mono, color: COLORS.muted, letterSpacing: 1, marginTop: SPACING.xl, marginBottom: SPACING.md },
+  recentLabel: { fontSize: 11, fontFamily: FONTS.mono, color: c.muted, letterSpacing: 1, marginTop: SPACING.xl, marginBottom: SPACING.md },
   recentRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
   recentChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
-    borderRadius: 999, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card,
+    borderRadius: 999, borderWidth: 1, borderColor: c.border, backgroundColor: c.card,
   },
-  recentChipText: { fontSize: 13, fontFamily: FONTS.sansSemi, color: COLORS.text },
+  recentChipText: { fontSize: 13, fontFamily: FONTS.sansSemi, color: c.text },
 
   typeScroll: { marginBottom: SPACING.md, flexGrow: 0 },
   typeRow: { gap: SPACING.sm },
   typeChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: SPACING.md, paddingVertical: 7,
-    borderRadius: 999, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card,
+    borderRadius: 999, borderWidth: 1, borderColor: c.border, backgroundColor: c.card,
     marginRight: SPACING.sm,
   },
-  typeChipOn: { backgroundColor: COLORS.text, borderColor: COLORS.text },
-  typeChipText: { fontSize: 12.5, fontFamily: FONTS.sansSemi, color: COLORS.text },
+  typeChipOn: { backgroundColor: c.text, borderColor: c.text },
+  typeChipText: { fontSize: 12.5, fontFamily: FONTS.sansSemi, color: c.text },
   typeChipTextOn: { color: '#fff' },
 
   loader: { marginTop: SPACING.xl * 2 },
 
-  sectionLabel: { fontSize: 11, fontFamily: FONTS.mono, color: COLORS.muted, letterSpacing: 1, marginBottom: SPACING.sm },
+  sectionLabel: { fontSize: 11, fontFamily: FONTS.mono, color: c.muted, letterSpacing: 1, marginBottom: SPACING.sm },
   collScroll: { marginBottom: SPACING.lg, flexGrow: 0 },
   collRow: { gap: SPACING.sm },
   collChip: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
     paddingLeft: 6, paddingRight: SPACING.md, paddingVertical: 5,
-    borderRadius: 999, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card,
+    borderRadius: 999, borderWidth: 1, borderColor: c.border, backgroundColor: c.card,
     marginRight: SPACING.sm,
   },
   collChipIcon: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  collChipText: { fontSize: 13, fontFamily: FONTS.sansSemi, color: COLORS.text },
+  collChipText: { fontSize: 13, fontFamily: FONTS.sansSemi, color: c.text },
 
-  resultCount: { fontSize: 11, fontFamily: FONTS.mono, color: COLORS.muted, letterSpacing: 1, marginBottom: SPACING.md },
+  resultCount: { fontSize: 11, fontFamily: FONTS.mono, color: c.muted, letterSpacing: 1, marginBottom: SPACING.md },
   noResults: { alignItems: 'center', paddingTop: SPACING.xl * 3, gap: SPACING.md },
-  noResultsTitle: { fontSize: 20, fontFamily: FONTS.serif, color: COLORS.textSub, textAlign: 'center', paddingHorizontal: SPACING.lg },
-  noResultsSub: { fontSize: 14, fontFamily: FONTS.sans, color: COLORS.muted, textAlign: 'center', paddingHorizontal: SPACING.xl },
-})
+  noResultsTitle: { fontSize: 20, fontFamily: FONTS.serif, color: c.textSub, textAlign: 'center', paddingHorizontal: SPACING.lg },
+  noResultsSub: { fontSize: 14, fontFamily: FONTS.sans, color: c.muted, textAlign: 'center', paddingHorizontal: SPACING.xl },
+  })
+}

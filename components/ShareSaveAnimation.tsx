@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Animated, StyleSheet, Text, View } from 'react-native'
 import LottieView from 'lottie-react-native'
-import { COLORS, FONTS, SPACING } from '../constants/theme'
+import { ColorPalette, FONTS, SPACING } from '../constants/theme'
+import { useThemedStyles } from '../contexts/ThemeContext'
 import { UNSORTED_LABEL } from '../constants/labels'
 
 const MIN_DISPLAY_MS = 900
@@ -13,6 +14,7 @@ interface ShareSaveAnimationProps {
 export { MIN_DISPLAY_MS }
 
 export default function ShareSaveAnimation({ active }: ShareSaveAnimationProps) {
+  const styles = useThemedStyles(createStyles)
   const [visible, setVisible] = useState(active)
   const containerOpacity = useRef(new Animated.Value(0)).current
   const dotOpacity = useRef(new Animated.Value(0.3)).current
@@ -64,38 +66,40 @@ export default function ShareSaveAnimation({ active }: ShareSaveAnimationProps) 
   )
 }
 
-const styles = StyleSheet.create({
-  container: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: COLORS.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  content: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: SPACING.xl,
-  },
-  lottie: {
-    width: 240,
-    height: 240,
-    marginBottom: SPACING.md,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-  title: {
-    fontFamily: FONTS.serif,
-    fontSize: 22,
-    color: COLORS.text,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontFamily: FONTS.sans,
-    fontSize: 14,
-    color: COLORS.textSub,
-    textAlign: 'center',
-    marginTop: SPACING.sm,
-  },
-})
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    container: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor: c.bg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    content: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: SPACING.xl,
+    },
+    lottie: {
+      width: 240,
+      height: 240,
+      marginBottom: SPACING.md,
+    },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+    },
+    title: {
+      fontFamily: FONTS.serif,
+      fontSize: 22,
+      color: c.text,
+      textAlign: 'center',
+    },
+    subtitle: {
+      fontFamily: FONTS.sans,
+      fontSize: 14,
+      color: c.textSub,
+      textAlign: 'center',
+      marginTop: SPACING.sm,
+    },
+  })
+}

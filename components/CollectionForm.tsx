@@ -17,7 +17,8 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
+import { ColorPalette, FONTS, SPACING, RADIUS } from '../constants/theme'
+import { useColors, useThemedStyles } from '../contexts/ThemeContext'
 import { COLLECTION_ICONS, DEFAULT_COLLECTION_ICON, IoniconName } from '../constants/icons'
 import { Collection } from '../types'
 import { createCollection, updateCollection, deleteCollection } from '../lib/db'
@@ -39,6 +40,8 @@ interface CollectionFormProps {
 
 export default function CollectionForm({ visible, onClose, onSaved, collection }: CollectionFormProps) {
   const insets = useSafeAreaInsets()
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current
   const backdropOpacity = useRef(new Animated.Value(0)).current
   const isEdit = !!collection
@@ -172,7 +175,7 @@ export default function CollectionForm({ visible, onClose, onSaved, collection }
                 <Image source={{ uri: coverUrl }} style={styles.coverImage} resizeMode="cover" />
               ) : (
                 <View style={styles.coverPlaceholder}>
-                  <Ionicons name="image-outline" size={28} color={COLORS.muted} />
+                  <Ionicons name="image-outline" size={28} color={colors.muted} />
                   <Text style={styles.coverHint}>Use recent save thumbnails</Text>
                 </View>
               )}
@@ -205,7 +208,7 @@ export default function CollectionForm({ visible, onClose, onSaved, collection }
               value={name}
               onChangeText={setName}
               placeholder="e.g. Design Inspiration"
-              placeholderTextColor={COLORS.muted}
+              placeholderTextColor={colors.muted}
               returnKeyType="done"
             />
 
@@ -220,7 +223,7 @@ export default function CollectionForm({ visible, onClose, onSaved, collection }
                     onPress={() => setIcon(iconName)}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name={iconName} size={20} color={active ? color : COLORS.textSub} />
+                    <Ionicons name={iconName} size={20} color={active ? color : colors.textSub} />
                   </TouchableOpacity>
                 )
               })}
@@ -244,7 +247,7 @@ export default function CollectionForm({ visible, onClose, onSaved, collection }
               value={description}
               onChangeText={setDescription}
               placeholder="Optional"
-              placeholderTextColor={COLORS.muted}
+              placeholderTextColor={colors.muted}
               multiline
               textAlignVertical="top"
             />
@@ -272,91 +275,93 @@ export default function CollectionForm({ visible, onClose, onSaved, collection }
   )
 }
 
-const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.4)' },
-  kvWrap: { flex: 1, justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: COLORS.cream,
-    borderTopLeftRadius: RADIUS.xl,
-    borderTopRightRadius: RADIUS.xl,
-    paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.sm,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 20,
-    maxHeight: '90%',
-  },
-  handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: COLORS.border, marginBottom: SPACING.lg },
-  title: { fontSize: 20, fontFamily: FONTS.serif, color: COLORS.text, marginBottom: SPACING.lg },
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.4)' },
+    kvWrap: { flex: 1, justifyContent: 'flex-end' },
+    sheet: {
+      backgroundColor: c.cream,
+      borderTopLeftRadius: RADIUS.xl,
+      borderTopRightRadius: RADIUS.xl,
+      paddingHorizontal: SPACING.xl,
+      paddingTop: SPACING.sm,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -4 },
+      shadowOpacity: 0.12,
+      shadowRadius: 16,
+      elevation: 20,
+      maxHeight: '90%',
+    },
+    handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: c.border, marginBottom: SPACING.lg },
+    title: { fontSize: 20, fontFamily: FONTS.serif, color: c.text, marginBottom: SPACING.lg },
 
-  coverPick: {
-    height: 120,
-    borderRadius: RADIUS.lg,
-    overflow: 'hidden',
-    backgroundColor: COLORS.card,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    marginBottom: SPACING.sm,
-  },
-  coverImage: { width: '100%', height: '100%' },
-  coverPlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.xs,
-    backgroundColor: COLORS.cream,
-  },
-  coverHint: { fontSize: 12, fontFamily: FONTS.sans, color: COLORS.muted },
-  coverOverlay: {
-    position: 'absolute',
-    right: SPACING.sm,
-    bottom: SPACING.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 999,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-  },
-  coverOverlayText: { fontSize: 12, fontFamily: FONTS.sansSemi, color: '#fff' },
-  clearCover: { alignSelf: 'flex-start', marginBottom: SPACING.md },
-  clearCoverText: { fontSize: 13, fontFamily: FONTS.sansMed, color: COLORS.accent },
+    coverPick: {
+      height: 120,
+      borderRadius: RADIUS.lg,
+      overflow: 'hidden',
+      backgroundColor: c.card,
+      borderWidth: 1.5,
+      borderColor: c.border,
+      marginBottom: SPACING.sm,
+    },
+    coverImage: { width: '100%', height: '100%' },
+    coverPlaceholder: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SPACING.xs,
+      backgroundColor: c.cream,
+    },
+    coverHint: { fontSize: 12, fontFamily: FONTS.sans, color: c.muted },
+    coverOverlay: {
+      position: 'absolute',
+      right: SPACING.sm,
+      bottom: SPACING.sm,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      borderRadius: 999,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+    },
+    coverOverlayText: { fontSize: 12, fontFamily: FONTS.sansSemi, color: '#fff' },
+    clearCover: { alignSelf: 'flex-start', marginBottom: SPACING.md },
+    clearCoverText: { fontSize: 13, fontFamily: FONTS.sansMed, color: c.accent },
 
-  preview: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
-    backgroundColor: COLORS.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.border,
-    overflow: 'hidden', paddingRight: SPACING.md, marginBottom: SPACING.lg, minHeight: 56,
-  },
-  previewStrip: { width: 5, alignSelf: 'stretch' },
-  previewIcon: { marginLeft: SPACING.md },
-  previewName: { flex: 1, fontSize: 16, fontFamily: FONTS.sansSemi, color: COLORS.text },
+    preview: {
+      flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+      backgroundColor: c.card, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: c.border,
+      overflow: 'hidden', paddingRight: SPACING.md, marginBottom: SPACING.lg, minHeight: 56,
+    },
+    previewStrip: { width: 5, alignSelf: 'stretch' },
+    previewIcon: { marginLeft: SPACING.md },
+    previewName: { flex: 1, fontSize: 16, fontFamily: FONTS.sansSemi, color: c.text },
 
-  label: {
-    fontSize: 11, fontFamily: FONTS.sansSemi, color: COLORS.muted,
-    letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: SPACING.sm, marginTop: SPACING.md,
-  },
-  input: {
-    backgroundColor: COLORS.card, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: COLORS.border,
-    paddingHorizontal: SPACING.md, paddingVertical: SPACING.md,
-    fontSize: 15, fontFamily: FONTS.sans, color: COLORS.text,
-  },
-  descInput: { minHeight: 64 },
+    label: {
+      fontSize: 11, fontFamily: FONTS.sansSemi, color: c.muted,
+      letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: SPACING.sm, marginTop: SPACING.md,
+    },
+    input: {
+      backgroundColor: c.card, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: c.border,
+      paddingHorizontal: SPACING.md, paddingVertical: SPACING.md,
+      fontSize: 15, fontFamily: FONTS.sans, color: c.text,
+    },
+    descInput: { minHeight: 64 },
 
-  optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  iconOpt: {
-    width: 44, height: 44, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: COLORS.card, borderWidth: 1.5, borderColor: COLORS.border,
-  },
-  iconOptActive: { borderColor: COLORS.accent, backgroundColor: '#fdf0eb' },
-  colorOpt: { width: 36, height: 36, borderRadius: 18, borderWidth: 3, borderColor: 'transparent' },
-  colorOptActive: { borderColor: COLORS.text },
+    optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+    iconOpt: {
+      width: 44, height: 44, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: c.card, borderWidth: 1.5, borderColor: c.border,
+    },
+    iconOptActive: { borderColor: c.accent, backgroundColor: c.accentSoft },
+    colorOpt: { width: 36, height: 36, borderRadius: 18, borderWidth: 3, borderColor: 'transparent' },
+    colorOptActive: { borderColor: c.text },
 
-  primaryBtn: { backgroundColor: COLORS.accent, borderRadius: RADIUS.md, paddingVertical: SPACING.md, alignItems: 'center', marginTop: SPACING.xl },
-  btnDisabled: { opacity: 0.45 },
-  primaryBtnText: { fontSize: 15, fontFamily: FONTS.sansSemi, color: '#fff', letterSpacing: 0.2 },
-  deleteBtn: { alignItems: 'center', paddingVertical: SPACING.md, marginTop: SPACING.xs },
-  deleteBtnText: { fontSize: 14, fontFamily: FONTS.sansSemi, color: '#c0392b' },
-})
+    primaryBtn: { backgroundColor: c.accent, borderRadius: RADIUS.md, paddingVertical: SPACING.md, alignItems: 'center', marginTop: SPACING.xl },
+    btnDisabled: { opacity: 0.45 },
+    primaryBtnText: { fontSize: 15, fontFamily: FONTS.sansSemi, color: '#fff', letterSpacing: 0.2 },
+    deleteBtn: { alignItems: 'center', paddingVertical: SPACING.md, marginTop: SPACING.xs },
+    deleteBtnText: { fontSize: 14, fontFamily: FONTS.sansSemi, color: '#c0392b' },
+  })
+}

@@ -158,9 +158,21 @@ Sign in succeeds
 
 ---
 
+## Soft verification (Level A) — implemented
+
+After an intentional auth flow Sign in, once RevenueCat identity is linked:
+
+- If `hasCloud()` → no prompt (returning Cloud user OK)
+- If `!hasCloud()` → Alert: no Cloud on this account; actions OK / Restore / See plans
+- Session is kept (local library); no auto sign-out
+- Does not run on cold-start session restore (pending flag only set by `requestAuthFlow`)
+
+---
+
 ## Success criteria
 
 - New users cannot create an account without Cloud (or an equivalent post-Cloud gate flag)
 - Returning Cloud users can Sign in on a new device without buying again
 - Free / Unlocked remain fully usable as local/guest apps
 - Sync still only happens when logged in **and** Cloud
+- After returning Sign in without Cloud, user gets a one-shot verify alert (not on every app launch)

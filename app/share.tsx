@@ -5,7 +5,8 @@ import { useShareIntentContext } from 'expo-share-intent'
 import QuickSave, { type Draft } from '../components/QuickSave'
 import SaveToast from '../components/SaveToast'
 import ShareSaveAnimation, { MIN_DISPLAY_MS } from '../components/ShareSaveAnimation'
-import { COLORS, FONTS, SPACING } from '../constants/theme'
+import { ColorPalette, FONTS, SPACING } from '../constants/theme'
+import { useThemedStyles } from '../contexts/ThemeContext'
 import { UNSORTED_LABEL } from '../constants/labels'
 import { createSave, upsertCollectionByName } from '../lib/db'
 import { extractSharedUrl, exitAfterShare } from '../lib/shareIntent'
@@ -17,6 +18,7 @@ type ToastTone = 'success' | 'neutral' | 'error'
 type ToastState = { id: number; message: string; tone: ToastTone }
 
 export default function ShareScreen() {
+  const styles = useThemedStyles(createStyles)
   const router = useRouter()
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext()
   const [sharedUrl, setSharedUrl] = useState<string | undefined>()
@@ -162,21 +164,23 @@ export default function ShareScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
-  errorWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: SPACING.xl,
-  },
-  errorText: {
-    fontSize: 15,
-    fontFamily: FONTS.sansMed,
-    color: COLORS.textSub,
-    textAlign: 'center',
-  },
-})
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: c.bg,
+    },
+    errorWrap: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: SPACING.xl,
+    },
+    errorText: {
+      fontSize: 15,
+      fontFamily: FONTS.sansMed,
+      color: c.textSub,
+      textAlign: 'center',
+    },
+  })
+}

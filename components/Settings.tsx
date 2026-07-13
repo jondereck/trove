@@ -1,25 +1,92 @@
 import { useEffect, useRef } from 'react'
 import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme'
+import { ColorPalette, FONTS, RADIUS, SPACING } from '../constants/theme'
+import { useColors, useThemedStyles } from '../contexts/ThemeContext'
 
 export const DANGER = '#c4452e'
-const DANGER_SOFT = '#f6e0da'
-const FAINT = '#bdb9b0'
-const TRACK_OFF = '#d4d0c8'
+const DANGER_SOFT_LIGHT = '#f6e0da'
+const DANGER_SOFT_DARK = '#3a2420'
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name']
 
-// ── Animated on/off switch ──
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    group: { marginBottom: SPACING.xl },
+    groupTitle: {
+      fontFamily: FONTS.mono,
+      fontSize: 11,
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+      color: c.muted,
+      marginHorizontal: SPACING.lg,
+      marginBottom: 9,
+    },
+    groupCard: {
+      marginHorizontal: SPACING.lg,
+      backgroundColor: c.card,
+      borderRadius: RADIUS.lg,
+      borderWidth: 1,
+      borderColor: c.border,
+      overflow: 'hidden',
+    },
+
+    row: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 15, paddingHorizontal: 16 },
+    rowBorder: { borderBottomWidth: 1, borderBottomColor: c.border },
+    rowIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      backgroundColor: c.accentSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    rowIconDanger: { backgroundColor: DANGER_SOFT_LIGHT },
+    rowText: { flex: 1, gap: 2 },
+    rowLabel: { fontFamily: FONTS.sansSemi, fontSize: 15, color: c.text },
+    rowHint: { fontFamily: FONTS.sans, fontSize: 12.5, lineHeight: 17, color: c.muted },
+    rowValue: { fontFamily: FONTS.sans, fontSize: 14, color: c.muted },
+
+    track: { width: 44, height: 26, borderRadius: 99, justifyContent: 'center' },
+    knob: {
+      position: 'absolute',
+      top: 3,
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: '#fff',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.25,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+  })
+}
+
+function trackOffColor(c: ColorPalette) {
+  return c.bg === '#121110' ? '#3a3835' : '#d4d0c8'
+}
+
+function faintColor(c: ColorPalette) {
+  return c.bg === '#121110' ? '#6a6560' : '#bdb9b0'
+}
+
+function dangerSoftColor(c: ColorPalette) {
+  return c.bg === '#121110' ? DANGER_SOFT_DARK : DANGER_SOFT_LIGHT
+}
+
 export function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
   const x = useRef(new Animated.Value(on ? 1 : 0)).current
 
   useEffect(() => {
     Animated.timing(x, { toValue: on ? 1 : 0, duration: 200, useNativeDriver: false }).start()
-  }, [on])
+  }, [on, x])
 
   const left = x.interpolate({ inputRange: [0, 1], outputRange: [3, 21] })
-  const bg = x.interpolate({ inputRange: [0, 1], outputRange: [TRACK_OFF, COLORS.accent] })
+  const bg = x.interpolate({ inputRange: [0, 1], outputRange: [trackOffColor(colors), colors.accent] })
 
   return (
     <TouchableOpacity activeOpacity={0.8} onPress={onToggle}>
@@ -30,7 +97,6 @@ export function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) 
   )
 }
 
-// ── A single settings row ──
 export function SettingRow({
   icon,
   label,
@@ -52,6 +118,9 @@ export function SettingRow({
   on?: boolean
   last?: boolean
 }) {
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
+
   return (
     <TouchableOpacity
       style={[styles.row, !last && styles.rowBorder]}
@@ -59,8 +128,8 @@ export function SettingRow({
       activeOpacity={onPress ? 0.6 : 1}
       disabled={!onPress && !toggle}
     >
-      <View style={[styles.rowIcon, danger && styles.rowIconDanger]}>
-        <Ionicons name={icon} size={18} color={danger ? DANGER : COLORS.accent} />
+      <View style={[styles.rowIcon, danger && { backgroundColor: dangerSoftColor(colors) }]}>
+        <Ionicons name={icon} size={18} color={danger ? DANGER : colors.accent} />
       </View>
       <View style={styles.rowText}>
         <Text style={[styles.rowLabel, danger && { color: DANGER }]}>{label}</Text>
@@ -70,14 +139,15 @@ export function SettingRow({
       {toggle ? (
         <Toggle on={!!on} onToggle={() => onPress?.()} />
       ) : onPress && !danger ? (
-        <Ionicons name="chevron-forward" size={18} color={FAINT} />
+        <Ionicons name="chevron-forward" size={18} color={faintColor(colors)} />
       ) : null}
     </TouchableOpacity>
   )
 }
 
-// ── Grouped card of rows ──
 export function SettingGroup({ title, children }: { title?: string; children: React.ReactNode }) {
+  const styles = useThemedStyles(createStyles)
+
   return (
     <View style={styles.group}>
       {title ? <Text style={styles.groupTitle}>{title}</Text> : null}
@@ -85,55 +155,3 @@ export function SettingGroup({ title, children }: { title?: string; children: Re
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  group: { marginBottom: SPACING.xl },
-  groupTitle: {
-    fontFamily: FONTS.mono,
-    fontSize: 11,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    color: COLORS.muted,
-    marginHorizontal: SPACING.lg,
-    marginBottom: 9,
-  },
-  groupCard: {
-    marginHorizontal: SPACING.lg,
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    overflow: 'hidden',
-  },
-
-  row: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 15, paddingHorizontal: 16 },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  rowIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: COLORS.accentSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rowIconDanger: { backgroundColor: DANGER_SOFT },
-  rowText: { flex: 1, gap: 2 },
-  rowLabel: { fontFamily: FONTS.sansSemi, fontSize: 15, color: COLORS.text },
-  rowHint: { fontFamily: FONTS.sans, fontSize: 12.5, lineHeight: 17, color: COLORS.muted },
-  rowValue: { fontFamily: FONTS.sans, fontSize: 14, color: COLORS.muted },
-
-  track: { width: 44, height: 26, borderRadius: 99, justifyContent: 'center' },
-  knob: {
-    position: 'absolute',
-    top: 3,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.25,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-})

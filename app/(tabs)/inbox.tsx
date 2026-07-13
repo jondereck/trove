@@ -12,7 +12,8 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { ColorPalette, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { useColors, useThemedStyles } from '../../contexts/ThemeContext'
 import { UNSORTED_LABEL } from '../../constants/labels'
 import { ORGANIZE_BATCH_LIMIT } from '../../constants/organize'
 import { Save, Collection, OrganizeSuggestion } from '../../types'
@@ -26,6 +27,8 @@ import { showUpgradeAlert } from '../../lib/upgradeAlert'
 import { subscribeDataChanges } from '../../lib/dataEvents'
 
 export default function InboxScreen() {
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const [saves, setSaves] = useState<Save[]>([])
@@ -179,7 +182,7 @@ export default function InboxScreen() {
               <Ionicons
                 name="arrow-forward-circle-outline"
                 size={22}
-                color={selectedIds.size > 0 ? COLORS.accent : COLORS.muted}
+                color={selectedIds.size > 0 ? colors.accent : colors.muted}
               />
             </TouchableOpacity>
             <TouchableOpacity
@@ -191,7 +194,7 @@ export default function InboxScreen() {
               <Ionicons
                 name="trash-outline"
                 size={20}
-                color={selectedIds.size > 0 ? '#e53e3e' : COLORS.muted}
+                color={selectedIds.size > 0 ? '#e53e3e' : colors.muted}
               />
             </TouchableOpacity>
           </View>
@@ -205,8 +208,8 @@ export default function InboxScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={COLORS.accent}
-            colors={[COLORS.accent]}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
           />
         }
         showsVerticalScrollIndicator={false}
@@ -225,7 +228,7 @@ export default function InboxScreen() {
         )}
 
         {loading ? (
-          <ActivityIndicator color={COLORS.accent} style={styles.loader} />
+          <ActivityIndicator color={colors.accent} style={styles.loader} />
         ) : saves.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>○</Text>
@@ -276,9 +279,10 @@ export default function InboxScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: COLORS.bg },
-  container: { flex: 1, backgroundColor: COLORS.bg },
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+  wrapper: { flex: 1, backgroundColor: c.bg },
+  container: { flex: 1, backgroundColor: c.bg },
   content: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl * 2 },
 
   selectionBar: {
@@ -287,18 +291,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.bg,
+    borderBottomColor: c.border,
+    backgroundColor: c.bg,
   },
   selBarBtn: { padding: SPACING.xs },
   selBarBtnDisabled: { opacity: 0.4 },
-  selBarCancel: { fontSize: 15, fontFamily: FONTS.sansMed, color: COLORS.accent },
+  selBarCancel: { fontSize: 15, fontFamily: FONTS.sansMed, color: c.accent },
   selBarCount: {
     flex: 1,
     textAlign: 'center',
     fontSize: 15,
     fontFamily: FONTS.sansSemi,
-    color: COLORS.text,
+    color: c.text,
   },
   selBarActions: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
 
@@ -310,9 +314,9 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xl,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  title: { fontSize: 32, fontFamily: FONTS.serif, color: COLORS.text, letterSpacing: -0.5 },
+  title: { fontSize: 32, fontFamily: FONTS.serif, color: c.text, letterSpacing: -0.5 },
   badge: {
-    backgroundColor: COLORS.accent,
+    backgroundColor: c.accent,
     borderRadius: 10,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 2,
@@ -324,14 +328,14 @@ const styles = StyleSheet.create({
   aiCta: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: '#f0c4b4',
+    borderColor: c.accentBorder,
     padding: SPACING.md,
     gap: SPACING.md,
     marginBottom: SPACING.lg,
-    shadowColor: COLORS.accent,
+    shadowColor: c.accent,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
@@ -341,24 +345,24 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: COLORS.accent,
+    backgroundColor: c.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   aiCtaText: { flex: 1 },
-  aiCtaTitle: { fontSize: 14, fontFamily: FONTS.sansSemi, color: COLORS.text },
-  aiCtaSub: { fontSize: 12, fontFamily: FONTS.sans, color: COLORS.muted, marginTop: 1 },
-  aiChevron: { fontSize: 22, color: COLORS.muted, fontFamily: FONTS.sans },
+  aiCtaTitle: { fontSize: 14, fontFamily: FONTS.sansSemi, color: c.text },
+  aiCtaSub: { fontSize: 12, fontFamily: FONTS.sans, color: c.muted, marginTop: 1 },
+  aiChevron: { fontSize: 22, color: c.muted, fontFamily: FONTS.sans },
   grid: { flexDirection: 'row', gap: SPACING.sm },
   col: { flex: 1 },
   empty: { alignItems: 'center', paddingTop: SPACING.xl * 4, gap: SPACING.md },
-  emptyIcon: { fontSize: 40, color: COLORS.border, marginBottom: SPACING.sm },
-  emptyTitle: { fontSize: 20, fontFamily: FONTS.serif, color: COLORS.textSub },
+  emptyIcon: { fontSize: 40, color: c.border, marginBottom: SPACING.sm },
+  emptyTitle: { fontSize: 20, fontFamily: FONTS.serif, color: c.textSub },
   emptySubtitle: {
     fontSize: 14,
     fontFamily: FONTS.sans,
-    color: COLORS.muted,
+    color: c.muted,
     textAlign: 'center',
     paddingHorizontal: SPACING.xl,
   },
-})
+})}

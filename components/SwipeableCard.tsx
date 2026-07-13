@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { Animated, PanResponder, View, Text, StyleSheet } from 'react-native'
-import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme'
+import { ColorPalette, FONTS, RADIUS, SPACING } from '../constants/theme'
+import { useThemedStyles } from '../contexts/ThemeContext'
 
 interface SwipeableCardProps {
   children: React.ReactNode
@@ -10,6 +11,7 @@ interface SwipeableCardProps {
 const THRESHOLD = -72
 
 export default function SwipeableCard({ children, onArchive }: SwipeableCardProps) {
+  const styles = useThemedStyles(createStyles)
   const translateX = useRef(new Animated.Value(0)).current
   const opacity = translateX.interpolate({ inputRange: [THRESHOLD, 0], outputRange: [1, 0] })
 
@@ -48,26 +50,28 @@ export default function SwipeableCard({ children, onArchive }: SwipeableCardProp
   )
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    position: 'relative',
-    overflow: 'hidden',
-    borderRadius: RADIUS.lg,
-    marginBottom: SPACING.sm,
-  },
-  archiveBg: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: COLORS.accent,
-    borderRadius: RADIUS.lg,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    paddingRight: SPACING.lg,
-  },
-  archiveIcon: {
-    fontSize: 11,
-    fontFamily: FONTS.sansBold,
-    color: '#fff',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-})
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    wrap: {
+      position: 'relative',
+      overflow: 'hidden',
+      borderRadius: RADIUS.lg,
+      marginBottom: SPACING.sm,
+    },
+    archiveBg: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor: c.accent,
+      borderRadius: RADIUS.lg,
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+      paddingRight: SPACING.lg,
+    },
+    archiveIcon: {
+      fontSize: 11,
+      fontFamily: FONTS.sansBold,
+      color: '#fff',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+    },
+  })
+}

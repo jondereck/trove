@@ -14,7 +14,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { ColorPalette, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { useColors, useThemedStyles } from '../../contexts/ThemeContext'
 import { LIBRARY_INITIAL_PAGE, LIBRARY_LOAD_MORE, LIBRARY_SCROLL_THRESHOLD } from '../../constants/library'
 import { ORGANIZE_BATCH_LIMIT } from '../../constants/organize'
 import { Save, Collection, OrganizeSuggestion, LibraryFilter } from '../../types'
@@ -55,6 +56,8 @@ function getGreeting(): string {
 }
 
 export default function LibraryScreen() {
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const [saves, setSaves] = useState<Save[]>([])
@@ -308,7 +311,7 @@ export default function LibraryScreen() {
               <Ionicons
                 name="arrow-forward-circle-outline"
                 size={22}
-                color={selectedIds.size > 0 ? COLORS.accent : COLORS.muted}
+                color={selectedIds.size > 0 ? colors.accent : colors.muted}
               />
             </TouchableOpacity>
             <TouchableOpacity
@@ -317,7 +320,7 @@ export default function LibraryScreen() {
               disabled={selectedIds.size === 0}
               activeOpacity={0.7}
             >
-              <Ionicons name="trash-outline" size={20} color={selectedIds.size > 0 ? '#e53e3e' : COLORS.muted} />
+              <Ionicons name="trash-outline" size={20} color={selectedIds.size > 0 ? '#e53e3e' : colors.muted} />
             </TouchableOpacity>
           </View>
         </View>
@@ -327,7 +330,7 @@ export default function LibraryScreen() {
         style={styles.container}
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} colors={[COLORS.accent]} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} colors={[colors.accent]} />
         }
         showsVerticalScrollIndicator={false}
         onScroll={handleScroll}
@@ -349,7 +352,7 @@ export default function LibraryScreen() {
               style={styles.settingsBtn}
               accessibilityLabel="Account settings"
             >
-              <Ionicons name="settings-outline" size={22} color={COLORS.text} />
+              <Ionicons name="settings-outline" size={22} color={colors.text} />
             </TouchableOpacity>
           </View>
         )}
@@ -370,7 +373,7 @@ export default function LibraryScreen() {
                   onPress={() => setFilter(c.id)}
                   activeOpacity={0.7}
                 >
-                  {c.icon && <Ionicons name={c.icon} size={15} color={on ? '#fff' : COLORS.text} />}
+                  {c.icon && <Ionicons name={c.icon} size={15} color={on ? '#fff' : colors.text} />}
                   <Text style={[styles.chipText, on && styles.chipTextOn]}>{c.label}</Text>
                 </TouchableOpacity>
               )
@@ -385,7 +388,7 @@ export default function LibraryScreen() {
             <Ionicons
               name={viewMode === 'grid' ? 'list-outline' : 'grid-outline'}
               size={20}
-              color={COLORS.text}
+              color={colors.text}
             />
           </TouchableOpacity>
         </View>
@@ -412,7 +415,7 @@ export default function LibraryScreen() {
         )}
 
         {loading ? (
-          <ActivityIndicator color={COLORS.accent} style={styles.loader} />
+          <ActivityIndicator color={colors.accent} style={styles.loader} />
         ) : filteredTotal === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>◇</Text>
@@ -437,7 +440,7 @@ export default function LibraryScreen() {
         )}
 
         {loadingMore && (
-          <ActivityIndicator color={COLORS.accent} style={styles.loadMore} />
+          <ActivityIndicator color={colors.accent} style={styles.loadMore} />
         )}
       </ScrollView>
 
@@ -460,21 +463,22 @@ export default function LibraryScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: COLORS.bg },
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+  wrapper: { flex: 1, backgroundColor: c.bg },
   container: { flex: 1 },
   content: { paddingBottom: SPACING.xl * 2, paddingHorizontal: SPACING.lg },
 
   selectionBar: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.bg,
+    borderBottomWidth: 1, borderBottomColor: c.border,
+    backgroundColor: c.bg,
   },
   selBarBtn: { padding: SPACING.xs },
   selBarBtnDisabled: { opacity: 0.4 },
-  selBarCancel: { fontSize: 15, fontFamily: FONTS.sansMed, color: COLORS.accent },
-  selBarCount: { flex: 1, textAlign: 'center', fontSize: 15, fontFamily: FONTS.sansSemi, color: COLORS.text },
+  selBarCancel: { fontSize: 15, fontFamily: FONTS.sansMed, color: c.accent },
+  selBarCount: { flex: 1, textAlign: 'center', fontSize: 15, fontFamily: FONTS.sansSemi, color: c.text },
   selBarActions: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
 
   header: {
@@ -485,22 +489,22 @@ const styles = StyleSheet.create({
   greetingLine: {
     fontSize: 34,
     fontFamily: FONTS.serifItal,
-    color: COLORS.text,
+    color: c.text,
     lineHeight: 38,
     letterSpacing: -0.5,
   },
   subRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginTop: SPACING.sm },
-  kicker: { fontSize: 11, fontFamily: FONTS.mono, color: COLORS.muted, letterSpacing: 1 },
-  kickerAccent: { fontSize: 11, fontFamily: FONTS.monoMed, color: COLORS.accent, letterSpacing: 1 },
-  dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: COLORS.muted },
+  kicker: { fontSize: 11, fontFamily: FONTS.mono, color: c.muted, letterSpacing: 1 },
+  kickerAccent: { fontSize: 11, fontFamily: FONTS.monoMed, color: c.accent, letterSpacing: 1 },
+  dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: c.muted },
   settingsBtn: {
     marginTop: SPACING.md,
     width: 40,
     height: 40,
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.card,
+    borderColor: c.border,
+    backgroundColor: c.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -515,8 +519,8 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.card,
+    borderColor: c.border,
+    backgroundColor: c.card,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -527,27 +531,27 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
-    borderRadius: 999, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card,
+    borderRadius: 999, borderWidth: 1, borderColor: c.border, backgroundColor: c.card,
     marginRight: SPACING.md,
   },
-  chipOn: { backgroundColor: COLORS.text, borderColor: COLORS.text },
-  chipText: { fontSize: 13, fontFamily: FONTS.sansSemi, color: COLORS.text },
+  chipOn: { backgroundColor: c.text, borderColor: c.text },
+  chipText: { fontSize: 13, fontFamily: FONTS.sansSemi, color: c.text },
   chipTextOn: { color: '#fff' },
 
   banner: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
     marginBottom: SPACING.lg,
     padding: SPACING.md, borderRadius: RADIUS.lg,
-    backgroundColor: COLORS.accentSoft, borderWidth: 1, borderColor: COLORS.accentBorder,
+    backgroundColor: c.accentSoft, borderWidth: 1, borderColor: c.accentBorder,
   },
   bannerOrb: {
-    width: 38, height: 38, borderRadius: 11, backgroundColor: COLORS.accent,
+    width: 38, height: 38, borderRadius: 11, backgroundColor: c.accent,
     alignItems: 'center', justifyContent: 'center',
   },
   bannerText: { flex: 1 },
-  bannerTitle: { fontSize: 14, fontFamily: FONTS.sansBold, color: COLORS.text },
-  bannerSub: { fontSize: 12.5, fontFamily: FONTS.sans, color: COLORS.textSub, marginTop: 1 },
-  bannerBtn: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: 999, backgroundColor: COLORS.accent },
+  bannerTitle: { fontSize: 14, fontFamily: FONTS.sansBold, color: c.text },
+  bannerSub: { fontSize: 12.5, fontFamily: FONTS.sans, color: c.textSub, marginTop: 1 },
+  bannerBtn: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: 999, backgroundColor: c.accent },
   bannerBtnText: { fontSize: 13, fontFamily: FONTS.sansBold, color: '#fff' },
 
   loader: { marginTop: SPACING.xl * 3 },
@@ -556,7 +560,8 @@ const styles = StyleSheet.create({
   list: { gap: SPACING.sm },
   col: { flex: 1 },
   empty: { alignItems: 'center', paddingTop: SPACING.xl * 3, gap: SPACING.md },
-  emptyIcon: { fontSize: 40, color: COLORS.border, marginBottom: SPACING.sm },
-  emptyTitle: { fontSize: 20, fontFamily: FONTS.serif, color: COLORS.textSub },
-  emptySubtitle: { fontSize: 14, fontFamily: FONTS.sans, color: COLORS.muted, textAlign: 'center', paddingHorizontal: SPACING.xl },
-})
+  emptyIcon: { fontSize: 40, color: c.border, marginBottom: SPACING.sm },
+  emptyTitle: { fontSize: 20, fontFamily: FONTS.serif, color: c.textSub },
+  emptySubtitle: { fontSize: 14, fontFamily: FONTS.sans, color: c.muted, textAlign: 'center', paddingHorizontal: SPACING.xl },
+  })
+}

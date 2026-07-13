@@ -6,7 +6,8 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { ColorPalette, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { useColors, useThemedStyles } from '../../contexts/ThemeContext'
 import { DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
 import { Save, Collection } from '../../types'
 import { fetchSaveById, updateSave, deleteSave, fetchCollections } from '../../lib/db'
@@ -25,6 +26,8 @@ const TYPE_COLORS: Record<string, string> = {
 }
 
 export default function SaveDetailScreen() {
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const insets = useSafeAreaInsets()
@@ -105,7 +108,7 @@ export default function SaveDetailScreen() {
   if (loading) {
     return (
       <View style={[styles.center, { paddingTop: insets.top }]}>
-        <ActivityIndicator color={COLORS.accent} />
+        <ActivityIndicator color={colors.accent} />
       </View>
     )
   }
@@ -176,9 +179,9 @@ export default function SaveDetailScreen() {
               activeOpacity={0.7}
             >
               {refreshingPreview ? (
-                <ActivityIndicator size="small" color={COLORS.accent} />
+                <ActivityIndicator size="small" color={colors.accent} />
               ) : (
-                <Ionicons name="refresh-outline" size={14} color={COLORS.accent} />
+                <Ionicons name="refresh-outline" size={14} color={colors.accent} />
               )}
               <Text style={styles.refreshText}>Refresh preview</Text>
             </TouchableOpacity>
@@ -193,7 +196,7 @@ export default function SaveDetailScreen() {
             onChangeText={setTitle}
             multiline
             placeholder="Title"
-            placeholderTextColor={COLORS.muted}
+            placeholderTextColor={colors.muted}
           />
         ) : (
           <Text style={styles.title}>{save.title}</Text>
@@ -207,7 +210,7 @@ export default function SaveDetailScreen() {
             onChangeText={setDescription}
             multiline
             placeholder="Description or note…"
-            placeholderTextColor={COLORS.muted}
+            placeholderTextColor={colors.muted}
             textAlignVertical="top"
           />
         ) : (save.description || save.content) ? (
@@ -235,7 +238,7 @@ export default function SaveDetailScreen() {
                 <Ionicons
                   name={(c.icon as IoniconName) ?? DEFAULT_COLLECTION_ICON}
                   size={14}
-                  color={selectedCollection === c.id ? COLORS.accent : c.color}
+                  color={selectedCollection === c.id ? colors.accent : c.color}
                 />
                 <Text style={[styles.colChipText, selectedCollection === c.id && styles.colChipTextActive]}>
                   {c.name}
@@ -280,7 +283,7 @@ export default function SaveDetailScreen() {
               value={tagInput}
               onChangeText={setTagInput}
               placeholder="+ add"
-              placeholderTextColor={COLORS.muted}
+              placeholderTextColor={colors.muted}
               autoCapitalize="none"
               returnKeyType="done"
               onSubmitEditing={addTag}
@@ -295,62 +298,64 @@ export default function SaveDetailScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.bg },
-  notFound: { fontFamily: FONTS.serif, fontSize: 18, color: COLORS.muted },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
-  backBtn: { padding: SPACING.xs },
-  backText: { fontSize: 22, color: COLORS.text },
-  headerActions: { flexDirection: 'row', gap: SPACING.sm, alignItems: 'center' },
-  actionBtn: { paddingHorizontal: SPACING.sm, paddingVertical: SPACING.xs },
-  editText: { fontSize: 15, fontFamily: FONTS.sansMed, color: COLORS.accent },
-  cancelText: { fontSize: 15, fontFamily: FONTS.sans, color: COLORS.muted },
-  saveBtn: { backgroundColor: COLORS.accent, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.md },
-  saveBtnText: { fontSize: 14, fontFamily: FONTS.sansSemi, color: '#fff' },
-  content: { padding: SPACING.lg, paddingBottom: SPACING.xl * 2, gap: SPACING.md },
-  heroImage: { width: '100%', height: 200, borderRadius: RADIUS.lg, marginBottom: SPACING.sm },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  typeBadge: { borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3 },
-  typeBadgeText: { fontSize: 10, fontFamily: FONTS.sansBold, letterSpacing: 0.8 },
-  domain: { fontSize: 13, fontFamily: FONTS.sans, color: COLORS.accent },
-  refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' },
-  refreshText: { fontSize: 12, fontFamily: FONTS.sansMed, color: COLORS.accent },
-  title: { fontSize: 22, fontFamily: FONTS.serif, color: COLORS.text, lineHeight: 30 },
-  titleInput: {
-    fontSize: 22, fontFamily: FONTS.serif, color: COLORS.text, lineHeight: 30,
-    borderBottomWidth: 1.5, borderBottomColor: COLORS.accent, paddingVertical: SPACING.xs,
-  },
-  description: { fontSize: 15, fontFamily: FONTS.sans, color: COLORS.textSub, lineHeight: 22 },
-  descInput: {
-    fontSize: 15, fontFamily: FONTS.sans, color: COLORS.text, lineHeight: 22,
-    borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.md,
-    padding: SPACING.md, minHeight: 80,
-  },
-  sectionLabel: { fontSize: 10, fontFamily: FONTS.sansSemi, color: COLORS.muted, letterSpacing: 1, marginTop: SPACING.sm },
-  colDisplay: { marginTop: SPACING.xs },
-  colNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  colName: { fontSize: 14, fontFamily: FONTS.sansMed, color: COLORS.text },
-  colNone: { fontSize: 14, fontFamily: FONTS.sans, color: COLORS.muted, fontStyle: 'italic' },
-  colPicker: { marginTop: SPACING.xs },
-  colChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, marginRight: SPACING.sm,
-  },
-  colChipActive: { borderColor: COLORS.accent, backgroundColor: '#fdf0eb' },
-  colChipText: { fontSize: 13, fontFamily: FONTS.sans, color: COLORS.textSub },
-  colChipTextActive: { color: COLORS.accent, fontFamily: FONTS.sansMed },
-  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginTop: SPACING.xs },
-  tag: { backgroundColor: COLORS.border, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 4 },
-  tagText: { fontSize: 12, fontFamily: FONTS.sansMed, color: COLORS.textSub },
-  tagInput: {
-    borderBottomWidth: 1.5, borderBottomColor: COLORS.accent, minWidth: 56,
-    fontSize: 12, fontFamily: FONTS.sans, color: COLORS.text, paddingVertical: 2,
-  },
-  date: { fontSize: 12, fontFamily: FONTS.sans, color: COLORS.muted, marginTop: SPACING.md },
-})
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: c.bg },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: c.bg },
+    notFound: { fontFamily: FONTS.serif, fontSize: 18, color: c.muted },
+    header: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
+      borderBottomWidth: 1, borderBottomColor: c.border,
+    },
+    backBtn: { padding: SPACING.xs },
+    backText: { fontSize: 22, color: c.text },
+    headerActions: { flexDirection: 'row', gap: SPACING.sm, alignItems: 'center' },
+    actionBtn: { paddingHorizontal: SPACING.sm, paddingVertical: SPACING.xs },
+    editText: { fontSize: 15, fontFamily: FONTS.sansMed, color: c.accent },
+    cancelText: { fontSize: 15, fontFamily: FONTS.sans, color: c.muted },
+    saveBtn: { backgroundColor: c.accent, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.md },
+    saveBtnText: { fontSize: 14, fontFamily: FONTS.sansSemi, color: '#fff' },
+    content: { padding: SPACING.lg, paddingBottom: SPACING.xl * 2, gap: SPACING.md },
+    heroImage: { width: '100%', height: 200, borderRadius: RADIUS.lg, marginBottom: SPACING.sm },
+    metaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+    typeBadge: { borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3 },
+    typeBadgeText: { fontSize: 10, fontFamily: FONTS.sansBold, letterSpacing: 0.8 },
+    domain: { fontSize: 13, fontFamily: FONTS.sans, color: c.accent },
+    refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' },
+    refreshText: { fontSize: 12, fontFamily: FONTS.sansMed, color: c.accent },
+    title: { fontSize: 22, fontFamily: FONTS.serif, color: c.text, lineHeight: 30 },
+    titleInput: {
+      fontSize: 22, fontFamily: FONTS.serif, color: c.text, lineHeight: 30,
+      borderBottomWidth: 1.5, borderBottomColor: c.accent, paddingVertical: SPACING.xs,
+    },
+    description: { fontSize: 15, fontFamily: FONTS.sans, color: c.textSub, lineHeight: 22 },
+    descInput: {
+      fontSize: 15, fontFamily: FONTS.sans, color: c.text, lineHeight: 22,
+      borderWidth: 1.5, borderColor: c.border, borderRadius: RADIUS.md,
+      padding: SPACING.md, minHeight: 80,
+    },
+    sectionLabel: { fontSize: 10, fontFamily: FONTS.sansSemi, color: c.muted, letterSpacing: 1, marginTop: SPACING.sm },
+    colDisplay: { marginTop: SPACING.xs },
+    colNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    colName: { fontSize: 14, fontFamily: FONTS.sansMed, color: c.text },
+    colNone: { fontSize: 14, fontFamily: FONTS.sans, color: c.muted, fontStyle: 'italic' },
+    colPicker: { marginTop: SPACING.xs },
+    colChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      borderWidth: 1.5, borderColor: c.border, borderRadius: RADIUS.md,
+      paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, marginRight: SPACING.sm,
+    },
+    colChipActive: { borderColor: c.accent, backgroundColor: c.accentSoft },
+    colChipText: { fontSize: 13, fontFamily: FONTS.sans, color: c.textSub },
+    colChipTextActive: { color: c.accent, fontFamily: FONTS.sansMed },
+    tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginTop: SPACING.xs },
+    tag: { backgroundColor: c.border, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 4 },
+    tagText: { fontSize: 12, fontFamily: FONTS.sansMed, color: c.textSub },
+    tagInput: {
+      borderBottomWidth: 1.5, borderBottomColor: c.accent, minWidth: 56,
+      fontSize: 12, fontFamily: FONTS.sans, color: c.text, paddingVertical: 2,
+    },
+    date: { fontSize: 12, fontFamily: FONTS.sans, color: c.muted, marginTop: SPACING.md },
+  })
+}

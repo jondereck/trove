@@ -4,7 +4,85 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
-### App icon — flat T-chest with keyhole (2026-07-11)
+### Soft Cloud verify after sign-in (2026-07-12)
+**Files:** `lib/authNavigation.ts`, `app/_layout.tsx`, `app/(auth)/index.tsx`,
+`app/(auth)/login.tsx`
+
+Level A verification for the returning-user door: `requestAuthFlow()` marks
+`cloudVerifyPending`. After `SIGNED_IN` + `logInPurchases`, if still `!hasCloud()`,
+show an alert (OK / Restore / See plans). Does not auto sign-out. Flag is consumed
+once so cold-start session restore does not nag. Welcome Sign in now calls
+`requestAuthFlow()` so AuthLayout allows the screen and verify can run.
+
+---
+
+### Cloud-first auth gate (2026-07-12)
+**Files:** `lib/authGate.ts`, `lib/entitlements.ts`, `app/(auth)/index.tsx`,
+`app/(auth)/login.tsx`, `app/(auth)/signup.tsx`, `app/account.tsx`, `app/upgrade.tsx`,
+`docs/superpowers/specs/2026-07-12-cloud-first-auth-design.md`,
+`docs/superpowers/plans/2026-07-12-cloud-first-auth.md`
+
+Purchase-first account model: Free/Unlocked no longer get a generic Create account path.
+Welcome primary is **Sign in**; secondary **Get Trove Cloud**. Guest Account shows
+**Already have Cloud? Sign in** + **Get Trove Cloud**, plus a sync CTA when Cloud is
+active but still guest. After Cloud purchase/restore while guest, `showCloudAccountPrompt`
+offers Create account / Sign in / Not now. Signup mounts only when `hasCloud()`; otherwise
+redirects to Upgrade. Login footer links to Cloud plans when signup is gated.
+`applyCustomerInfo` updates the tier cache immediately after purchase so signup isn't
+blocked by a stale Free tier.
+
+---
+
+### Dark mode — full app theming (2026-07-12)
+**Files:** All tab screens, account/detail flows, modals (`QuickSave`, `AIOrganize`,
+`CollectionForm`), `Settings`, `SaveCard`, auth, onboarding, upgrade, toasts, etc.
+
+Most screens still imported static `COLORS` / `LIGHT_COLORS`, which always resolved to the light
+palette even when Appearance → Dark was selected. Migrated every screen and shared component to
+`useColors()` / `useThemedStyles(createStyles)` so backgrounds, cards, borders, and text follow
+`DARK_COLORS` from `ThemeContext`. Hardcoded light chip fills (`#fdf0eb`) → `accentSoft`.
+`Settings` toggle track and chevron colors are scheme-aware.
+
+---
+
+### Onboarding — AI slide + no-account icon fix (2026-07-12)
+**Files:** `app/onboarding.tsx`
+
+Added a fourth onboarding slide for AI features (save suggestions + Inbox AI Organize) with the
+`sparkles` icon. Moved `sparkles` off the "No account needed" slide — it was the wrong metaphor
+and could render inconsistently — and replaced it with `phone-portrait-outline` (local/on-device).
+
+---
+
+### App icon — use exact approved art (2026-07-12)
+**Files:** `assets/icon-approved.png`, `assets/icon.png`, `assets/splash-icon.png`,
+`assets/favicon.png`, `assets/android-icon-*.png`, `scripts/render-icons.mjs`, `app.json`
+
+SVG recreation looked off on device. Switched to the user-approved PNG as source of truth.
+Flattened baked-in black squircle corners to orange so BrandLogo / launcher don't show
+dark frames. Adaptive bg `#c65830` matches the art. Re-run: `node scripts/render-icons.mjs`.
+
+---
+
+**Files:** `assets/icon-source.svg`, `assets/icon-foreground.svg`, `assets/icon-monochrome.svg`,
+`assets/icon.png`, `assets/splash-icon.png`, `assets/favicon.png`,
+`assets/android-icon-*.png`, `app/(auth)/index.tsx`, `app/(auth)/login.tsx`,
+`app/(auth)/signup.tsx`, `scripts/render-icons.mjs`
+
+App icon refined to match approved design (cream T, lid seam + latch + classic keyhole
+cutouts on `#c0613c`). Same asset shown via `BrandLogo` on welcome, login, and signup
+(larger sizes). Rebuild native app to see launcher icon change.
+
+---
+
+**Files:** `app/_layout.tsx`
+
+Guest users tapping "Sign in or create account" on Account were immediately sent back to
+Library: root navigator redirected all `(auth)` routes to tabs without checking
+`isAuthFlowRequested()`. Now auth stays open when opened intentionally from settings.
+
+---
+
 **Files:** `assets/icon-source.svg`, `assets/icon-foreground.svg`, `assets/icon-monochrome.svg`,
 `assets/icon.png`, `assets/splash-icon.png`, `assets/favicon.png`,
 `assets/android-icon-foreground.png`, `assets/android-icon-background.png`,

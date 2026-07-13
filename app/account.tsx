@@ -16,7 +16,8 @@ import { useRouter, useFocusEffect } from 'expo-router'
 import Constants from 'expo-constants'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
-import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme'
+import { ColorPalette, FONTS, RADIUS, SPACING } from '../constants/theme'
+import { useColors, useThemedStyles } from '../contexts/ThemeContext'
 import Avatar from '../components/Avatar'
 import { SettingGroup, SettingRow } from '../components/Settings'
 import { fetchCounts, fetchProfile, updateProfile } from '../lib/db'
@@ -28,13 +29,16 @@ import { PRICES } from '../constants/limits'
 import { exportData, importData } from '../lib/transfer'
 import { AvatarTooLargeError, pickAndUploadAvatar } from '../lib/storage'
 import { requestAuthFlow } from '../lib/authNavigation'
+import { shouldPromptAccountForCloud, showCloudAccountPrompt } from '../lib/authGate'
 
 const SUPPORT_EMAIL = 'mailto:jonderecknifas@gmail.com?subject=Trove%20support'
 
-const FAINT = '#bdb9b0'
-const UPGRADE_GRADIENT = [COLORS.accent, '#7a4f86'] as const
+function faintColor(c: ColorPalette) {
+  return c.bg === '#121110' ? '#6a6560' : '#bdb9b0'
+}
 
 function Stat({ label, value }: { label: string; value: string | number }) {
+  const styles = useThemedStyles(createStyles)
   return (
     <View style={styles.stat}>
       <Text style={styles.statValue}>{value}</Text>
@@ -44,6 +48,8 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 }
 
 export default function AccountScreen() {
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const cached = peekProfile()
@@ -58,6 +64,8 @@ export default function AccountScreen() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(cached?.avatar_url ?? null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [counts, setCounts] = useState({ saves: 0, collections: 0 })
+
+  const upgradeGradient = [colors.accent, '#7a4f86'] as const
 
   const loadProfile = useCallback(async () => {
     const signedIn = isLoggedIn()
@@ -162,9 +170,13 @@ export default function AccountScreen() {
     ])
   }, [])
 
-  const openAuth = useCallback(() => {
+  const openLogin = useCallback(() => {
     requestAuthFlow()
-    router.push('/(auth)/')
+    router.push('/(auth)/login')
+  }, [router])
+
+  const openCloudSignup = useCallback(() => {
+    showCloudAccountPrompt(router, { onNotNow: () => {} })
   }, [router])
 
   useEffect(() => subscribeTier(setTier), [])
@@ -179,7 +191,7 @@ export default function AccountScreen() {
       {/* top bar */}
       <View style={[styles.topBar, { paddingTop: insets.top + SPACING.sm }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.6}>
-          <Ionicons name="chevron-back" size={20} color={COLORS.accent} />
+          <Ionicons name="chevron-back" size={20} color={colors.accent} />
           <Text style={styles.topAction}>Library</Text>
         </TouchableOpacity>
         <Text style={styles.topTitle}>Account</Text>
@@ -219,14 +231,14 @@ export default function AccountScreen() {
                 value={first}
                 onChangeText={setFirst}
                 placeholder="First"
-                placeholderTextColor={COLORS.muted}
+                placeholderTextColor={colors.muted}
                 style={styles.nameInput}
               />
               <TextInput
                 value={last}
                 onChangeText={setLast}
                 placeholder="Last"
-                placeholderTextColor={COLORS.muted}
+                placeholderTextColor={colors.muted}
                 style={styles.nameInput}
               />
             </View>
@@ -237,7 +249,7 @@ export default function AccountScreen() {
             </View>
           ) : (
             <View style={styles.nameBlock}>
-              <ActivityIndicator color={COLORS.accent} style={styles.nameLoader} />
+              <ActivityIndicator color={colors.accent} style={styles.nameLoader} />
             </View>
           )}
 
@@ -252,6 +264,33 @@ export default function AccountScreen() {
           )}
         </View>
 
+        {/* Guest with Cloud but no account yet */}
+        {!loggedIn && shouldPromptAccountForCloud() && (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={styles.bannerWrap}
+            onPress={openCloudSignup}
+          >
+            <LinearGradient
+              colors={upgradeGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.banner}
+            >
+              <View style={styles.bannerIcon}>
+                <Ionicons name="cloud-outline" size={22} color="#fff" />
+              </View>
+              <View style={styles.bannerText}>
+                <Text style={styles.bannerTitle}>Create an account to sync</Text>
+                <Text style={styles.bannerSub}>
+                  Cloud is active — sign in so your library syncs across devices
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#fff" />
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
         {/* banner: plan upsell — hidden once the user is on Cloud */}
         {tier !== 'cloud' && (
           <TouchableOpacity
@@ -260,7 +299,7 @@ export default function AccountScreen() {
             onPress={() => router.push('/upgrade')}
           >
             <LinearGradient
-              colors={UPGRADE_GRADIENT}
+              colors={upgradeGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.banner}
@@ -270,12 +309,18 @@ export default function AccountScreen() {
               </View>
               <View style={styles.bannerText}>
                 <Text style={styles.bannerTitle}>
-                  {tier === 'unlocked' ? 'Add Trove Cloud' : 'Unlock Trove'}
+                  {loggedIn && tier !== 'cloud'
+                    ? 'Sync with Trove Cloud'
+                    : tier === 'unlocked'
+                      ? 'Add Trove Cloud'
+                      : 'Unlock Trove'}
                 </Text>
                 <Text style={styles.bannerSub}>
-                  {tier === 'unlocked'
-                    ? `Sync across devices · ${PRICES.cloudMonthly}`
-                    : `Unlimited saves for ${PRICES.unlockedOneTime}, once`}
+                  {loggedIn && tier !== 'cloud'
+                    ? 'Subscribe or restore purchases to sync this library'
+                    : tier === 'unlocked'
+                      ? `Sync across devices · ${PRICES.cloudMonthly}`
+                      : `Unlimited saves for ${PRICES.unlockedOneTime}, once`}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#fff" />
@@ -291,7 +336,25 @@ export default function AccountScreen() {
               <SettingRow icon="lock-closed-outline" label="Change password" onPress={() => router.push('/change-password')} />
             </>
           ) : (
-            <SettingRow icon="log-in-outline" label="Sign in or create account" onPress={openAuth} />
+            <>
+              {shouldPromptAccountForCloud() && (
+                <SettingRow
+                  icon="person-add-outline"
+                  label="Create account to sync"
+                  onPress={openCloudSignup}
+                />
+              )}
+              <SettingRow
+                icon="log-in-outline"
+                label="Already have Cloud? Sign in"
+                onPress={openLogin}
+              />
+              <SettingRow
+                icon="cloud-upload-outline"
+                label="Get Trove Cloud"
+                onPress={() => router.push('/upgrade')}
+              />
+            </>
           )}
           <SettingRow icon="sparkles-outline" label="AI preferences" onPress={() => router.push('/ai-preferences')} />
           <SettingRow icon="color-palette-outline" label="Appearance" onPress={() => router.push('/appearance')} last />
@@ -323,82 +386,84 @@ export default function AccountScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
 
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
-    paddingBottom: SPACING.md,
-    backgroundColor: COLORS.bg,
-  },
-  backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: SPACING.sm, paddingRight: SPACING.sm },
-  editBtn: { paddingVertical: SPACING.sm, paddingHorizontal: SPACING.sm },
-  topAction: { fontFamily: FONTS.sansSemi, fontSize: 15, color: COLORS.accent },
-  topTitle: { fontFamily: FONTS.sansBold, fontSize: 16, color: COLORS.text },
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: SPACING.md,
+      paddingBottom: SPACING.md,
+      backgroundColor: c.bg,
+    },
+    backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: SPACING.sm, paddingRight: SPACING.sm },
+    editBtn: { paddingVertical: SPACING.sm, paddingHorizontal: SPACING.sm },
+    topAction: { fontFamily: FONTS.sansSemi, fontSize: 15, color: c.accent },
+    topTitle: { fontFamily: FONTS.sansBold, fontSize: 16, color: c.text },
 
-  profile: { alignItems: 'center', gap: 13, paddingHorizontal: SPACING.xl, paddingTop: SPACING.sm, paddingBottom: 26 },
-  cameraBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: COLORS.accent,
-    borderWidth: 3,
-    borderColor: COLORS.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nameBlock: { alignItems: 'center', minHeight: 52, justifyContent: 'center' },
-  nameLoader: { marginVertical: SPACING.sm },
-  name: { fontFamily: FONTS.serif, fontSize: 30, color: COLORS.text, lineHeight: 34 },
-  email: { fontFamily: FONTS.sans, fontSize: 14, color: COLORS.muted, marginTop: 3 },
-  nameInputs: { flexDirection: 'row', gap: 10, width: '100%', maxWidth: 300 },
-  nameInput: {
-    flex: 1,
-    height: 44,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    textAlign: 'center',
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.card,
-    fontFamily: FONTS.sansSemi,
-    fontSize: 15,
-    color: COLORS.text,
-  },
+    profile: { alignItems: 'center', gap: 13, paddingHorizontal: SPACING.xl, paddingTop: SPACING.sm, paddingBottom: 26 },
+    cameraBadge: {
+      position: 'absolute',
+      bottom: -2,
+      right: -2,
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: c.accent,
+      borderWidth: 3,
+      borderColor: c.bg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    nameBlock: { alignItems: 'center', minHeight: 52, justifyContent: 'center' },
+    nameLoader: { marginVertical: SPACING.sm },
+    name: { fontFamily: FONTS.serif, fontSize: 30, color: c.text, lineHeight: 34 },
+    email: { fontFamily: FONTS.sans, fontSize: 14, color: c.muted, marginTop: 3 },
+    nameInputs: { flexDirection: 'row', gap: 10, width: '100%', maxWidth: 300 },
+    nameInput: {
+      flex: 1,
+      height: 44,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      textAlign: 'center',
+      borderWidth: 1.5,
+      borderColor: c.border,
+      backgroundColor: c.card,
+      fontFamily: FONTS.sansSemi,
+      fontSize: 15,
+      color: c.text,
+    },
 
-  statRow: {
-    flexDirection: 'row',
-    marginTop: 6,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  stat: { paddingVertical: 12, paddingHorizontal: 20, alignItems: 'center', minWidth: 76 },
-  statValue: { fontFamily: FONTS.serif, fontSize: 24, color: COLORS.text, lineHeight: 26 },
-  statLabel: { fontFamily: FONTS.sansSemi, fontSize: 11.5, color: COLORS.muted, marginTop: 4 },
-  statDivider: { width: 1, backgroundColor: COLORS.border },
+    statRow: {
+      flexDirection: 'row',
+      marginTop: 6,
+      backgroundColor: c.card,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 16,
+      overflow: 'hidden',
+    },
+    stat: { paddingVertical: 12, paddingHorizontal: 20, alignItems: 'center', minWidth: 76 },
+    statValue: { fontFamily: FONTS.serif, fontSize: 24, color: c.text, lineHeight: 26 },
+    statLabel: { fontFamily: FONTS.sansSemi, fontSize: 11.5, color: c.muted, marginTop: 4 },
+    statDivider: { width: 1, backgroundColor: c.border },
 
-  bannerWrap: { marginHorizontal: SPACING.lg, marginBottom: SPACING.xl, borderRadius: RADIUS.lg, overflow: 'hidden' },
-  banner: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 16, paddingHorizontal: 18 },
-  bannerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bannerText: { flex: 1 },
-  bannerTitle: { fontFamily: FONTS.sansBold, fontSize: 15, color: '#fff' },
-  bannerSub: { fontFamily: FONTS.sans, fontSize: 12.5, color: 'rgba(255,255,255,0.85)', marginTop: 1 },
+    bannerWrap: { marginHorizontal: SPACING.lg, marginBottom: SPACING.xl, borderRadius: RADIUS.lg, overflow: 'hidden' },
+    banner: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 16, paddingHorizontal: 18 },
+    bannerIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    bannerText: { flex: 1 },
+    bannerTitle: { fontFamily: FONTS.sansBold, fontSize: 15, color: '#fff' },
+    bannerSub: { fontFamily: FONTS.sans, fontSize: 12.5, color: 'rgba(255,255,255,0.85)', marginTop: 1 },
 
-  footer: { textAlign: 'center', fontFamily: FONTS.mono, fontSize: 11, color: FAINT, marginTop: 4 },
-})
+    footer: { textAlign: 'center', fontFamily: FONTS.mono, fontSize: 11, color: faintColor(c), marginTop: 4 },
+  })
+}

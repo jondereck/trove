@@ -1,9 +1,7 @@
 import { Image, StyleSheet, Text, View } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
-import { COLORS, FONTS } from '../constants/theme'
-
-// accent (terracotta) → plum, matching the prototype's 140deg gradient.
-const GRADIENT = [COLORS.accent, '#8a5a86'] as const
+import { ColorPalette, FONTS } from '../constants/theme'
+import { useColors, useThemedStyles } from '../contexts/ThemeContext'
 
 export default function Avatar({
   firstName,
@@ -18,6 +16,11 @@ export default function Avatar({
   size?: number
   ring?: boolean
 }) {
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
+  // accent (terracotta) → plum, matching the prototype's 140deg gradient.
+  const gradient = [colors.accent, '#8a5a86'] as const
+
   const initials = (
     (firstName?.trim()?.[0] ?? '') + (lastName?.trim()?.[0] ?? '')
   ).toUpperCase()
@@ -31,7 +34,7 @@ export default function Avatar({
         />
       ) : (
         <LinearGradient
-          colors={GRADIENT}
+          colors={gradient}
           start={{ x: 0.1, y: 0 }}
           end={{ x: 0.9, y: 1 }}
           style={[styles.fill, { width: size, height: size, borderRadius: size / 2 }]}
@@ -53,16 +56,18 @@ export default function Avatar({
   )
 }
 
-const styles = StyleSheet.create({
-  fill: { alignItems: 'center', justifyContent: 'center' },
-  initials: { fontFamily: FONTS.serifItal, color: '#fff' },
-  shadow: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  ring: { padding: 2, backgroundColor: COLORS.accent },
-  ringInner: { padding: 2, backgroundColor: COLORS.bg },
-})
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    fill: { alignItems: 'center', justifyContent: 'center' },
+    initials: { fontFamily: FONTS.serifItal, color: '#fff' },
+    shadow: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.12,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    ring: { padding: 2, backgroundColor: c.accent },
+    ringInner: { padding: 2, backgroundColor: c.bg },
+  })
+}

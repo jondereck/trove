@@ -21,7 +21,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { ColorPalette, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { useColors, useThemedStyles } from '../../contexts/ThemeContext'
 import { COLLECTION_ICONS, DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
 import { Collection } from '../../types'
 import { fetchCollections, createCollection, deleteCollection, updateCollection } from '../../lib/db'
@@ -43,6 +44,8 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window')
 const COLOR_OPTIONS = ['#c0613c','#5c7a6e','#4a5568','#7c6d8a','#b87333','#2d6a9f']
 
 export default function CollectionsScreen() {
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const [collections, setCollections] = useState<Collection[]>([])
@@ -53,7 +56,7 @@ export default function CollectionsScreen() {
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [newIcon, setNewIcon] = useState<IoniconName>(DEFAULT_COLLECTION_ICON)
-  const [newColor, setNewColor] = useState(COLORS.accent)
+  const [newColor, setNewColor] = useState(colors.accent)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
 
@@ -129,7 +132,7 @@ export default function CollectionsScreen() {
       setShowCreate(false)
       setNewName('')
       setNewIcon(DEFAULT_COLLECTION_ICON)
-      setNewColor(COLORS.accent)
+      setNewColor(colors.accent)
       setCreateError('')
       if (refreshAfter || pendingRefresh.current) {
         pendingRefresh.current = false
@@ -265,7 +268,7 @@ export default function CollectionsScreen() {
             disabled={selectedIds.size === 0}
             activeOpacity={0.7}
           >
-            <Ionicons name="trash-outline" size={20} color={selectedIds.size > 0 ? '#e53e3e' : COLORS.muted} />
+            <Ionicons name="trash-outline" size={20} color={selectedIds.size > 0 ? '#e53e3e' : colors.muted} />
           </TouchableOpacity>
         </View>
       )}
@@ -274,7 +277,7 @@ export default function CollectionsScreen() {
         style={styles.container}
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} colors={[COLORS.accent]} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} colors={[colors.accent]} />
         }
         showsVerticalScrollIndicator={false}
       >
@@ -291,7 +294,7 @@ export default function CollectionsScreen() {
         )}
 
         {loading ? (
-          <ActivityIndicator color={COLORS.accent} style={styles.loader} />
+          <ActivityIndicator color={colors.accent} style={styles.loader} />
         ) : collections.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>◈</Text>
@@ -349,7 +352,7 @@ export default function CollectionsScreen() {
               value={newName}
               onChangeText={v => { setNewName(v); setCreateError('') }}
               placeholder="e.g. Design Inspiration"
-              placeholderTextColor={COLORS.muted}
+              placeholderTextColor={colors.muted}
               returnKeyType="done"
               onSubmitEditing={handleCreate}
             />
@@ -370,7 +373,7 @@ export default function CollectionsScreen() {
                     onPress={() => setNewIcon(name)}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name={name} size={20} color={active ? newColor : COLORS.textSub} />
+                    <Ionicons name={name} size={20} color={active ? newColor : colors.textSub} />
                   </TouchableOpacity>
                 )
               })}
@@ -444,8 +447,10 @@ function CollectionCard({
   selected?: boolean
   onPinToggle?: (pinned: boolean) => void
 }) {
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
   const covers = collection.cover_urls ?? []
-  const color = collection.color || COLORS.accent
+  const color = collection.color || colors.accent
   const count = collection.save_count ?? 0
   const inSelectionMode = selected !== undefined
   const [isPinned, setIsPinned] = useState(!!collection.is_pinned)
@@ -501,7 +506,7 @@ function CollectionCard({
           <Ionicons
             name={isPinned ? 'pin' : 'pin-outline'}
             size={15}
-            color={isPinned ? COLORS.accent : COLORS.muted}
+            color={isPinned ? colors.accent : colors.muted}
           />
         </TouchableOpacity>
       )}
@@ -517,30 +522,31 @@ function CollectionCard({
   )
 }
 
-const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: COLORS.bg },
-  container: { flex: 1, backgroundColor: COLORS.bg },
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+  wrapper: { flex: 1, backgroundColor: c.bg },
+  container: { flex: 1, backgroundColor: c.bg },
   content: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl * 2 },
 
   selectionBar: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.bg,
+    borderBottomWidth: 1, borderBottomColor: c.border,
+    backgroundColor: c.bg,
   },
   selBarBtn: { padding: SPACING.xs },
   selBarBtnDisabled: { opacity: 0.4 },
-  selBarCancel: { fontSize: 15, fontFamily: FONTS.sansMed, color: COLORS.accent },
-  selBarCount: { flex: 1, textAlign: 'center', fontSize: 15, fontFamily: FONTS.sansSemi, color: COLORS.text },
+  selBarCancel: { fontSize: 15, fontFamily: FONTS.sansMed, color: c.accent },
+  selBarCount: { flex: 1, textAlign: 'center', fontSize: 15, fontFamily: FONTS.sansSemi, color: c.text },
 
   header: {
     flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
     paddingTop: SPACING.md, paddingBottom: SPACING.lg,
   },
   headerText: { flex: 1 },
-  kicker: { fontSize: 11, fontFamily: FONTS.mono, color: COLORS.muted, letterSpacing: 1, marginBottom: 4 },
-  title: { fontSize: 38, fontFamily: FONTS.serif, color: COLORS.text, letterSpacing: -0.5, lineHeight: 40 },
-  newBtn: { backgroundColor: COLORS.accent, borderRadius: 999, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
+  kicker: { fontSize: 11, fontFamily: FONTS.mono, color: c.muted, letterSpacing: 1, marginBottom: 4 },
+  title: { fontSize: 38, fontFamily: FONTS.serif, color: c.text, letterSpacing: -0.5, lineHeight: 40 },
+  newBtn: { backgroundColor: c.accent, borderRadius: 999, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
   newBtnText: { fontSize: 13, fontFamily: FONTS.sansSemi, color: '#fff' },
   loader: { marginTop: SPACING.xl * 3 },
 
@@ -550,10 +556,10 @@ const styles = StyleSheet.create({
 
   // Collection card
   card: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: c.border,
     overflow: 'hidden',
     shadowColor: '#281e14',
     shadowOffset: { width: 0, height: 4 },
@@ -562,16 +568,16 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   cardSelected: {
-    borderColor: COLORS.accent,
+    borderColor: c.accent,
     borderWidth: 2,
   },
-  cover: { flexDirection: 'row', gap: 3, height: 96, padding: 8, backgroundColor: COLORS.cream },
+  cover: { flexDirection: 'row', gap: 3, height: 96, padding: 8, backgroundColor: c.cream },
   coverBig: { flex: 2, height: '100%', borderRadius: 10 },
   coverColumn: { flex: 1, gap: 3 },
   coverSmall: { flex: 1, width: '100%' },
   cardBody: { paddingHorizontal: 14, paddingTop: 4, paddingBottom: 14 },
-  cardName: { fontSize: 15, fontFamily: FONTS.sansBold, color: COLORS.text },
-  cardMeta: { fontSize: 12, fontFamily: FONTS.sans, color: COLORS.muted, marginTop: 3 },
+  cardName: { fontSize: 15, fontFamily: FONTS.sansBold, color: c.text },
+  cardMeta: { fontSize: 12, fontFamily: FONTS.sans, color: c.muted, marginTop: 3 },
   pinBtn: {
     position: 'absolute',
     top: SPACING.sm,
@@ -583,7 +589,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: c.border,
   },
 
   selectionOverlay: {
@@ -600,56 +606,57 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.card,
+    borderColor: c.border,
+    backgroundColor: c.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkCircleActive: {
-    borderColor: COLORS.accent,
-    backgroundColor: COLORS.accent,
+    borderColor: c.accent,
+    backgroundColor: c.accent,
   },
 
   // Empty
   empty: { alignItems: 'center', paddingTop: SPACING.xl * 4, gap: SPACING.md },
-  emptyIcon: { fontSize: 40, color: COLORS.border, marginBottom: SPACING.sm },
-  emptyTitle: { fontSize: 20, fontFamily: FONTS.serif, color: COLORS.textSub },
-  emptySubtitle: { fontSize: 14, fontFamily: FONTS.sans, color: COLORS.muted, textAlign: 'center', paddingHorizontal: SPACING.xl },
+  emptyIcon: { fontSize: 40, color: c.border, marginBottom: SPACING.sm },
+  emptyTitle: { fontSize: 20, fontFamily: FONTS.serif, color: c.textSub },
+  emptySubtitle: { fontSize: 14, fontFamily: FONTS.sans, color: c.muted, textAlign: 'center', paddingHorizontal: SPACING.xl },
 
   // Modal
   backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.4)' },
   kvWrap: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: COLORS.cream, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl,
+    backgroundColor: c.cream, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl,
     paddingHorizontal: SPACING.xl, paddingTop: SPACING.sm,
     shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 20,
   },
-  handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: COLORS.border, marginBottom: SPACING.lg },
-  sheetTitle: { fontSize: 20, fontFamily: FONTS.serif, color: COLORS.text, marginBottom: SPACING.lg },
-  label: { fontSize: 10, fontFamily: FONTS.sansSemi, color: COLORS.muted, letterSpacing: 1, marginBottom: SPACING.sm, marginTop: SPACING.md },
+  handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: c.border, marginBottom: SPACING.lg },
+  sheetTitle: { fontSize: 20, fontFamily: FONTS.serif, color: c.text, marginBottom: SPACING.lg },
+  label: { fontSize: 10, fontFamily: FONTS.sansSemi, color: c.muted, letterSpacing: 1, marginBottom: SPACING.sm, marginTop: SPACING.md },
   input: {
-    backgroundColor: COLORS.card, borderWidth: 1.5, borderColor: COLORS.border,
+    backgroundColor: c.card, borderWidth: 1.5, borderColor: c.border,
     borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: SPACING.md,
-    fontSize: 15, fontFamily: FONTS.sans, color: COLORS.text,
+    fontSize: 15, fontFamily: FONTS.sans, color: c.text,
   },
   errorSlot: { minHeight: 18, marginTop: SPACING.xs },
-  errorText: { fontSize: 12, fontFamily: FONTS.sans, color: COLORS.accent },
+  errorText: { fontSize: 12, fontFamily: FONTS.sans, color: c.accent },
   iconRow: { marginBottom: SPACING.sm },
   iconBtn: {
     width: 40, height: 40, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: 'transparent', marginRight: SPACING.sm,
   },
-  iconBtnActive: { borderColor: COLORS.accent, backgroundColor: '#fdf0eb' },
+  iconBtnActive: { borderColor: c.accent, backgroundColor: c.accentSoft },
   colorRow: { flexDirection: 'row', gap: SPACING.md, marginBottom: SPACING.md },
   colorSwatch: { width: 32, height: 32, borderRadius: 16 },
-  colorSwatchActive: { borderWidth: 3, borderColor: COLORS.text },
+  colorSwatchActive: { borderWidth: 3, borderColor: c.text },
   preview: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    backgroundColor: COLORS.card, borderRadius: RADIUS.md, borderLeftWidth: 4,
+    backgroundColor: c.card, borderRadius: RADIUS.md, borderLeftWidth: 4,
     padding: SPACING.md, marginBottom: SPACING.lg,
   },
-  previewName: { fontSize: 15, fontFamily: FONTS.sansMed, color: COLORS.text, flex: 1 },
+  previewName: { fontSize: 15, fontFamily: FONTS.sansMed, color: c.text, flex: 1 },
   createBtn: { borderRadius: RADIUS.md, paddingVertical: SPACING.md + 2, alignItems: 'center' },
   createBtnDisabled: { opacity: 0.45 },
   createBtnText: { fontSize: 15, fontFamily: FONTS.sansSemi, color: '#fff', letterSpacing: 0.2 },
-})
+  })
+}

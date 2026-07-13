@@ -17,7 +17,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
-import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
+import { ColorPalette, FONTS, SPACING, RADIUS } from '../constants/theme'
+import { useColors, useThemedStyles } from '../contexts/ThemeContext'
 import { UNSORTED_LABEL } from '../constants/labels'
 import { DEFAULT_COLLECTION_ICON, IoniconName } from '../constants/icons'
 import { SaveType, OGMetadata, AISuggestion, Collection } from '../types'
@@ -57,6 +58,8 @@ const TYPE_OPTS: { key: SaveType; label: string; icon: keyof typeof Ionicons.gly
 
 export default function QuickSave({ visible, onClose, onSave, initialUrl }: QuickSaveProps) {
   const insets = useSafeAreaInsets()
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current
   const backdropOpacity = useRef(new Animated.Value(0)).current
   const didAutoFetch = useRef(false)
@@ -372,7 +375,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                     <Ionicons
                       name={opt.icon}
                       size={15}
-                      color={type === opt.key ? COLORS.accent : COLORS.textSub}
+                      color={type === opt.key ? colors.accent : colors.textSub}
                     />
                     <Text style={[styles.typePillText, type === opt.key && styles.typePillTextActive]}>
                       {opt.label}
@@ -390,7 +393,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                   <Ionicons
                     name={type === 'video' ? 'videocam-outline' : 'images-outline'}
                     size={28}
-                    color={COLORS.muted}
+                    color={colors.muted}
                   />
                   <Text style={styles.galleryTitle}>Choose from gallery</Text>
                   <Text style={styles.gallerySub}>
@@ -402,7 +405,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                   <TextInput
                     style={[styles.input, type === 'note' && styles.inputNote]}
                     placeholder={type === 'note' ? 'Write a note…' : 'Paste a URL…'}
-                    placeholderTextColor={COLORS.muted}
+                    placeholderTextColor={colors.muted}
                     value={input}
                     onChangeText={setInput}
                     multiline={type === 'note'}
@@ -449,7 +452,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
               </View>
               <Text style={styles.loadingTitle}>Analyzing</Text>
               <Text style={styles.loadingStatus}>{loadingStatus}</Text>
-              <ActivityIndicator color={COLORS.accent} style={{ marginTop: SPACING.md }} />
+              <ActivityIndicator color={colors.accent} style={{ marginTop: SPACING.md }} />
             </View>
           )}
 
@@ -475,7 +478,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                   multiline
                   numberOfLines={2}
                   placeholder="Add a title…"
-                  placeholderTextColor={COLORS.muted}
+                  placeholderTextColor={colors.muted}
                 />
                 {draft.type === 'note' && aiTitleDescriptionOn && (
                   <TouchableOpacity
@@ -485,8 +488,8 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                     disabled={suggestingTitle}
                   >
                     {suggestingTitle
-                      ? <ActivityIndicator size="small" color={COLORS.accent} />
-                      : <Ionicons name="sparkles" size={16} color={COLORS.accent} />
+                      ? <ActivityIndicator size="small" color={colors.accent} />
+                      : <Ionicons name="sparkles" size={16} color={colors.accent} />
                     }
                   </TouchableOpacity>
                 )}
@@ -509,11 +512,11 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                       activeOpacity={0.75}
                     >
                       {opt.id === '' ? (
-                        <Ionicons name="file-tray-outline" size={14} color={on ? '#fff' : COLORS.textSub} />
+                        <Ionicons name="file-tray-outline" size={14} color={on ? '#fff' : colors.textSub} />
                       ) : opt.icon ? (
-                        <Ionicons name={opt.icon} size={14} color={on ? '#fff' : (opt.color ?? COLORS.textSub)} />
+                        <Ionicons name={opt.icon} size={14} color={on ? '#fff' : (opt.color ?? colors.textSub)} />
                       ) : null}
-                      {opt.recommended && <Ionicons name="sparkles" size={12} color={on ? '#fff' : COLORS.accent} />}
+                      {opt.recommended && <Ionicons name="sparkles" size={12} color={on ? '#fff' : colors.accent} />}
                       <Text style={[styles.collChipText, on && styles.collChipTextOn]}>{opt.label}</Text>
                     </TouchableOpacity>
                   )
@@ -525,7 +528,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                     value={newColl}
                     onChangeText={setNewColl}
                     placeholder="New collection…"
-                    placeholderTextColor={COLORS.muted}
+                    placeholderTextColor={colors.muted}
                     autoFocus
                     returnKeyType="done"
                     onSubmitEditing={commitNewColl}
@@ -557,7 +560,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                     value={editingTag}
                     onChangeText={setEditingTag}
                     placeholder="new tag"
-                    placeholderTextColor={COLORS.muted}
+                    placeholderTextColor={colors.muted}
                     autoFocus
                     autoCapitalize="none"
                     returnKeyType="done"
@@ -580,7 +583,8 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   )
 }
 
-const styles = StyleSheet.create({
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -590,7 +594,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: COLORS.cream,
+    backgroundColor: c.cream,
     borderTopLeftRadius: RADIUS.xl,
     borderTopRightRadius: RADIUS.xl,
     paddingHorizontal: SPACING.xl,
@@ -607,13 +611,13 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: COLORS.border,
+    backgroundColor: c.border,
     marginBottom: SPACING.lg,
   },
   title: {
     fontSize: 20,
     fontFamily: FONTS.serif,
-    color: COLORS.text,
+    color: c.text,
     marginBottom: SPACING.lg,
   },
   typeRow: {
@@ -630,31 +634,31 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
     borderRadius: RADIUS.md,
     borderWidth: 1.5,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.card,
+    borderColor: c.border,
+    backgroundColor: c.card,
   },
   typePillActive: {
-    borderColor: COLORS.accent,
-    backgroundColor: '#fdf0eb',
+    borderColor: c.accent,
+    backgroundColor: c.accentSoft,
   },
   typePillText: {
     fontSize: 12,
     fontFamily: FONTS.sansMed,
-    color: COLORS.textSub,
+    color: c.textSub,
   },
   typePillTextActive: {
-    color: COLORS.accent,
+    color: c.accent,
   },
   input: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: RADIUS.md,
     borderWidth: 1.5,
-    borderColor: COLORS.border,
+    borderColor: c.border,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     fontSize: 15,
     fontFamily: FONTS.sans,
-    color: COLORS.text,
+    color: c.text,
     marginBottom: SPACING.md,
   },
   inputNote: {
@@ -668,21 +672,21 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.xl,
     borderRadius: RADIUS.md,
     borderWidth: 1.5,
-    borderColor: COLORS.border,
+    borderColor: c.border,
     borderStyle: 'dashed',
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     marginBottom: SPACING.md,
   },
   galleryTitle: {
     fontSize: 15,
     fontFamily: FONTS.sansSemi,
-    color: COLORS.text,
+    color: c.text,
     marginTop: SPACING.xs,
   },
   gallerySub: {
     fontSize: 12.5,
     fontFamily: FONTS.sans,
-    color: COLORS.muted,
+    color: c.muted,
   },
   errorText: {
     fontSize: 12,
@@ -691,7 +695,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   primaryBtn: {
-    backgroundColor: COLORS.accent,
+    backgroundColor: c.accent,
     borderRadius: RADIUS.md,
     paddingVertical: SPACING.md,
     alignItems: 'center',
@@ -716,11 +720,11 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: COLORS.accent,
+    backgroundColor: c.accent,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACING.lg,
-    shadowColor: COLORS.accent,
+    shadowColor: c.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
@@ -729,13 +733,13 @@ const styles = StyleSheet.create({
   loadingTitle: {
     fontSize: 18,
     fontFamily: FONTS.serif,
-    color: COLORS.text,
+    color: c.text,
     marginBottom: SPACING.sm,
   },
   loadingStatus: {
     fontSize: 13,
     fontFamily: FONTS.sans,
-    color: COLORS.textSub,
+    color: c.textSub,
   },
 
   // Preview
@@ -747,7 +751,7 @@ const styles = StyleSheet.create({
   },
   domainPill: {
     alignSelf: 'flex-start',
-    backgroundColor: COLORS.border,
+    backgroundColor: c.border,
     borderRadius: RADIUS.sm,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 3,
@@ -756,7 +760,7 @@ const styles = StyleSheet.create({
   domainText: {
     fontSize: 11,
     fontFamily: FONTS.sansMed,
-    color: COLORS.textSub,
+    color: c.textSub,
     letterSpacing: 0.3,
   },
   titleRow: {
@@ -768,7 +772,7 @@ const styles = StyleSheet.create({
   previewTitle: {
     fontSize: 18,
     fontFamily: FONTS.serif,
-    color: COLORS.text,
+    color: c.text,
     lineHeight: 24,
     paddingVertical: 0,
   },
@@ -782,14 +786,14 @@ const styles = StyleSheet.create({
   previewDesc: {
     fontSize: 13,
     fontFamily: FONTS.sans,
-    color: COLORS.textSub,
+    color: c.textSub,
     lineHeight: 18,
     marginBottom: SPACING.md,
   },
   sectionLabel: {
     fontSize: 11,
     fontFamily: FONTS.sansSemi,
-    color: COLORS.muted,
+    color: c.muted,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     marginBottom: SPACING.sm,
@@ -805,39 +809,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: c.border,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
   },
   collChipOn: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
+    backgroundColor: c.accent,
+    borderColor: c.accent,
   },
-  collChipText: { fontSize: 13, fontFamily: FONTS.sansMed, color: COLORS.text },
+  collChipText: { fontSize: 13, fontFamily: FONTS.sansMed, color: c.text },
   collChipTextOn: { color: '#fff' },
   collChipNew: {
     borderWidth: 1.5,
-    borderColor: COLORS.border,
+    borderColor: c.border,
     borderStyle: 'dashed',
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
   },
-  collChipNewText: { fontSize: 13, fontFamily: FONTS.sansMed, color: COLORS.muted },
+  collChipNewText: { fontSize: 13, fontFamily: FONTS.sansMed, color: c.muted },
   collNewInput: {
     minWidth: 130,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: RADIUS.md,
     borderWidth: 1.5,
-    borderColor: COLORS.accent,
+    borderColor: c.accent,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     fontSize: 13,
     fontFamily: FONTS.sans,
-    color: COLORS.text,
+    color: c.text,
   },
   tagsRow: {
     flexDirection: 'row',
@@ -846,7 +850,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   tagChip: {
-    backgroundColor: COLORS.border,
+    backgroundColor: c.border,
     borderRadius: RADIUS.sm,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 4,
@@ -854,11 +858,11 @@ const styles = StyleSheet.create({
   tagChipText: {
     fontSize: 12,
     fontFamily: FONTS.sansMed,
-    color: COLORS.textSub,
+    color: c.textSub,
   },
   tagAddBtn: {
     borderWidth: 1.5,
-    borderColor: COLORS.border,
+    borderColor: c.border,
     borderStyle: 'dashed',
     borderRadius: RADIUS.sm,
     paddingHorizontal: SPACING.sm,
@@ -867,15 +871,16 @@ const styles = StyleSheet.create({
   tagAddText: {
     fontSize: 12,
     fontFamily: FONTS.sans,
-    color: COLORS.muted,
+    color: c.muted,
   },
   tagInput: {
     borderBottomWidth: 1.5,
-    borderBottomColor: COLORS.accent,
+    borderBottomColor: c.accent,
     fontSize: 12,
     fontFamily: FONTS.sans,
-    color: COLORS.text,
+    color: c.text,
     paddingVertical: 2,
     minWidth: 60,
   },
-})
+  })
+}

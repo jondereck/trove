@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { View, Text, Image, Animated, Pressable, TouchableOpacity, StyleSheet, Linking } from 'react-native'
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons'
-import { FONTS, SPACING, RADIUS, LIGHT_COLORS } from '../constants/theme'
-import { useColors } from '../contexts/ThemeContext'
+import { FONTS, SPACING, RADIUS, ColorPalette } from '../constants/theme'
+import { useColors, useThemedStyles } from '../contexts/ThemeContext'
 import { Save } from '../types'
 import { updateSave } from '../lib/db'
 import { repairThumbnail } from '../lib/thumbnailRepair'
@@ -49,6 +49,7 @@ function chipColor(str: string) {
 
 // One row of tag chips — all tags rendered, overflow clips naturally (no shrinking)
 function TagChips({ tags }: { tags: string[] }) {
+  const styles = useThemedStyles(createStyles)
   if (!tags || tags.length === 0) return null
   return (
     <View style={styles.tagRow}>
@@ -99,6 +100,7 @@ const BRAND_MAP: Record<string, { icon: string; color: string }> = {
 
 // Domain row: real brand icon OR colored letter square fallback
 function DomainRow({ domain, colors }: { domain: string; colors: ReturnType<typeof useColors> }) {
+  const styles = useThemedStyles(createStyles)
   if (!domain) return null
   const brand = BRAND_MAP[domain]
   const c = chipColor(domain)
@@ -131,6 +133,7 @@ interface SaveCardProps {
 
 export default function SaveCard({ save, onPress, onLongPress, selected, onFavoriteToggle, onPinToggle, layout = 'grid' }: SaveCardProps) {
   const colors = useColors()
+  const styles = useThemedStyles(createStyles)
   const scale = useRef(new Animated.Value(1)).current
   const inSelectionMode = selected !== undefined
   const [isFav, setIsFav] = useState(!!save.is_favorite)
@@ -220,7 +223,7 @@ export default function SaveCard({ save, onPress, onLongPress, selected, onFavor
               <Ionicons
                 name={isFav ? 'heart' : 'heart-outline'}
                 size={16}
-                color={isFav ? '#e53e3e' : LIGHT_COLORS.muted}
+                color={isFav ? '#e53e3e' : colors.muted}
               />
             </Animated.View>
           </TouchableOpacity>
@@ -252,6 +255,7 @@ function LinkCard({
   onOpenLink: () => void
   colors: ReturnType<typeof useColors>
 }) {
+  const styles = useThemedStyles(createStyles)
   const domain = getDomain(save.url)
   const [imgError, setImgError] = useState(false)
   const [imageUrl, setImageUrl] = useState(save.image_url)
@@ -312,6 +316,7 @@ function NoteCard({
   isUnread: boolean
   colors: ReturnType<typeof useColors>
 }) {
+  const styles = useThemedStyles(createStyles)
   const body = save.content || save.description || ''
   const showTitle = save.title && save.title !== body && save.title !== body.slice(0, 60)
   return (
@@ -343,6 +348,7 @@ function ImageCard({
   isUnread: boolean
   colors: ReturnType<typeof useColors>
 }) {
+  const styles = useThemedStyles(createStyles)
   const [imgError, setImgError] = useState(false)
   return (
     <View>
@@ -381,6 +387,7 @@ function VideoCard({
   isUnread: boolean
   colors: ReturnType<typeof useColors>
 }) {
+  const styles = useThemedStyles(createStyles)
   const [imgError, setImgError] = useState(false)
   return (
     <View>
@@ -429,6 +436,7 @@ function ListCard({
   onOpenLink: () => void
   colors: ReturnType<typeof useColors>
 }) {
+  const styles = useThemedStyles(createStyles)
   const domain = getDomain(save.url)
   const [imgError, setImgError] = useState(false)
   const thumb = save.image_url
@@ -488,18 +496,19 @@ function ListCard({
 
 // ── Styles ─────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
   card: {
-    backgroundColor: LIGHT_COLORS.card,
+    backgroundColor: c.card,
     borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: LIGHT_COLORS.border,
+    borderColor: c.border,
     marginBottom: SPACING.sm,
     overflow: 'hidden',
   },
   cardNote: {
-    backgroundColor: LIGHT_COLORS.cream,
-    borderColor: '#dddad4',
+    backgroundColor: c.cream,
+    borderColor: c.border,
   },
   cardSelected: {
     borderWidth: 2,
@@ -534,7 +543,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: LIGHT_COLORS.border,
+    borderColor: c.border,
   },
 
   // Selection overlay
@@ -553,14 +562,14 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     borderWidth: 2,
-    borderColor: LIGHT_COLORS.accent,
+    borderColor: c.accent,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkCircleActive: {
-    backgroundColor: LIGHT_COLORS.accent,
-    borderColor: LIGHT_COLORS.accent,
+    backgroundColor: c.accent,
+    borderColor: c.accent,
   },
 
   // Hero image (link cards with OG image)
@@ -578,7 +587,7 @@ const styles = StyleSheet.create({
   linkTitle: {
     fontSize: 13,
     fontFamily: FONTS.sansSemi,
-    color: LIGHT_COLORS.text,
+    color: c.text,
     lineHeight: 18,
     marginTop: 1,
   },
@@ -587,12 +596,12 @@ const styles = StyleSheet.create({
   date: {
     fontSize: 10,
     fontFamily: FONTS.sans,
-    color: LIGHT_COLORS.muted,
+    color: c.muted,
   },
   desc: {
     fontSize: 11.5,
     fontFamily: FONTS.sans,
-    color: LIGHT_COLORS.textSub,
+    color: c.textSub,
     lineHeight: 16,
   },
 
@@ -619,7 +628,7 @@ const styles = StyleSheet.create({
   domainText: {
     fontSize: 11,
     fontFamily: FONTS.sans,
-    color: LIGHT_COLORS.muted,
+    color: c.muted,
     flexShrink: 1,
   },
 
@@ -651,7 +660,7 @@ const styles = StyleSheet.create({
   noteQuote: {
     fontSize: 28,
     fontFamily: FONTS.serifItal,
-    color: LIGHT_COLORS.accent,
+    color: c.accent,
     lineHeight: 28,
     marginBottom: -4,
     opacity: 0.55,
@@ -659,14 +668,14 @@ const styles = StyleSheet.create({
   noteTitle: {
     fontSize: 12,
     fontFamily: FONTS.sansSemi,
-    color: LIGHT_COLORS.text,
+    color: c.text,
     lineHeight: 17,
     marginBottom: 2,
   },
   noteText: {
     fontSize: 13,
     fontFamily: FONTS.serifItal,
-    color: LIGHT_COLORS.text,
+    color: c.text,
     lineHeight: 20,
   },
 
@@ -683,7 +692,7 @@ const styles = StyleSheet.create({
     height: 130,
   },
   imagePlaceholder: {
-    backgroundColor: LIGHT_COLORS.border,
+    backgroundColor: c.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -695,7 +704,7 @@ const styles = StyleSheet.create({
   mediaTitle: {
     fontSize: 13,
     fontFamily: FONTS.sansSemi,
-    color: LIGHT_COLORS.text,
+    color: c.text,
     lineHeight: 18,
     marginTop: 1,
   },
@@ -714,7 +723,7 @@ const styles = StyleSheet.create({
   },
   playIcon: {
     fontSize: 13,
-    color: LIGHT_COLORS.text,
+    color: c.text,
     marginLeft: 2,
   },
   videoBadge: {
@@ -743,21 +752,22 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: RADIUS.md,
-    backgroundColor: LIGHT_COLORS.border,
+    backgroundColor: c.border,
   },
   listThumbFallback: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: LIGHT_COLORS.cream,
+    backgroundColor: c.cream,
   },
   listBody: { flex: 1, gap: 4 },
   listTitle: {
     fontSize: 15,
     fontFamily: FONTS.sansSemi,
-    color: LIGHT_COLORS.text,
+    color: c.text,
     lineHeight: 20,
   },
   listMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  listMetaText: { fontSize: 12, fontFamily: FONTS.sans, color: LIGHT_COLORS.muted },
-  listMetaDot: { fontSize: 12, color: LIGHT_COLORS.muted },
-})
+  listMetaText: { fontSize: 12, fontFamily: FONTS.sans, color: c.muted },
+  listMetaDot: { fontSize: 12, color: c.muted },
+  })
+}

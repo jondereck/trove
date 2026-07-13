@@ -54,6 +54,12 @@ function setTier(next: Tier) {
   listeners.forEach(fn => fn(effective))
 }
 
+/** Push RevenueCat CustomerInfo into the sync cache (e.g. right after purchase). */
+export function applyCustomerInfo(info: CustomerInfo): Tier {
+  setTier(tierFromCustomerInfo(info))
+  return getTier()
+}
+
 // Call once from the root layout. Safe to call again (no-op).
 export async function configurePurchases(): Promise<void> {
   if (configured || Platform.OS === 'web' || !RC_ANDROID_KEY) return

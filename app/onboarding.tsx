@@ -12,7 +12,8 @@ import {
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme'
+import { ColorPalette, FONTS, RADIUS, SPACING } from '../constants/theme'
+import { useThemedStyles } from '../contexts/ThemeContext'
 import { dismissOnboarding } from '../lib/firstLaunch'
 
 const SW = Dimensions.get('window').width
@@ -32,10 +33,16 @@ const SLIDES: Slide[] = [
     body: 'Links, notes, images, and videos — all in one calm, organized place. Your private second brain.',
   },
   {
-    icon: 'sparkles',
+    icon: 'phone-portrait-outline',
     tint: '#c4b3e0',
     title: 'No account needed',
     body: 'Start saving right away. Everything stays on your device — no sign-up, no friction.',
+  },
+  {
+    icon: 'sparkles',
+    tint: '#e8b4a0',
+    title: 'AI that helps you organize',
+    body: 'Get smart collection and tag suggestions when you save, then batch-sort your Inbox with AI Organize.',
   },
   {
     icon: 'swap-horizontal',
@@ -46,6 +53,7 @@ const SLIDES: Slide[] = [
 ]
 
 export default function OnboardingScreen() {
+  const styles = useThemedStyles(createStyles)
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const listRef = useRef<FlatList<Slide>>(null)
@@ -114,42 +122,44 @@ export default function OnboardingScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: c.bg },
 
-  topBar: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm, alignItems: 'flex-end' },
-  skip: { fontFamily: FONTS.sansSemi, fontSize: 15, color: COLORS.muted },
+    topBar: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm, alignItems: 'flex-end' },
+    skip: { fontFamily: FONTS.sansSemi, fontSize: 15, color: c.muted },
 
-  slide: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 36 },
-  iconWrap: {
-    width: 120,
-    height: 120,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 36,
-  },
-  title: { fontFamily: FONTS.serif, fontSize: 38, color: COLORS.text, textAlign: 'center', lineHeight: 42 },
-  body: {
-    fontFamily: FONTS.sans,
-    fontSize: 16,
-    color: COLORS.textSub,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginTop: 14,
-  },
+    slide: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 36 },
+    iconWrap: {
+      width: 120,
+      height: 120,
+      borderRadius: 32,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 36,
+    },
+    title: { fontFamily: FONTS.serif, fontSize: 38, color: c.text, textAlign: 'center', lineHeight: 42 },
+    body: {
+      fontFamily: FONTS.sans,
+      fontSize: 16,
+      color: c.textSub,
+      textAlign: 'center',
+      lineHeight: 24,
+      marginTop: 14,
+    },
 
-  footer: { paddingHorizontal: 28, gap: SPACING.lg, alignItems: 'center' },
-  dots: { flexDirection: 'row', gap: 7 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: COLORS.border },
-  dotActive: { backgroundColor: COLORS.accent, width: 20 },
+    footer: { paddingHorizontal: 28, gap: SPACING.lg, alignItems: 'center' },
+    dots: { flexDirection: 'row', gap: 7 },
+    dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: c.border },
+    dotActive: { backgroundColor: c.accent, width: 20 },
 
-  primaryBtn: {
-    width: '100%',
-    backgroundColor: COLORS.accent,
-    borderRadius: RADIUS.md,
-    paddingVertical: 17,
-    alignItems: 'center',
-  },
-  primaryBtnText: { fontSize: 16, fontFamily: FONTS.sansSemi, color: '#fff', letterSpacing: 0.1 },
-})
+    primaryBtn: {
+      width: '100%',
+      backgroundColor: c.accent,
+      borderRadius: RADIUS.md,
+      paddingVertical: 17,
+      alignItems: 'center',
+    },
+    primaryBtnText: { fontSize: 16, fontFamily: FONTS.sansSemi, color: '#fff', letterSpacing: 0.1 },
+  })
+}

@@ -13,7 +13,8 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme'
+import { ColorPalette, FONTS, SPACING, RADIUS } from '../constants/theme'
+import { useColors, useThemedStyles } from '../contexts/ThemeContext'
 import { UNSORTED_LABEL } from '../constants/labels'
 import { Save, Collection, OrganizeSuggestion } from '../types'
 import { organizeInboxItems } from '../lib/ai'
@@ -44,6 +45,8 @@ interface AIOrganizeProps {
 
 export default function AIOrganize({ visible, onClose, saves, collections, onApply }: AIOrganizeProps) {
   const insets = useSafeAreaInsets()
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
   const [phase, setPhase] = useState<Phase>('loading')
   const [queue, setQueue] = useState<OrganizeSuggestion[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -307,7 +310,7 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
               </View>
               <Text style={styles.loadingTitle}>Analyzing {UNSORTED_LABEL.toLowerCase()}</Text>
               <Text style={styles.loadingSubtitle}>Finding the right collections and tags…</Text>
-              <ActivityIndicator color={COLORS.accent} style={{ marginTop: SPACING.md }} />
+              <ActivityIndicator color={colors.accent} style={{ marginTop: SPACING.md }} />
             </View>
           )}
 
@@ -377,14 +380,14 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
                         autoCapitalize="words"
                         returnKeyType="done"
                         placeholder="Collection name"
-                        placeholderTextColor={COLORS.muted}
+                        placeholderTextColor={colors.muted}
                       />
                     )}
                   </>
                 ) : (
                   <TouchableOpacity style={styles.collectionChip} onPress={() => setEditingItem(true)} activeOpacity={0.8}>
                     <View style={styles.collectionChipMain}>
-                      <Ionicons name="sparkles" size={15} color={COLORS.accent} />
+                      <Ionicons name="sparkles" size={15} color={colors.accent} />
                       <Text style={styles.collectionChipText}>{effectiveCollection}</Text>
                     </View>
                     <Text style={styles.editHint}>tap to edit</Text>
@@ -412,7 +415,7 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
                       value={newTag}
                       onChangeText={setNewTag}
                       placeholder="+ tag"
-                      placeholderTextColor={COLORS.muted}
+                      placeholderTextColor={colors.muted}
                       autoCapitalize="none"
                       returnKeyType="done"
                       onSubmitEditing={addTag}
@@ -488,7 +491,8 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
   )
 }
 
-const styles = StyleSheet.create({
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -498,7 +502,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: COLORS.cream,
+    backgroundColor: c.cream,
     borderTopLeftRadius: RADIUS.xl,
     borderTopRightRadius: RADIUS.xl,
     paddingHorizontal: SPACING.xl,
@@ -516,7 +520,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: COLORS.border,
+    backgroundColor: c.border,
     marginBottom: SPACING.xl,
   },
   loadingWrap: {
@@ -535,16 +539,16 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: COLORS.accent,
+    backgroundColor: c.accent,
   },
   orb: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: COLORS.accent,
+    backgroundColor: c.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.accent,
+    shadowColor: c.accent,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.6,
     shadowRadius: 16,
@@ -553,13 +557,13 @@ const styles = StyleSheet.create({
   loadingTitle: {
     fontSize: 20,
     fontFamily: FONTS.serif,
-    color: COLORS.text,
+    color: c.text,
     marginBottom: SPACING.sm,
   },
   loadingSubtitle: {
     fontSize: 13,
     fontFamily: FONTS.sans,
-    color: COLORS.textSub,
+    color: c.textSub,
     textAlign: 'center',
   },
   reviewHeader: {
@@ -571,10 +575,10 @@ const styles = StyleSheet.create({
   reviewTitle: {
     fontSize: 20,
     fontFamily: FONTS.serif,
-    color: COLORS.text,
+    color: c.text,
   },
   progressBadge: {
-    backgroundColor: COLORS.border,
+    backgroundColor: c.border,
     borderRadius: RADIUS.sm,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 3,
@@ -582,13 +586,13 @@ const styles = StyleSheet.create({
   progressText: {
     fontSize: 12,
     fontFamily: FONTS.sansMed,
-    color: COLORS.textSub,
+    color: c.textSub,
   },
   itemCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: c.border,
     padding: SPACING.md,
     marginBottom: SPACING.lg,
   },
@@ -599,7 +603,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   typeBadge: {
-    backgroundColor: COLORS.border,
+    backgroundColor: c.border,
     borderRadius: RADIUS.sm,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 2,
@@ -607,19 +611,19 @@ const styles = StyleSheet.create({
   typeBadgeText: {
     fontSize: 9,
     fontFamily: FONTS.sansBold,
-    color: COLORS.muted,
+    color: c.muted,
     letterSpacing: 0.8,
   },
   itemDomain: {
     fontSize: 11,
     fontFamily: FONTS.sans,
-    color: COLORS.muted,
+    color: c.muted,
     flex: 1,
   },
   itemTitle: {
     fontSize: 15,
     fontFamily: FONTS.serif,
-    color: COLORS.text,
+    color: c.text,
     lineHeight: 21,
   },
   editArea: {
@@ -629,7 +633,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 10,
     fontFamily: FONTS.sansSemi,
-    color: COLORS.muted,
+    color: c.muted,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     marginBottom: SPACING.sm,
@@ -639,9 +643,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#fdf0eb',
+    backgroundColor: c.accentSoft,
     borderWidth: 1,
-    borderColor: '#f0c4b4',
+    borderColor: c.accentBorder,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
@@ -655,23 +659,23 @@ const styles = StyleSheet.create({
   collectionChipText: {
     fontSize: 14,
     fontFamily: FONTS.sansMed,
-    color: COLORS.accent,
+    color: c.accent,
   },
   editHint: {
     fontSize: 10,
     fontFamily: FONTS.sans,
-    color: COLORS.muted,
+    color: c.muted,
   },
   collectionInput: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: RADIUS.md,
     borderWidth: 1.5,
-    borderColor: COLORS.accent,
+    borderColor: c.accent,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     fontSize: 14,
     fontFamily: FONTS.sans,
-    color: COLORS.text,
+    color: c.text,
     marginBottom: SPACING.sm,
   },
   collectionPicker: { marginBottom: SPACING.sm, maxHeight: 40 },
@@ -681,25 +685,25 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.card,
+    borderColor: c.border,
+    backgroundColor: c.card,
   },
   collectionOptionActive: {
-    borderColor: COLORS.accent,
-    backgroundColor: '#fdf0eb',
+    borderColor: c.accent,
+    backgroundColor: c.accentSoft,
   },
   collectionOptionText: {
     fontSize: 13,
     fontFamily: FONTS.sansMed,
-    color: COLORS.textSub,
+    color: c.textSub,
   },
   collectionOptionTextActive: {
-    color: COLORS.accent,
+    color: c.accent,
   },
   tagsEmpty: {
     fontSize: 12,
     fontFamily: FONTS.sans,
-    color: COLORS.muted,
+    color: c.muted,
     marginBottom: SPACING.sm,
   },
   tagsRow: {
@@ -708,7 +712,7 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   tagChip: {
-    backgroundColor: COLORS.border,
+    backgroundColor: c.border,
     borderRadius: RADIUS.sm,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 4,
@@ -716,14 +720,14 @@ const styles = StyleSheet.create({
   tagText: {
     fontSize: 12,
     fontFamily: FONTS.sansMed,
-    color: COLORS.textSub,
+    color: c.textSub,
   },
   tagInput: {
     borderBottomWidth: 1.5,
-    borderBottomColor: COLORS.accent,
+    borderBottomColor: c.accent,
     fontSize: 12,
     fontFamily: FONTS.sans,
-    color: COLORS.text,
+    color: c.text,
     paddingVertical: 2,
     minWidth: 56,
   },
@@ -738,12 +742,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: RADIUS.md,
     borderWidth: 1.5,
-    borderColor: COLORS.border,
+    borderColor: c.border,
   },
   skipBtnText: {
     fontSize: 14,
     fontFamily: FONTS.sansMed,
-    color: COLORS.muted,
+    color: c.muted,
   },
   editBtn: {
     flex: 1,
@@ -751,26 +755,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: RADIUS.md,
     borderWidth: 1.5,
-    borderColor: COLORS.border,
+    borderColor: c.border,
   },
   editBtnActive: {
-    borderColor: COLORS.accent,
-    backgroundColor: '#fdf0eb',
+    borderColor: c.accent,
+    backgroundColor: c.accentSoft,
   },
   editBtnText: {
     fontSize: 14,
     fontFamily: FONTS.sansMed,
-    color: COLORS.textSub,
+    color: c.textSub,
   },
   editBtnTextActive: {
-    color: COLORS.accent,
+    color: c.accent,
   },
   acceptBtn: {
     flex: 1.5,
     paddingVertical: SPACING.md,
     alignItems: 'center',
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.accent,
+    backgroundColor: c.accent,
   },
   acceptBtnDisabled: {
     opacity: 0.7,
@@ -787,7 +791,7 @@ const styles = StyleSheet.create({
   acceptAllText: {
     fontSize: 13,
     fontFamily: FONTS.sansMed,
-    color: COLORS.accent,
+    color: c.accent,
     letterSpacing: 0.2,
   },
   doneWrap: {
@@ -799,7 +803,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: COLORS.accent,
+    backgroundColor: c.accent,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACING.sm,
@@ -812,16 +816,16 @@ const styles = StyleSheet.create({
   doneTitle: {
     fontSize: 22,
     fontFamily: FONTS.serif,
-    color: COLORS.text,
+    color: c.text,
   },
   doneSub: {
     fontSize: 14,
     fontFamily: FONTS.sans,
-    color: COLORS.textSub,
+    color: c.textSub,
     textAlign: 'center',
   },
   doneBtn: {
-    backgroundColor: COLORS.accent,
+    backgroundColor: c.accent,
     borderRadius: RADIUS.md,
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.xl * 2,
@@ -832,4 +836,5 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.sansSemi,
     color: '#fff',
   },
-})
+  })
+}

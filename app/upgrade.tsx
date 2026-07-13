@@ -13,7 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import Purchases, { PurchasesPackage, PurchasesOfferings } from 'react-native-purchases'
-import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme'
+import { ColorPalette, FONTS, RADIUS, SPACING } from '../constants/theme'
+import { useColors, useThemedStyles } from '../contexts/ThemeContext'
 import {
   FREE_SAVE_CAP,
   FREE_COLLECTION_CAP,
@@ -27,19 +28,22 @@ import {
   subscribeTier,
   isPurchasesConfigured,
   restorePurchases,
+  applyCustomerInfo,
 } from '../lib/entitlements'
-
-const GRADIENT = [COLORS.accent, '#7a4f86'] as const
+import { isLoggedIn } from '../lib/session'
+import { showCloudAccountPrompt } from '../lib/authGate'
 
 type BillingPeriod = 'monthly' | 'yearly'
 
 function Feature({ text, muted }: { text: string; muted?: boolean }) {
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
   return (
     <View style={styles.featureRow}>
       <Ionicons
         name="checkmark-circle"
         size={16}
-        color={muted ? COLORS.muted : COLORS.accent}
+        color={muted ? colors.muted : colors.accent}
       />
       <Text style={[styles.featureText, muted && styles.featureTextMuted]}>{text}</Text>
     </View>
@@ -49,6 +53,9 @@ function Feature({ text, muted }: { text: string; muted?: boolean }) {
 export default function UpgradeScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
+  const gradient = [colors.accent, '#7a4f86'] as const
 
   const [tier, setTier] = useState(getTier())
   const [period, setPeriod] = useState<BillingPeriod>('yearly')
@@ -85,9 +92,15 @@ export default function UpgradeScreen() {
     }
     setBuying(true)
     try {
-      await Purchases.purchasePackage(pkg)
-      Alert.alert('Salamat!', 'Your purchase is active. Enjoy Trove!')
-      router.back()
+      const { customerInfo } = await Purchases.purchasePackage(pkg)
+      applyCustomerInfo(customerInfo)
+      const boughtCloud = label === 'Trove Cloud'
+      if (boughtCloud && !isLoggedIn()) {
+        showCloudAccountPrompt(router)
+      } else {
+        Alert.alert('Salamat!', 'Your purchase is active. Enjoy Trove!')
+        router.back()
+      }
     } catch (e: any) {
       if (!e?.userCancelled) {
         Alert.alert('Purchase failed', e?.message ?? 'Please try again.')
@@ -102,7 +115,9 @@ export default function UpgradeScreen() {
     setRestoring(true)
     const restored = await restorePurchases()
     setRestoring(false)
-    if (restored !== 'free') {
+    if (restored === 'cloud' && !isLoggedIn()) {
+      showCloudAccountPrompt(router)
+    } else if (restored !== 'free') {
       Alert.alert('Restored', `Your ${restored === 'cloud' ? 'Trove Cloud subscription' : 'Trove Unlocked purchase'} is active.`)
     } else {
       Alert.alert('Nothing to restore', 'No previous purchases were found for this account.')
@@ -113,7 +128,7 @@ export default function UpgradeScreen() {
     <View style={styles.container}>
       <View style={[styles.topBar, { paddingTop: insets.top + SPACING.sm }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.6} hitSlop={12}>
-          <Ionicons name="close" size={24} color={COLORS.text} />
+          <Ionicons name="close" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.topTitle}>Trove plans</Text>
         <View style={styles.topSpacer} />
@@ -168,7 +183,7 @@ export default function UpgradeScreen() {
         </View>
 
         {/* Cloud */}
-        <LinearGradient colors={GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cloudCard}>
+        <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cloudCard}>
           <View style={styles.planHeader}>
             <Text style={styles.planNameLight}>Trove Cloud</Text>
             {tier === 'cloud' && <Text style={styles.currentBadgeLight}>Current plan</Text>}
@@ -217,7 +232,7 @@ export default function UpgradeScreen() {
               disabled={buying}
             >
               {buying
-                ? <ActivityIndicator color={COLORS.accent} />
+                ? <ActivityIndicator color={colors.accent} />
                 : <Text style={styles.buyBtnLightText}>Subscribe · {cloudPrice}</Text>}
             </TouchableOpacity>
           )}
@@ -225,7 +240,7 @@ export default function UpgradeScreen() {
 
         <TouchableOpacity style={styles.restoreBtn} onPress={handleRestore} activeOpacity={0.6} disabled={restoring}>
           {restoring
-            ? <ActivityIndicator size="small" color={COLORS.accent} />
+            ? <ActivityIndicator size="small" color={colors.accent} />
             : <Text style={styles.restoreText}>Restore purchases</Text>}
         </TouchableOpacity>
 
@@ -237,156 +252,158 @@ export default function UpgradeScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
 
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.sm,
-  },
-  backBtn: { width: 40 },
-  topTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontFamily: FONTS.sansSemi,
-    fontSize: 15,
-    color: COLORS.text,
-  },
-  topSpacer: { width: 40 },
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: SPACING.lg,
+      paddingBottom: SPACING.sm,
+    },
+    backBtn: { width: 40 },
+    topTitle: {
+      flex: 1,
+      textAlign: 'center',
+      fontFamily: FONTS.sansSemi,
+      fontSize: 15,
+      color: c.text,
+    },
+    topSpacer: { width: 40 },
 
-  heading: {
-    fontFamily: FONTS.serif,
-    fontSize: 32,
-    color: COLORS.text,
-    marginTop: SPACING.lg,
-  },
-  subheading: {
-    fontFamily: FONTS.sans,
-    fontSize: 14,
-    lineHeight: 20,
-    color: COLORS.textSub,
-    marginTop: SPACING.sm,
-    marginBottom: SPACING.xl,
-  },
+    heading: {
+      fontFamily: FONTS.serif,
+      fontSize: 32,
+      color: c.text,
+      marginTop: SPACING.lg,
+    },
+    subheading: {
+      fontFamily: FONTS.sans,
+      fontSize: 14,
+      lineHeight: 20,
+      color: c.textSub,
+      marginTop: SPACING.sm,
+      marginBottom: SPACING.xl,
+    },
 
-  freeCard: {
-    backgroundColor: COLORS.cream,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: SPACING.lg,
-    marginBottom: SPACING.lg,
-  },
-  card: {
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: SPACING.lg,
-    marginBottom: SPACING.lg,
-  },
-  cardActive: { borderColor: COLORS.accent },
-  cloudCard: {
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    marginBottom: SPACING.xl,
-  },
+    freeCard: {
+      backgroundColor: c.cream,
+      borderRadius: RADIUS.lg,
+      borderWidth: 1,
+      borderColor: c.border,
+      padding: SPACING.lg,
+      marginBottom: SPACING.lg,
+    },
+    card: {
+      backgroundColor: c.card,
+      borderRadius: RADIUS.lg,
+      borderWidth: 1,
+      borderColor: c.border,
+      padding: SPACING.lg,
+      marginBottom: SPACING.lg,
+    },
+    cardActive: { borderColor: c.accent },
+    cloudCard: {
+      borderRadius: RADIUS.lg,
+      padding: SPACING.lg,
+      marginBottom: SPACING.xl,
+    },
 
-  planHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.sm,
-  },
-  planName: { fontFamily: FONTS.serif, fontSize: 22, color: COLORS.text },
-  planNameLight: { fontFamily: FONTS.serif, fontSize: 22, color: '#fff' },
-  currentBadge: {
-    fontFamily: FONTS.sansSemi,
-    fontSize: 11,
-    color: COLORS.accent,
-    backgroundColor: COLORS.accentSoft,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 3,
-    borderRadius: RADIUS.sm,
-    overflow: 'hidden',
-  },
-  currentBadgeLight: {
-    fontFamily: FONTS.sansSemi,
-    fontSize: 11,
-    color: '#fff',
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 3,
-    borderRadius: RADIUS.sm,
-    overflow: 'hidden',
-  },
+    planHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: SPACING.sm,
+    },
+    planName: { fontFamily: FONTS.serif, fontSize: 22, color: c.text },
+    planNameLight: { fontFamily: FONTS.serif, fontSize: 22, color: '#fff' },
+    currentBadge: {
+      fontFamily: FONTS.sansSemi,
+      fontSize: 11,
+      color: c.accent,
+      backgroundColor: c.accentSoft,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 3,
+      borderRadius: RADIUS.sm,
+      overflow: 'hidden',
+    },
+    currentBadgeLight: {
+      fontFamily: FONTS.sansSemi,
+      fontSize: 11,
+      color: '#fff',
+      backgroundColor: 'rgba(255,255,255,0.25)',
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 3,
+      borderRadius: RADIUS.sm,
+      overflow: 'hidden',
+    },
 
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: SPACING.sm,
-    marginBottom: SPACING.md,
-  },
-  price: { fontFamily: FONTS.sansBold, fontSize: 28, color: COLORS.text },
-  priceLight: { fontFamily: FONTS.sansBold, fontSize: 28, color: '#fff' },
-  priceNote: { fontFamily: FONTS.sans, fontSize: 13, color: COLORS.muted },
-  priceNoteLight: { fontFamily: FONTS.sans, fontSize: 13, color: 'rgba(255,255,255,0.8)' },
+    priceRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: SPACING.sm,
+      marginBottom: SPACING.md,
+    },
+    price: { fontFamily: FONTS.sansBold, fontSize: 28, color: c.text },
+    priceLight: { fontFamily: FONTS.sansBold, fontSize: 28, color: '#fff' },
+    priceNote: { fontFamily: FONTS.sans, fontSize: 13, color: c.muted },
+    priceNoteLight: { fontFamily: FONTS.sans, fontSize: 13, color: 'rgba(255,255,255,0.8)' },
 
-  featureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    marginBottom: SPACING.xs + 2,
-  },
-  featureText: { fontFamily: FONTS.sans, fontSize: 14, color: COLORS.text, flex: 1 },
-  featureTextMuted: { color: COLORS.textSub },
-  featureTextLight: { fontFamily: FONTS.sans, fontSize: 14, color: '#fff', flex: 1 },
-  cloudFeatures: { marginBottom: SPACING.md },
+    featureRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      marginBottom: SPACING.xs + 2,
+    },
+    featureText: { fontFamily: FONTS.sans, fontSize: 14, color: c.text, flex: 1 },
+    featureTextMuted: { color: c.textSub },
+    featureTextLight: { fontFamily: FONTS.sans, fontSize: 14, color: '#fff', flex: 1 },
+    cloudFeatures: { marginBottom: SPACING.md },
 
-  periodToggle: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderRadius: RADIUS.md,
-    padding: 3,
-    marginBottom: SPACING.md,
-  },
-  periodBtn: {
-    flex: 1,
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.md - 3,
-    alignItems: 'center',
-  },
-  periodBtnOn: { backgroundColor: '#fff' },
-  periodText: { fontFamily: FONTS.sansMed, fontSize: 12, color: 'rgba(255,255,255,0.9)' },
-  periodTextOn: { color: COLORS.accent },
+    periodToggle: {
+      flexDirection: 'row',
+      backgroundColor: 'rgba(255,255,255,0.18)',
+      borderRadius: RADIUS.md,
+      padding: 3,
+      marginBottom: SPACING.md,
+    },
+    periodBtn: {
+      flex: 1,
+      paddingVertical: SPACING.sm,
+      borderRadius: RADIUS.md - 3,
+      alignItems: 'center',
+    },
+    periodBtnOn: { backgroundColor: '#fff' },
+    periodText: { fontFamily: FONTS.sansMed, fontSize: 12, color: 'rgba(255,255,255,0.9)' },
+    periodTextOn: { color: c.accent },
 
-  buyBtn: {
-    backgroundColor: COLORS.accent,
-    borderRadius: RADIUS.md,
-    paddingVertical: SPACING.md,
-    alignItems: 'center',
-    marginTop: SPACING.sm,
-  },
-  buyBtnText: { fontFamily: FONTS.sansSemi, fontSize: 15, color: '#fff' },
-  buyBtnLight: {
-    backgroundColor: '#fff',
-    borderRadius: RADIUS.md,
-    paddingVertical: SPACING.md,
-    alignItems: 'center',
-  },
-  buyBtnLightText: { fontFamily: FONTS.sansSemi, fontSize: 15, color: COLORS.accent },
+    buyBtn: {
+      backgroundColor: c.accent,
+      borderRadius: RADIUS.md,
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+      marginTop: SPACING.sm,
+    },
+    buyBtnText: { fontFamily: FONTS.sansSemi, fontSize: 15, color: '#fff' },
+    buyBtnLight: {
+      backgroundColor: '#fff',
+      borderRadius: RADIUS.md,
+      paddingVertical: SPACING.md,
+      alignItems: 'center',
+    },
+    buyBtnLightText: { fontFamily: FONTS.sansSemi, fontSize: 15, color: c.accent },
 
-  restoreBtn: { alignItems: 'center', paddingVertical: SPACING.sm },
-  restoreText: { fontFamily: FONTS.sansMed, fontSize: 14, color: COLORS.accent },
+    restoreBtn: { alignItems: 'center', paddingVertical: SPACING.sm },
+    restoreText: { fontFamily: FONTS.sansMed, fontSize: 14, color: c.accent },
 
-  trustLine: {
-    fontFamily: FONTS.sans,
-    fontSize: 12,
-    color: COLORS.muted,
-    textAlign: 'center',
-    marginTop: SPACING.lg,
-    lineHeight: 18,
-  },
-})
+    trustLine: {
+      fontFamily: FONTS.sans,
+      fontSize: 12,
+      color: c.muted,
+      textAlign: 'center',
+      marginTop: SPACING.lg,
+      lineHeight: 18,
+    },
+  })
+}

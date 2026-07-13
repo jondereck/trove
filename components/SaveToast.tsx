@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef } from 'react'
 import { Animated, StyleSheet, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme'
+import { ColorPalette, FONTS, RADIUS, SPACING } from '../constants/theme'
+import { useColors, useThemedStyles } from '../contexts/ThemeContext'
 
 type ToastTone = 'success' | 'neutral' | 'error'
 
@@ -19,6 +20,8 @@ const ICONS: Record<ToastTone, React.ComponentProps<typeof Ionicons>['name']> = 
 }
 
 export default function SaveToast({ message, tone, onHide }: SaveToastProps) {
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
   const translateY = useRef(new Animated.Value(-80)).current
   const opacity = useRef(new Animated.Value(0)).current
   const animatedStyle = useMemo(
@@ -52,7 +55,7 @@ export default function SaveToast({ message, tone, onHide }: SaveToastProps) {
     <SafeAreaView edges={['top']} style={styles.host} pointerEvents="none">
       <View style={styles.safeContent}>
         <Animated.View style={[styles.toast, animatedStyle]}>
-          <Ionicons name={ICONS[tone]} size={19} color={COLORS.card} />
+          <Ionicons name={ICONS[tone]} size={19} color={colors.card} />
           <Text style={styles.message}>{message}</Text>
         </Animated.View>
       </View>
@@ -60,39 +63,41 @@ export default function SaveToast({ message, tone, onHide }: SaveToastProps) {
   )
 }
 
-const styles = StyleSheet.create({
-  host: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    left: 0,
-    zIndex: 100,
-  },
-  safeContent: {
-    alignItems: 'center',
-    paddingTop: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-  },
-  toast: {
-    minHeight: 44,
-    maxWidth: 360,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.lg,
-    backgroundColor: COLORS.text,
-    shadowColor: COLORS.text,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  message: {
-    flexShrink: 1,
-    color: COLORS.card,
-    fontFamily: FONTS.sansSemi,
-    fontSize: 14,
-  },
-})
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    host: {
+      position: 'absolute',
+      top: 0,
+      right: 0,
+      left: 0,
+      zIndex: 100,
+    },
+    safeContent: {
+      alignItems: 'center',
+      paddingTop: SPACING.sm,
+      paddingHorizontal: SPACING.lg,
+    },
+    toast: {
+      minHeight: 44,
+      maxWidth: 360,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      paddingHorizontal: SPACING.lg,
+      paddingVertical: SPACING.md,
+      borderRadius: RADIUS.lg,
+      backgroundColor: c.text,
+      shadowColor: c.text,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.18,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+    message: {
+      flexShrink: 1,
+      color: c.card,
+      fontFamily: FONTS.sansSemi,
+      fontSize: 14,
+    },
+  })
+}

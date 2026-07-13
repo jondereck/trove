@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   View,
   Text,
@@ -16,13 +16,17 @@ import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../lib/supabase'
 import { updateProfile } from '../../lib/cloudDb'
 import { signInWithGoogle } from '../../lib/auth'
-import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { ColorPalette, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { useColors, useThemedStyles } from '../../contexts/ThemeContext'
 import { BRAND } from '../../constants/branding'
 import BrandLogo from '../../components/BrandLogo'
+import { canOpenSignUp } from '../../lib/authGate'
 
 export default function SignupScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
   const [firstName, setFirstName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -33,6 +37,20 @@ export default function SignupScreen() {
   const [focused, setFocused] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+  const [allowed, setAllowed] = useState(canOpenSignUp())
+
+  useEffect(() => {
+    if (canOpenSignUp()) {
+      setAllowed(true)
+      return
+    }
+    setAllowed(false)
+    router.replace('/upgrade')
+  }, [router])
+
+  if (!allowed) {
+    return null
+  }
 
   const handleGoogle = async () => {
     setError('')
@@ -81,7 +99,7 @@ export default function SignupScreen() {
   if (success) {
     return (
       <View style={[styles.root, styles.successWrap, { paddingTop: insets.top }]}>
-        <BrandLogo size={48} style={styles.successLogo} />
+        <BrandLogo size={64} style={styles.successLogo} />
         <Text style={styles.successTitle}>Check your email</Text>
         <Text style={styles.successBody}>
           We sent a confirmation link to{'\n'}
@@ -116,7 +134,7 @@ export default function SignupScreen() {
 
         {/* Logo */}
         <View style={styles.logoWrap}>
-          <BrandLogo size={56} style={styles.logoImage} />
+          <BrandLogo size={72} style={styles.logoImage} />
           <Text style={styles.wordmark}>Create account</Text>
           <Text style={styles.tagline}>{BRAND.signupSubtitle}</Text>
         </View>
@@ -129,10 +147,10 @@ export default function SignupScreen() {
           activeOpacity={0.85}
         >
           {googleLoading ? (
-            <ActivityIndicator color={COLORS.text} />
+            <ActivityIndicator color={colors.text} />
           ) : (
             <>
-              <Ionicons name="logo-google" size={18} color={COLORS.text} />
+              <Ionicons name="logo-google" size={18} color={colors.text} />
               <Text style={styles.googleBtnText}>Continue with Google</Text>
             </>
           )}
@@ -155,7 +173,7 @@ export default function SignupScreen() {
               onFocus={() => setFocused('firstName')}
               onBlur={() => setFocused(null)}
               placeholder="How should we greet you?"
-              placeholderTextColor={COLORS.muted}
+              placeholderTextColor={colors.muted}
               autoCapitalize="words"
               autoCorrect={false}
               returnKeyType="next"
@@ -171,7 +189,7 @@ export default function SignupScreen() {
               onFocus={() => setFocused('email')}
               onBlur={() => setFocused(null)}
               placeholder="you@example.com"
-              placeholderTextColor={COLORS.muted}
+              placeholderTextColor={colors.muted}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -189,7 +207,7 @@ export default function SignupScreen() {
                 onFocus={() => setFocused('password')}
                 onBlur={() => setFocused(null)}
                 placeholder="Min. 6 characters"
-                placeholderTextColor={COLORS.muted}
+                placeholderTextColor={colors.muted}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -214,7 +232,7 @@ export default function SignupScreen() {
               onFocus={() => setFocused('confirm')}
               onBlur={() => setFocused(null)}
               placeholder="Repeat password"
-              placeholderTextColor={COLORS.muted}
+              placeholderTextColor={colors.muted}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
               autoCorrect={false}
@@ -256,203 +274,205 @@ export default function SignupScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
-  scroll: {
-    flexGrow: 1,
-    paddingHorizontal: SPACING.xl,
-    justifyContent: 'center',
-  },
-  backBtn: {
-    marginBottom: SPACING.lg,
-  },
-  backText: {
-    fontSize: 14,
-    fontFamily: FONTS.sansMed,
-    color: COLORS.muted,
-  },
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: c.bg,
+    },
+    scroll: {
+      flexGrow: 1,
+      paddingHorizontal: SPACING.xl,
+      justifyContent: 'center',
+    },
+    backBtn: {
+      marginBottom: SPACING.lg,
+    },
+    backText: {
+      fontSize: 14,
+      fontFamily: FONTS.sansMed,
+      color: c.muted,
+    },
 
-  // Logo
-  logoWrap: {
-    alignItems: 'center',
-    marginBottom: SPACING.xl * 2,
-  },
-  logoImage: {
-    marginBottom: SPACING.sm,
-  },
-  wordmark: {
-    fontSize: 36,
-    fontFamily: FONTS.serif,
-    color: COLORS.text,
-    letterSpacing: -0.5,
-    lineHeight: 40,
-  },
-  tagline: {
-    fontSize: 16,
-    fontFamily: FONTS.serifItal,
-    color: COLORS.muted,
-    marginTop: SPACING.xs,
-  },
+    // Logo
+    logoWrap: {
+      alignItems: 'center',
+      marginBottom: SPACING.xl * 2,
+    },
+    logoImage: {
+      marginBottom: SPACING.sm,
+    },
+    wordmark: {
+      fontSize: 36,
+      fontFamily: FONTS.serif,
+      color: c.text,
+      letterSpacing: -0.5,
+      lineHeight: 40,
+    },
+    tagline: {
+      fontSize: 16,
+      fontFamily: FONTS.serifItal,
+      color: c.muted,
+      marginTop: SPACING.xs,
+    },
 
-  // Google + divider
-  googleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.sm,
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.md,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    paddingVertical: SPACING.md + 2,
-  },
-  googleBtnText: {
-    fontSize: 16,
-    fontFamily: FONTS.sansSemi,
-    color: COLORS.text,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    marginVertical: SPACING.lg,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: COLORS.border,
-  },
-  dividerText: {
-    fontSize: 13,
-    fontFamily: FONTS.sans,
-    color: COLORS.muted,
-  },
+    // Google + divider
+    googleBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SPACING.sm,
+      backgroundColor: c.card,
+      borderRadius: RADIUS.md,
+      borderWidth: 1.5,
+      borderColor: c.border,
+      paddingVertical: SPACING.md + 2,
+    },
+    googleBtnText: {
+      fontSize: 16,
+      fontFamily: FONTS.sansSemi,
+      color: c.text,
+    },
+    divider: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.sm,
+      marginVertical: SPACING.lg,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: c.border,
+    },
+    dividerText: {
+      fontSize: 13,
+      fontFamily: FONTS.sans,
+      color: c.muted,
+    },
 
-  // Form
-  form: {
-    gap: SPACING.md,
-    marginBottom: SPACING.xl,
-  },
-  field: {
-    gap: SPACING.xs,
-  },
-  label: {
-    fontSize: 10,
-    fontFamily: FONTS.sansSemi,
-    color: COLORS.muted,
-    letterSpacing: 1,
-  },
-  optional: {
-    fontFamily: FONTS.sans,
-    letterSpacing: 0,
-    textTransform: 'none',
-  },
-  input: {
-    backgroundColor: COLORS.card,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    fontSize: 15,
-    fontFamily: FONTS.sans,
-    color: COLORS.text,
-  },
-  inputFocused: {
-    borderColor: COLORS.accent,
-  },
-  passwordWrap: {
-    position: 'relative',
-  },
-  passwordInput: {
-    paddingRight: 48,
-  },
-  eyeBtn: {
-    position: 'absolute',
-    right: SPACING.md,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
-  },
-  eyeIcon: {
-    fontSize: 12,
-    color: COLORS.muted,
-  },
-  errorWrap: {
-    backgroundColor: '#fef2f2',
-    borderRadius: RADIUS.sm,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderWidth: 1,
-    borderColor: '#fecaca',
-  },
-  errorText: {
-    fontSize: 13,
-    fontFamily: FONTS.sans,
-    color: '#dc2626',
-  },
-  primaryBtn: {
-    backgroundColor: COLORS.accent,
-    borderRadius: RADIUS.md,
-    paddingVertical: SPACING.md + 2,
-    alignItems: 'center',
-    marginTop: SPACING.sm,
-  },
-  btnDisabled: {
-    opacity: 0.45,
-  },
-  primaryBtnText: {
-    fontSize: 16,
-    fontFamily: FONTS.sansSemi,
-    color: '#fff',
-    letterSpacing: 0.2,
-  },
+    // Form
+    form: {
+      gap: SPACING.md,
+      marginBottom: SPACING.xl,
+    },
+    field: {
+      gap: SPACING.xs,
+    },
+    label: {
+      fontSize: 10,
+      fontFamily: FONTS.sansSemi,
+      color: c.muted,
+      letterSpacing: 1,
+    },
+    optional: {
+      fontFamily: FONTS.sans,
+      letterSpacing: 0,
+      textTransform: 'none',
+    },
+    input: {
+      backgroundColor: c.card,
+      borderWidth: 1.5,
+      borderColor: c.border,
+      borderRadius: RADIUS.md,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.md,
+      fontSize: 15,
+      fontFamily: FONTS.sans,
+      color: c.text,
+    },
+    inputFocused: {
+      borderColor: c.accent,
+    },
+    passwordWrap: {
+      position: 'relative',
+    },
+    passwordInput: {
+      paddingRight: 48,
+    },
+    eyeBtn: {
+      position: 'absolute',
+      right: SPACING.md,
+      top: 0,
+      bottom: 0,
+      justifyContent: 'center',
+    },
+    eyeIcon: {
+      fontSize: 12,
+      color: c.muted,
+    },
+    errorWrap: {
+      backgroundColor: '#fef2f2',
+      borderRadius: RADIUS.sm,
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.sm,
+      borderWidth: 1,
+      borderColor: '#fecaca',
+    },
+    errorText: {
+      fontSize: 13,
+      fontFamily: FONTS.sans,
+      color: '#dc2626',
+    },
+    primaryBtn: {
+      backgroundColor: c.accent,
+      borderRadius: RADIUS.md,
+      paddingVertical: SPACING.md + 2,
+      alignItems: 'center',
+      marginTop: SPACING.sm,
+    },
+    btnDisabled: {
+      opacity: 0.45,
+    },
+    primaryBtnText: {
+      fontSize: 16,
+      fontFamily: FONTS.sansSemi,
+      color: '#fff',
+      letterSpacing: 0.2,
+    },
 
-  // Footer
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingBottom: SPACING.xl,
-  },
-  footerText: {
-    fontSize: 14,
-    fontFamily: FONTS.sans,
-    color: COLORS.muted,
-  },
-  footerLink: {
-    fontSize: 14,
-    fontFamily: FONTS.sansSemi,
-    color: COLORS.accent,
-  },
+    // Footer
+    footer: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingBottom: SPACING.xl,
+    },
+    footerText: {
+      fontSize: 14,
+      fontFamily: FONTS.sans,
+      color: c.muted,
+    },
+    footerLink: {
+      fontSize: 14,
+      fontFamily: FONTS.sansSemi,
+      color: c.accent,
+    },
 
-  // Success state
-  successWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: SPACING.xl,
-    gap: SPACING.md,
-  },
-  successLogo: {
-    marginBottom: SPACING.sm,
-  },
-  successTitle: {
-    fontSize: 28,
-    fontFamily: FONTS.serif,
-    color: COLORS.text,
-  },
-  successBody: {
-    fontSize: 15,
-    fontFamily: FONTS.sans,
-    color: COLORS.textSub,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  successEmail: {
-    fontFamily: FONTS.sansMed,
-    color: COLORS.text,
-  },
-})
+    // Success state
+    successWrap: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: SPACING.xl,
+      gap: SPACING.md,
+    },
+    successLogo: {
+      marginBottom: SPACING.sm,
+    },
+    successTitle: {
+      fontSize: 28,
+      fontFamily: FONTS.serif,
+      color: c.text,
+    },
+    successBody: {
+      fontSize: 15,
+      fontFamily: FONTS.sans,
+      color: c.textSub,
+      textAlign: 'center',
+      lineHeight: 22,
+    },
+    successEmail: {
+      fontFamily: FONTS.sansMed,
+      color: c.text,
+    },
+  })
+}

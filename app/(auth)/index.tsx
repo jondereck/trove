@@ -1,8 +1,11 @@
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { COLORS, FONTS, SPACING } from '../../constants/theme'
+import { ColorPalette, FONTS, SPACING } from '../../constants/theme'
+import { useThemedStyles } from '../../contexts/ThemeContext'
 import { BRAND } from '../../constants/branding'
+import BrandLogo from '../../components/BrandLogo'
+import { requestAuthFlow } from '../../lib/authNavigation'
 
 const SW = Dimensions.get('window').width
 
@@ -30,6 +33,7 @@ const CARDS = [
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
+  const styles = useThemedStyles(createStyles)
 
   return (
     <View style={styles.root}>
@@ -57,6 +61,7 @@ export default function WelcomeScreen() {
       <View style={[styles.content, { paddingBottom: Math.max(insets.bottom, SPACING.xl) }]}>
         {/* Wordmark */}
         <View>
+          <BrandLogo size={64} style={styles.brandLogo} />
           <View style={styles.logoRow}>
             <Text style={styles.wordmark}>{BRAND.name}</Text>
             <Text style={styles.dot}>.</Text>
@@ -65,22 +70,25 @@ export default function WelcomeScreen() {
           <Text style={styles.taglineDetail}>{BRAND.welcomeDetail}</Text>
         </View>
 
-        {/* Buttons */}
+        {/* Buttons — Cloud-first: Sign in for returning users; plans for new sync */}
         <View style={styles.actions}>
           <TouchableOpacity
             style={styles.primaryBtn}
-            onPress={() => router.push('/(auth)/signup')}
+            onPress={() => {
+              requestAuthFlow()
+              router.push('/(auth)/login')
+            }}
             activeOpacity={0.85}
           >
-            <Text style={styles.primaryBtnText}>Create a free account</Text>
+            <Text style={styles.primaryBtnText}>Sign in</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.secondaryBtn}
-            onPress={() => router.push('/(auth)/login')}
+            onPress={() => router.push('/upgrade')}
             activeOpacity={0.8}
           >
-            <Text style={styles.secondaryBtnText}>Sign in</Text>
+            <Text style={styles.secondaryBtnText}>Get Trove Cloud</Text>
           </TouchableOpacity>
         </View>
 
@@ -96,94 +104,99 @@ export default function WelcomeScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
-  hero: {
-    height: 400,
-    backgroundColor: HERO_BG,
-    overflow: 'hidden',
-  },
-  card: {
-    position: 'absolute',
-    borderRadius: 20,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 28,
-    paddingTop: SPACING.xl,
-    justifyContent: 'space-between',
-  },
-  logoRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-  wordmark: {
-    fontSize: 52,
-    fontFamily: FONTS.serif,
-    color: COLORS.text,
-    letterSpacing: -0.5,
-    lineHeight: 58,
-  },
-  dot: {
-    fontSize: 52,
-    fontFamily: FONTS.serif,
-    color: COLORS.accent,
-    lineHeight: 58,
-  },
-  tagline: {
-    fontSize: 17,
-    fontFamily: FONTS.sansSemi,
-    color: COLORS.text,
-    lineHeight: 24,
-    marginTop: 6,
-  },
-  taglineDetail: {
-    fontSize: 15,
-    fontFamily: FONTS.sans,
-    color: COLORS.textSub,
-    lineHeight: 22,
-    marginTop: 4,
-  },
-  actions: {
-    gap: SPACING.sm,
-  },
-  primaryBtn: {
-    backgroundColor: COLORS.accent,
-    borderRadius: 14,
-    paddingVertical: 17,
-    alignItems: 'center',
-  },
-  primaryBtnText: {
-    fontSize: 16,
-    fontFamily: FONTS.sansSemi,
-    color: '#fff',
-    letterSpacing: 0.1,
-  },
-  secondaryBtn: {
-    backgroundColor: COLORS.card,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    paddingVertical: 17,
-    alignItems: 'center',
-  },
-  secondaryBtnText: {
-    fontSize: 16,
-    fontFamily: FONTS.sansSemi,
-    color: COLORS.text,
-  },
-  legal: {
-    fontSize: 12,
-    fontFamily: FONTS.sans,
-    color: COLORS.muted,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  legalLink: {
-    color: COLORS.accent,
-    fontFamily: FONTS.sansMed,
-  },
-})
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: c.bg,
+    },
+    hero: {
+      height: 400,
+      backgroundColor: HERO_BG,
+      overflow: 'hidden',
+    },
+    card: {
+      position: 'absolute',
+      borderRadius: 20,
+    },
+    content: {
+      flex: 1,
+      paddingHorizontal: 28,
+      paddingTop: SPACING.xl,
+      justifyContent: 'space-between',
+    },
+    brandLogo: {
+      marginBottom: SPACING.md,
+    },
+    logoRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+    },
+    wordmark: {
+      fontSize: 52,
+      fontFamily: FONTS.serif,
+      color: c.text,
+      letterSpacing: -0.5,
+      lineHeight: 58,
+    },
+    dot: {
+      fontSize: 52,
+      fontFamily: FONTS.serif,
+      color: c.accent,
+      lineHeight: 58,
+    },
+    tagline: {
+      fontSize: 17,
+      fontFamily: FONTS.sansSemi,
+      color: c.text,
+      lineHeight: 24,
+      marginTop: 6,
+    },
+    taglineDetail: {
+      fontSize: 15,
+      fontFamily: FONTS.sans,
+      color: c.textSub,
+      lineHeight: 22,
+      marginTop: 4,
+    },
+    actions: {
+      gap: SPACING.sm,
+    },
+    primaryBtn: {
+      backgroundColor: c.accent,
+      borderRadius: 14,
+      paddingVertical: 17,
+      alignItems: 'center',
+    },
+    primaryBtnText: {
+      fontSize: 16,
+      fontFamily: FONTS.sansSemi,
+      color: '#fff',
+      letterSpacing: 0.1,
+    },
+    secondaryBtn: {
+      backgroundColor: c.card,
+      borderRadius: 14,
+      borderWidth: 1.5,
+      borderColor: c.border,
+      paddingVertical: 17,
+      alignItems: 'center',
+    },
+    secondaryBtnText: {
+      fontSize: 16,
+      fontFamily: FONTS.sansSemi,
+      color: c.text,
+    },
+    legal: {
+      fontSize: 12,
+      fontFamily: FONTS.sans,
+      color: c.muted,
+      textAlign: 'center',
+      lineHeight: 18,
+    },
+    legalLink: {
+      color: c.accent,
+      fontFamily: FONTS.sansMed,
+    },
+  })
+}

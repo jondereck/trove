@@ -6,7 +6,8 @@ import {
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { ColorPalette, FONTS, SPACING, RADIUS } from '../../constants/theme'
+import { useColors, useThemedStyles } from '../../contexts/ThemeContext'
 import { DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
 import { Save, Collection } from '../../types'
 import { fetchCollectionById, fetchSavesByCollection, fetchCollections, deleteSave, updateSave, deleteCollection, updateCollection } from '../../lib/db'
@@ -16,6 +17,8 @@ import MoveToCollectionModal from '../../components/MoveToCollectionModal'
 import { canPinMoreCollections } from '../../constants/pinLimits'
 
 export default function CollectionDetailScreen() {
+  const colors = useColors()
+  const styles = useThemedStyles(createStyles)
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const insets = useSafeAreaInsets()
@@ -182,7 +185,7 @@ export default function CollectionDetailScreen() {
                 disabled={selectedIds.size === 0}
                 activeOpacity={0.7}
               >
-                <Ionicons name="arrow-forward-circle-outline" size={22} color={selectedIds.size > 0 ? COLORS.accent : COLORS.muted} />
+                <Ionicons name="arrow-forward-circle-outline" size={22} color={selectedIds.size > 0 ? colors.accent : colors.muted} />
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleBulkDelete}
@@ -190,7 +193,7 @@ export default function CollectionDetailScreen() {
                 disabled={selectedIds.size === 0}
                 activeOpacity={0.7}
               >
-                <Ionicons name="trash-outline" size={22} color={selectedIds.size > 0 ? '#e53e3e' : COLORS.muted} />
+                <Ionicons name="trash-outline" size={22} color={selectedIds.size > 0 ? '#e53e3e' : colors.muted} />
               </TouchableOpacity>
             </View>
           </>
@@ -215,28 +218,28 @@ export default function CollectionDetailScreen() {
                   <Ionicons
                     name={isPinned ? 'pin' : 'pin-outline'}
                     size={22}
-                    color={isPinned ? COLORS.accent : COLORS.muted}
+                    color={isPinned ? colors.accent : colors.muted}
                   />
                 </TouchableOpacity>
               )}
               {!loading && collection && (
                 <TouchableOpacity onPress={() => setEditVisible(true)} style={styles.selectBtn} activeOpacity={0.7}>
-                  <Ionicons name="create-outline" size={22} color={COLORS.muted} />
+                  <Ionicons name="create-outline" size={22} color={colors.muted} />
                 </TouchableOpacity>
               )}
               {!loading && saves.length > 0 && (
                 <TouchableOpacity onPress={() => enterSelection(saves[0].id)} style={styles.selectBtn} activeOpacity={0.7}>
-                  <Ionicons name="checkmark-circle-outline" size={22} color={COLORS.muted} />
+                  <Ionicons name="checkmark-circle-outline" size={22} color={colors.muted} />
                 </TouchableOpacity>
               )}
               {!loading && collection && (
                 <TouchableOpacity onPress={handleDeleteCollection} style={styles.selectBtn} activeOpacity={0.7}>
-                  <Ionicons name="trash-outline" size={22} color={COLORS.muted} />
+                  <Ionicons name="trash-outline" size={22} color={colors.muted} />
                 </TouchableOpacity>
               )}
               {!loading && (
-                <View style={[styles.countBadge, { backgroundColor: (collection?.color ?? COLORS.accent) + '22' }]}>
-                  <Text style={[styles.countText, { color: collection?.color ?? COLORS.accent }]}>
+                <View style={[styles.countBadge, { backgroundColor: (collection?.color ?? colors.accent) + '22' }]}>
+                  <Text style={[styles.countText, { color: collection?.color ?? colors.accent }]}>
                     {saves.length}
                   </Text>
                 </View>
@@ -247,12 +250,12 @@ export default function CollectionDetailScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator color={COLORS.accent} style={styles.loader} />
+        <ActivityIndicator color={colors.accent} style={styles.loader} />
       ) : (
         <ScrollView
           contentContainerStyle={styles.content}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} colors={[COLORS.accent]} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} colors={[colors.accent]} />
           }
           showsVerticalScrollIndicator={false}
         >
@@ -261,7 +264,7 @@ export default function CollectionDetailScreen() {
               <Ionicons
                 name={(collection?.icon as IoniconName) ?? DEFAULT_COLLECTION_ICON}
                 size={44}
-                color={COLORS.border}
+                color={colors.border}
                 style={styles.emptyIcon}
               />
               <Text style={styles.emptyTitle}>No saves yet</Text>
@@ -322,58 +325,60 @@ export default function CollectionDetailScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function createStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: c.bg },
 
-  // Header
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
-    minHeight: 52,
-  },
-  backBtn: { padding: SPACING.xs, marginRight: SPACING.sm },
-  backText: { fontSize: 22, color: COLORS.text },
-  headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  name: { fontSize: 18, fontFamily: FONTS.serif, color: COLORS.text, flex: 1 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginLeft: SPACING.sm },
-  selectBtn: { padding: 2 },
-  countBadge: { borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3, minWidth: 28, alignItems: 'center' },
-  countText: { fontSize: 12, fontFamily: FONTS.sansBold },
+    // Header
+    header: {
+      flexDirection: 'row', alignItems: 'center',
+      paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
+      borderBottomWidth: 1, borderBottomColor: c.border,
+      minHeight: 52,
+    },
+    backBtn: { padding: SPACING.xs, marginRight: SPACING.sm },
+    backText: { fontSize: 22, color: c.text },
+    headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+    name: { fontSize: 18, fontFamily: FONTS.serif, color: c.text, flex: 1 },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginLeft: SPACING.sm },
+    selectBtn: { padding: 2 },
+    countBadge: { borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3, minWidth: 28, alignItems: 'center' },
+    countText: { fontSize: 12, fontFamily: FONTS.sansBold },
 
-  // Selection mode header
-  headerBtn: { padding: SPACING.xs },
-  cancelText: { fontSize: 15, fontFamily: FONTS.sansMed, color: COLORS.accent },
-  selectionCount: { flex: 1, textAlign: 'center', fontSize: 15, fontFamily: FONTS.sansSemi, color: COLORS.text },
-  headerActions: { flexDirection: 'row', gap: SPACING.sm },
-  actionBtn: { padding: SPACING.xs },
-  actionBtnDisabled: { opacity: 0.4 },
+    // Selection mode header
+    headerBtn: { padding: SPACING.xs },
+    cancelText: { fontSize: 15, fontFamily: FONTS.sansMed, color: c.accent },
+    selectionCount: { flex: 1, textAlign: 'center', fontSize: 15, fontFamily: FONTS.sansSemi, color: c.text },
+    headerActions: { flexDirection: 'row', gap: SPACING.sm },
+    actionBtn: { padding: SPACING.xs },
+    actionBtnDisabled: { opacity: 0.4 },
 
-  loader: { marginTop: SPACING.xl * 3 },
-  content: { padding: SPACING.lg, paddingBottom: SPACING.xl * 2 },
-  grid: { flexDirection: 'row', gap: SPACING.sm },
-  col: { flex: 1 },
-  empty: { alignItems: 'center', paddingTop: SPACING.xl * 3, gap: SPACING.md },
-  emptyIcon: { fontSize: 40, marginBottom: SPACING.sm },
-  emptyTitle: { fontSize: 20, fontFamily: FONTS.serif, color: COLORS.textSub },
-  emptySubtitle: { fontSize: 14, fontFamily: FONTS.sans, color: COLORS.muted, textAlign: 'center', paddingHorizontal: SPACING.xl },
+    loader: { marginTop: SPACING.xl * 3 },
+    content: { padding: SPACING.lg, paddingBottom: SPACING.xl * 2 },
+    grid: { flexDirection: 'row', gap: SPACING.sm },
+    col: { flex: 1 },
+    empty: { alignItems: 'center', paddingTop: SPACING.xl * 3, gap: SPACING.md },
+    emptyIcon: { fontSize: 40, marginBottom: SPACING.sm },
+    emptyTitle: { fontSize: 20, fontFamily: FONTS.serif, color: c.textSub },
+    emptySubtitle: { fontSize: 14, fontFamily: FONTS.sans, color: c.muted, textAlign: 'center', paddingHorizontal: SPACING.xl },
 
-  // Move modal
-  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.35)' },
-  modalSheet: {
-    backgroundColor: COLORS.cream,
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingHorizontal: SPACING.xl, paddingTop: SPACING.sm,
-    maxHeight: '60%',
-  },
-  modalHandle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: COLORS.border, marginBottom: SPACING.lg },
-  modalTitle: { fontSize: 18, fontFamily: FONTS.serif, color: COLORS.text, marginBottom: SPACING.md },
-  collRow: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
-  collIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  collRowName: { flex: 1, fontSize: 15, fontFamily: FONTS.sansMed, color: COLORS.text },
-  modalEmpty: { fontSize: 14, fontFamily: FONTS.sans, color: COLORS.muted, textAlign: 'center', paddingVertical: SPACING.xl },
-})
+    // Move modal
+    modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.35)' },
+    modalSheet: {
+      backgroundColor: c.cream,
+      borderTopLeftRadius: 24, borderTopRightRadius: 24,
+      paddingHorizontal: SPACING.xl, paddingTop: SPACING.sm,
+      maxHeight: '60%',
+    },
+    modalHandle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: c.border, marginBottom: SPACING.lg },
+    modalTitle: { fontSize: 18, fontFamily: FONTS.serif, color: c.text, marginBottom: SPACING.md },
+    collRow: {
+      flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+      paddingVertical: SPACING.md,
+      borderBottomWidth: 1, borderBottomColor: c.border,
+    },
+    collIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    collRowName: { flex: 1, fontSize: 15, fontFamily: FONTS.sansMed, color: c.text },
+    modalEmpty: { fontSize: 14, fontFamily: FONTS.sans, color: c.muted, textAlign: 'center', paddingVertical: SPACING.xl },
+  })
+}
