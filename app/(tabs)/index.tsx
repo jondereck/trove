@@ -348,7 +348,7 @@ export default function LibraryScreen() {
               onPress={() => router.push('/account')}
               activeOpacity={0.75}
               style={styles.settingsBtn}
-              accessibilityLabel="Account settings"
+              accessibilityLabel="Settings"
             >
               <Ionicons name="settings-outline" size={22} color={COLORS.text} />
             </TouchableOpacity>
