@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Animated, StyleSheet, Text, View } from 'react-native'
-import LottieView from 'lottie-react-native'
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native'
+import ChestLoaderVisual from './ChestLoaderVisual'
 import { ColorPalette, FONTS, SPACING } from '../constants/theme'
 import { useThemedStyles } from '../contexts/ThemeContext'
 import {
@@ -13,9 +13,6 @@ import {
 } from '../lib/chestLoaderTimeline'
 
 export { CYCLE_MS, SUCCESS_HOLD_MS, FADE_OUT_MS }
-
-/** Peak check frame before the loop-fade keys (see chest-save checkBadge). */
-const HOLD_FRAME = 184
 
 interface ShareSaveAnimationProps {
   active: boolean
@@ -35,8 +32,10 @@ export default function ShareSaveAnimation({
   const styles = useThemedStyles(createStyles)
   const [visible, setVisible] = useState(active)
   const [scene, setScene] = useState(() => sceneAt(0))
+  const [holding, setHolding] = useState(false)
   const containerOpacity = useRef(new Animated.Value(0)).current
-  const lottieRef = useRef<LottieView>(null)
+  const progress = useRef(new Animated.Value(0)).current
+  const cycleAnim = useRef<Animated.CompositeAnimation | null>(null)
   const cycleStartedAt = useRef(0)
   const holdStartedAt = useRef<number | null>(null)
   const tickTimer = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -55,10 +54,16 @@ export default function ShareSaveAnimation({
     tickTimer.current = null
   }
 
+  const stopCycleAnim = () => {
+    cycleAnim.current?.stop()
+    cycleAnim.current = null
+  }
+
   const fadeOutAndFinish = () => {
     if (finishedRef.current) return
     finishedRef.current = true
     clearTimers()
+    stopCycleAnim()
     Animated.timing(containerOpacity, {
       toValue: 0,
       duration: FADE_OUT_MS,
@@ -71,11 +76,21 @@ export default function ShareSaveAnimation({
 
   const beginCycle = () => {
     holdingRef.current = false
+    setHolding(false)
     holdStartedAt.current = null
     cycleStartedAt.current = Date.now()
     setScene(sceneAt(0))
-    lottieRef.current?.reset()
-    lottieRef.current?.play()
+    stopCycleAnim()
+    progress.setValue(0)
+    cycleAnim.current = Animated.timing(progress, {
+      toValue: 1,
+      duration: CYCLE_MS,
+      easing: Easing.linear,
+      useNativeDriver: true,
+    })
+    cycleAnim.current.start(({ finished }) => {
+      if (finished) handleCycleComplete()
+    })
   }
 
   const enterHoldSuccess = () => {
@@ -83,8 +98,9 @@ export default function ShareSaveAnimation({
     holdingRef.current = true
     holdStartedAt.current = Date.now()
     setScene(sceneAt(CYCLE_MS - 1))
-    lottieRef.current?.pause()
-    lottieRef.current?.play(HOLD_FRAME, HOLD_FRAME)
+    stopCycleAnim()
+    progress.setValue(1)
+    setHolding(true)
   }
 
   const evaluatePhase = () => {
@@ -121,7 +137,9 @@ export default function ShareSaveAnimation({
   useEffect(() => {
     if (!active) {
       clearTimers()
+      stopCycleAnim()
       holdingRef.current = false
+      setHolding(false)
       if (visible) {
         Animated.timing(containerOpacity, {
           toValue: 0,
@@ -143,7 +161,10 @@ export default function ShareSaveAnimation({
     beginCycle()
     tickTimer.current = setInterval(evaluatePhase, 50)
 
-    return () => clearTimers()
+    return () => {
+      clearTimers()
+      stopCycleAnim()
+    }
   }, [active])
 
   useEffect(() => {
@@ -151,7 +172,7 @@ export default function ShareSaveAnimation({
     evaluatePhase()
   }, [active, saveCompleted, outcome])
 
-  const handleAnimationFinish = () => {
+  const handleCycleComplete = () => {
     if (!active || finishedRef.current || holdingRef.current) return
     cycleStartedAt.current = Date.now() - CYCLE_MS
     evaluatePhase()
@@ -162,14 +183,7 @@ export default function ShareSaveAnimation({
   return (
     <Animated.View style={[styles.container, { opacity: containerOpacity }]}>
       <View style={styles.content}>
-        <LottieView
-          ref={lottieRef}
-          source={require('../assets/lottie/chest-save.json')}
-          autoPlay={false}
-          loop={false}
-          style={styles.lottie}
-          onAnimationFinish={handleAnimationFinish}
-        />
+        <ChestLoaderVisual progress={progress} holding={holding} />
 
         <Text style={styles.title}>{scene.title}</Text>
         <Text style={styles.subtitle}>{scene.subtitle}</Text>
@@ -190,11 +204,6 @@ function createStyles(c: ColorPalette) {
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: SPACING.xl,
-    },
-    lottie: {
-      width: 240,
-      height: 240,
-      marginBottom: SPACING.md,
     },
     title: {
       fontFamily: FONTS.serif,

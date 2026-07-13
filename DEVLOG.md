@@ -4,6 +4,49 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Fix Inbox crash — `COLORS` undefined in themed styles (2026-07-13)
+**Files:** `app/(tabs)/inbox.tsx`
+
+Inbox crashed on mount with `ReferenceError: Property 'COLORS' doesn't exist`.
+`createStyles` takes the theme palette as `c`, but `badgeMuted` still referenced
+global `COLORS` (removed during dark-mode theming). Switched to `c.muted`.
+
+---
+
+### Chest loader — illustrated chest + RN Animated (2026-07-13)
+**Files:** `components/ChestLoaderVisual.tsx`, `components/ShareSaveAnimation.tsx`,
+`assets/chest/chest-closed.png`, `assets/chest/chest-open.png`,
+`lib/chestLoaderTimeline.test.ts`, `assets/lottie/chest-save.json` (deleted),
+`package.json` (removed `lottie-react-native`),
+`docs/superpowers/plans/2026-07-13-chest-loader-working-animation.md`
+
+Replaced the Lottie loader with a premium illustrated chest driven by RN `Animated`.
+Two generated PNGs (closed + open, transparent, matched to the storyboard art) are
+crossfaded to open/close the lid; the link card, soft glow, gold sparkles, and green
+success check are `Animated` Views. Everything derives from a single `progress` value
+(0→1 per 3.2s cycle) via `interpolate`. `ShareSaveAnimation` drives that progress with
+one linear `Animated.timing` and keeps the exact phase machine, fade, 800ms success
+hold, and `onFinished` contract — `app/share.tsx` unchanged. **Why:** hand-authored
+Lottie JSON broke twice on Android (detached layers from lost `parent` links). Image +
+transform interpolations render identically on every device, look premium, and are
+reviewable in a normal diff. Deleted `chest-save.json`, dropped `lottie-react-native`,
+removed the obsolete Lottie-topology test. `npm run test:timeline` green (6 tests).
+Native rebuild needed (native dep removed): `npx expo prebuild --no-install` then
+`npx expo run:android`.
+
+---
+
+### Plan — guaranteed-working chest loader animation (2026-07-13)
+**Files:** `docs/superpowers/plans/2026-07-13-chest-loader-working-animation.md`
+
+Instruction plan to make the auto-share saving animation render reliably on device.
+Task 0 verifies the merged Lottie parenting fix after a clean reinstall; if it still
+fails (or looks off), Path B replaces only the visual with a code-drawn RN `Animated`
+chest (`ChestLoaderVisual`) driven by one progress value — timeline module, phase
+machine, and `share.tsx` wiring stay untouched.
+
+---
+
 ### Chest loader — restore detached chest layers (2026-07-13)
 **Files:** `assets/lottie/chest-save.json`, `lib/chestLoaderTimeline.test.ts`
 

@@ -329,7 +329,7 @@ function createStyles(c: ColorPalette) {
     alignItems: 'center',
   },
   badgeMuted: {
-    backgroundColor: COLORS.muted,
+    backgroundColor: c.muted,
   },
   badgeText: { fontSize: 11, fontFamily: FONTS.sansBold, color: '#fff' },
   loader: { marginTop: SPACING.xl * 3 },
