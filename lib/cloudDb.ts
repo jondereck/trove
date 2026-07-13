@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { Save, Collection, LibraryFilter, LibraryPageOptions, LibraryPageResult } from '../types'
+import { getUserId } from './session'
 import { normalizeUrl } from './url'
 
 // Pin columns (`is_pinned`) are optional until supabase/add-pinned.sql is run.
@@ -242,12 +243,16 @@ export async function fetchSearchSuggestions(): Promise<string[]> {
 // user, or null. New saves are stored normalized, so a plain match catches
 // links that differ only by tracking params, `www.`, or a trailing slash.
 export async function findSaveByUrl(url: string): Promise<Save | null> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  let userId = getUserId()
+  if (!userId) {
+    const { data: { user } } = await supabase.auth.getUser()
+    userId = user?.id ?? null
+  }
+  if (!userId) return null
   const { data } = await supabase
     .from('saves')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .eq('url', normalizeUrl(url))
     .limit(1)
     .maybeSingle()
@@ -267,26 +272,33 @@ export async function createSave(input: {
   is_favorite?: boolean
   created_at?: string
 }): Promise<Save | null> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  // Prefer the sync session cache; fall back to getUser() for a fresh token.
+  let userId = getUserId()
+  if (!userId) {
+    const { data: { user } } = await supabase.auth.getUser()
+    userId = user?.id ?? null
+  }
+  if (!userId) return null
   // Store the canonical URL and skip inserting a near-duplicate.
   const url = input.url ? normalizeUrl(input.url) : undefined
   if (url) {
     const existing = await findSaveByUrl(url)
     if (existing) return existing
   }
-  const { data, error } = await supabase
-    .from('saves')
-    .insert({
-      ...input,
-      url,
-      user_id: user.id,
-      tags: input.tags ?? [],
-      is_inbox: input.is_inbox ?? true,
-      is_viewed: false,
-    })
-    .select()
-    .single()
+  const row = {
+    ...input,
+    url,
+    user_id: userId,
+    tags: input.tags ?? [],
+    is_inbox: input.is_inbox ?? true,
+    is_viewed: false,
+  }
+  let { data, error } = await supabase.from('saves').insert(row).select().single()
+  // is_viewed is optional until supabase/add-viewed.sql is applied.
+  if (error?.message?.includes('is_viewed')) {
+    const { is_viewed: _, ...withoutViewed } = row
+    ;({ data, error } = await supabase.from('saves').insert(withoutViewed).select().single())
+  }
   if (error) { console.error('createSave:', error.message); return null }
   return data as Save
 }

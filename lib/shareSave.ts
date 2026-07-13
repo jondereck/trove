@@ -14,23 +14,27 @@ export async function quickSaveSharedUrl(url: string): Promise<QuickShareResult>
     // keep raw url as title
   }
 
-  const save = await createSave({
-    url,
-    title,
-    type: 'link',
-    tags: [],
-    is_inbox: true,
-  })
+  try {
+    const save = await createSave({
+      url,
+      title,
+      type: 'link',
+      tags: [],
+      is_inbox: true,
+    })
 
-  if (!save) return 'error'
+    if (!save) return 'error'
 
-  void fetchOGMetadata(url)
-    .then(metadata => updateSave(save.id, {
-      title: metadata.title || title,
-      description: metadata.description,
-      image_url: metadata.image,
-    }))
-    .catch(() => {})
+    void fetchOGMetadata(url)
+      .then(metadata => updateSave(save.id, {
+        title: metadata.title || title,
+        description: metadata.description,
+        image_url: metadata.image,
+      }))
+      .catch(() => {})
 
-  return 'saved'
+    return 'saved'
+  } catch {
+    return 'error'
+  }
 }

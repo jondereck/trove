@@ -494,7 +494,7 @@ export default function AIOrganize({ visible, onClose, saves, collections, onApp
 function createStyles(c: ColorPalette) {
   return StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
   container: {

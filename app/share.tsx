@@ -151,7 +151,7 @@ export default function ShareScreen() {
         }
       }
 
-      await createSave({
+      const save = await createSave({
         url: draft.url || undefined,
         title: draft.title,
         description: draft.description || undefined,
@@ -162,10 +162,12 @@ export default function ShareScreen() {
         tags: draft.tags,
         is_inbox: isInbox,
       })
+      if (!save) throw new Error('Could not save this link')
     } catch (e) {
       if (isLimitError(e)) {
         showLimitAlert(e)
       }
+      throw e
     }
   }
 

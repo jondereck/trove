@@ -4,6 +4,31 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Default — Review when sharing off (2026-07-13)
+**Files:** `lib/settings.ts`
+
+`shareReviewModal` default is now `false` so OS shares auto-save to Unsorted (chest
+loader) instead of opening QuickSave. Users who already toggled it on keep their value.
+
+---
+
+### Fix QuickSave — link save failures + note flicker (2026-07-13)
+**Files:** `components/QuickSave.tsx`, `app/(tabs)/_layout.tsx`, `app/share.tsx`,
+`lib/cloudDb.ts`, `lib/shareSave.ts`, `components/AIOrganize.tsx`
+
+**Could not save link:** QuickSave called `onSave` then immediately `onClose`. On the share
+route that exits the app (`BackHandler.exitApp`) before the insert finished. Cloud inserts
+also failed hard when `is_viewed` wasn’t migrated yet, and returned `null` without the UI
+checking. Fixes: await `onSave` before closing (with a saving spinner); retry insert without
+`is_viewed` if the column is missing; use session `getUserId()` as a fallback; treat a null
+save as an error so the modal stays open.
+
+**Note flicker:** Android `KeyboardAvoidingView behavior="height"` double-resized with the
+system IME while typing multiline notes. Disabled KAV on Android; split note vs link into
+separate `TextInput`s so toggling `multiline` doesn’t thrash layout.
+
+---
+
 ### Fix Inbox crash — `COLORS` undefined in themed styles (2026-07-13)
 **Files:** `app/(tabs)/inbox.tsx`
 

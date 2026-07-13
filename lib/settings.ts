@@ -21,7 +21,7 @@ const DEFAULTS: Settings = {
   aiSuggestTags: true,
   aiSuggestCollections: true,
   libraryView: 'grid',
-  shareReviewModal: true,
+  shareReviewModal: false,
   appearance: 'system',
 }
 

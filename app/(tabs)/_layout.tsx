@@ -117,7 +117,7 @@ export default function TabsLayout() {
         }
       }
 
-      await createSave({
+      const save = await createSave({
         url: draft.url || undefined,
         title: draft.title,
         description: draft.description || undefined,
@@ -128,12 +128,14 @@ export default function TabsLayout() {
         tags: draft.tags,
         is_inbox: isInbox,
       })
+      if (!save) throw new Error('Could not save')
     } catch (e) {
       if (isLimitError(e)) {
         showLimitAlert(e)
       } else {
         setToast({ id: Date.now(), message: 'Could not save', tone: 'error' })
       }
+      throw e
     }
   }
 

@@ -44,7 +44,7 @@ export interface Draft {
 interface QuickSaveProps {
   visible: boolean
   onClose: () => void
-  onSave?: (draft: Draft) => void
+  onSave?: (draft: Draft) => void | Promise<void>
   /** Pre-fill a URL and immediately trigger fetch+suggest (used by share sheet). */
   initialUrl?: string
 }
@@ -82,6 +82,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   const [newColl, setNewColl] = useState('')
   const [customColl, setCustomColl] = useState<string | null>(null)
   const [suggestingTitle, setSuggestingTitle] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   // Load real collections once on mount for AI suggestions
   useEffect(() => {
@@ -180,6 +181,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
         setShowNewColl(false)
         setNewColl('')
         setCustomColl(null)
+        setSaving(false)
       })
     }
   }, [visible, initialUrl])
@@ -239,8 +241,8 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
     setStep('preview')
   }
 
-  const handleDirectSave = () => {
-    if (!input.trim()) return
+  const handleDirectSave = async () => {
+    if (!input.trim() || saving) return
     const d: Draft = {
       url: input.trim(),
       type,
@@ -249,8 +251,14 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
       collection: '',
       tags: [],
     }
-    onSave?.(d)
-    onClose()
+    setSaving(true)
+    try {
+      await onSave?.(d)
+      onClose()
+    } catch {
+      setError('Could not save. Please try again.')
+      setSaving(false)
+    }
   }
 
   // Note-specific flow: AI suggests a title, then show preview step.
@@ -293,10 +301,18 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
     setSuggestingTitle(false)
   }
 
-  const handleSaveDraft = () => {
-    // Carry the manually chosen collection name ('' = stays in Inbox).
-    if (draft) onSave?.({ ...draft, collection: selectedCollection })
-    onClose()
+  const handleSaveDraft = async () => {
+    if (!draft || saving) return
+    setSaving(true)
+    setError('')
+    try {
+      // Carry the manually chosen collection name ('' = stays in Inbox).
+      await onSave?.({ ...draft, collection: selectedCollection })
+      onClose()
+    } catch {
+      setError('Could not save. Please try again.')
+      setSaving(false)
+    }
   }
 
   // Build the selectable collection chips: Inbox + the AI suggestion (if it's a
@@ -355,7 +371,11 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
       </Animated.View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.kvWrap} pointerEvents="box-none">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.kvWrap}
+        pointerEvents="box-none"
+      >
         <Animated.View style={[styles.sheet, { paddingBottom: insets.bottom + SPACING.lg, transform: [{ translateY }] }]}>
           <View style={styles.handle} />
 
@@ -402,19 +422,34 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                 </TouchableOpacity>
               ) : (
                 <>
-                  <TextInput
-                    style={[styles.input, type === 'note' && styles.inputNote]}
-                    placeholder={type === 'note' ? 'Write a note…' : 'Paste a URL…'}
-                    placeholderTextColor={colors.muted}
-                    value={input}
-                    onChangeText={setInput}
-                    multiline={type === 'note'}
-                    numberOfLines={type === 'note' ? 4 : 1}
-                    autoCapitalize="none"
-                    autoCorrect={type === 'note'}
-                    keyboardType={type !== 'note' ? 'url' : 'default'}
-                    textAlignVertical={type === 'note' ? 'top' : 'center'}
-                  />
+                  {type === 'note' ? (
+                    <TextInput
+                      key="note-input"
+                      style={[styles.input, styles.inputNote]}
+                      placeholder="Write a note…"
+                      placeholderTextColor={colors.muted}
+                      value={input}
+                      onChangeText={setInput}
+                      multiline
+                      numberOfLines={4}
+                      autoCapitalize="sentences"
+                      autoCorrect
+                      textAlignVertical="top"
+                    />
+                  ) : (
+                    <TextInput
+                      key="link-input"
+                      style={styles.input}
+                      placeholder="Paste a URL…"
+                      placeholderTextColor={colors.muted}
+                      value={input}
+                      onChangeText={setInput}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      keyboardType="url"
+                      textAlignVertical="center"
+                    />
+                  )}
 
                   {type === 'link' ? (
                     <TouchableOpacity
@@ -427,9 +462,9 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                     </TouchableOpacity>
                   ) : (
                     <TouchableOpacity
-                      style={[styles.primaryBtn, !input.trim() && styles.btnDisabled]}
+                      style={[styles.primaryBtn, (!input.trim() || saving) && styles.btnDisabled]}
                       onPress={type === 'note' ? handleNotePreview : handleDirectSave}
-                      disabled={!input.trim()}
+                      disabled={!input.trim() || saving}
                       activeOpacity={0.85}
                     >
                       <Text style={styles.primaryBtnText}>
@@ -570,11 +605,22 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
                 )}
               </View>
 
-              <TouchableOpacity style={styles.primaryBtn} onPress={handleSaveDraft} activeOpacity={0.85}>
-                <Text style={styles.primaryBtnText}>
-                  {selectedCollection ? `Save to ${selectedCollection}` : `Save to ${UNSORTED_LABEL}`}
-                </Text>
+              <TouchableOpacity
+                style={[styles.primaryBtn, saving && styles.btnDisabled]}
+                onPress={handleSaveDraft}
+                disabled={saving}
+                activeOpacity={0.85}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryBtnText}>
+                    {selectedCollection ? `Save to ${selectedCollection}` : `Save to ${UNSORTED_LABEL}`}
+                  </Text>
+                )}
               </TouchableOpacity>
+
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
             </ScrollView>
           )}
         </Animated.View>
