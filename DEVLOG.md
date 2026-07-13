@@ -4,6 +4,15 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Chest loader — restore detached chest layers (2026-07-13)
+**Files:** `assets/lottie/chest-save.json`, `lib/chestLoaderTimeline.test.ts`
+
+Restored the Lottie `lid` and `body` parent links to `chestRoot`, fixing the Android
+render where only detached layer fragments appeared. Added a regression test that
+asserts both parent relationships.
+
+---
+
 ### Chest loader — 6-scene storyboard implementation (2026-07-12)
 **Files:** `lib/chestLoaderTimeline.ts`, `lib/chestLoaderTimeline.test.ts`,
 `assets/lottie/chest-save.json`, `components/ShareSaveAnimation.tsx`, `app/share.tsx`,
