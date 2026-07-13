@@ -4,6 +4,15 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Chest loader — restore detached chest layers (2026-07-13)
+**Files:** `assets/lottie/chest-save.json`, `lib/chestLoaderTimeline.test.ts`
+
+Restored the Lottie `lid` and `body` parent links to `chestRoot`, fixing the Android
+render where only detached layer fragments appeared. Added a regression test that
+asserts both parent relationships.
+
+---
+
 ### Merge — cloud-first auth + settings/plan + chest loader (2026-07-13)
 **Files:** merge resolution across `account`, `plan`, share animation, `DEVLOG`, deps
 
