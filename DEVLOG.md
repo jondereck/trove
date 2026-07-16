@@ -4,6 +4,36 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Multi-issue sprint — video, OCR, digest, YouTube, keyboard, toast (2026-07-16)
+**Files:** `app/share.tsx`, `supabase/functions/fetch-og/index.ts`, `components/QuickSave.tsx`,
+`app/save/[id].tsx`, `components/SaveVideoPlayer.tsx`, `lib/videoThumb.ts`, `lib/ocr.ts`,
+`lib/digestNotifications.ts`, `lib/settings.ts`, `app/notification-settings.tsx`, `app/account.tsx`,
+`app/_layout.tsx`, `app.json`, `package.json`
+
+**Share toast:** Auto-share chest animation no longer shows a top `SaveToast` after save/duplicate/error —
+animation alone is the feedback; then the share flow exits.
+
+**YouTube OG:** `fetch-og` now uses YouTube oEmbed (same pattern as TikTok) for title, thumbnail, and
+author description; HTML scrape remains the fallback. Function redeployed.
+
+**Keyboard:** QuickSave input step is scrollable; save detail edit wraps in iOS `KeyboardAvoidingView`
+so note fields stay above the IME. Android still avoids `behavior="height"` (flicker).
+
+**Video playback:** Added `expo-video`. Gallery videos generate a still via `generateThumbnailsAsync`
+→ `image_url`; detail screen plays in-app with native controls (`SaveVideoPlayer`).
+
+**OCR (low cost):** On-device ML Kit (`@infinitered/react-native-mlkit-text-recognition`) extracts text
+from images (or the video still). Text feeds existing `suggestForSave` / `suggestNoteTitle` — no
+Vision API. Skips silently on web / empty / failure.
+
+**Inbox digest:** Local notifications via `expo-notifications`. Account → Notifications: enable,
+daily/weekly, hour, weekday. Skips schedule when inbox count is 0. Tap opens Inbox. Resyncs on
+foreground and after saves.
+
+**Native:** Requires rebuild after `expo prebuild` (`npx expo run:android`).
+
+---
+
 ### Default — Review when sharing off (2026-07-13)
 **Files:** `lib/settings.ts`
 

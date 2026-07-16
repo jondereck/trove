@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store'
 const KEY = 'trove.settings'
 
 export type AppearanceMode = 'system' | 'light' | 'dark'
+export type DigestCadence = 'daily' | 'weekly'
 
 export interface Settings {
   autoOrganize: boolean
@@ -13,6 +14,13 @@ export interface Settings {
   /** When true, OS shares open the QuickSave preview (with AI). When false, auto-save to Unsorted. */
   shareReviewModal: boolean
   appearance: AppearanceMode
+  /** Local inbox digest notification master switch. */
+  digestEnabled: boolean
+  digestCadence: DigestCadence
+  /** Local hour 0–23 for the digest. */
+  digestHour: number
+  /** 0=Sunday … 6=Saturday when cadence is weekly. */
+  digestWeekday: number
 }
 
 const DEFAULTS: Settings = {
@@ -23,6 +31,10 @@ const DEFAULTS: Settings = {
   libraryView: 'grid',
   shareReviewModal: false,
   appearance: 'system',
+  digestEnabled: false,
+  digestCadence: 'weekly',
+  digestHour: 10,
+  digestWeekday: 0,
 }
 
 export async function getSettings(): Promise<Settings> {

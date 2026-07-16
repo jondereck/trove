@@ -3,20 +3,15 @@ import { View, Text, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useShareIntentContext } from 'expo-share-intent'
 import QuickSave, { type Draft } from '../components/QuickSave'
-import SaveToast from '../components/SaveToast'
 import ShareSaveAnimation from '../components/ShareSaveAnimation'
 import type { SaveOutcome } from '../lib/chestLoaderTimeline'
 import { ColorPalette, FONTS, SPACING } from '../constants/theme'
 import { useThemedStyles } from '../contexts/ThemeContext'
-import { UNSORTED_LABEL } from '../constants/labels'
 import { createSave, upsertCollectionByName } from '../lib/db'
 import { extractSharedUrl, exitAfterShare } from '../lib/shareIntent'
 import { quickSaveSharedUrl } from '../lib/shareSave'
 import { getSettings } from '../lib/settings'
 import { isLimitError, showLimitAlert } from '../lib/upgradeAlert'
-
-type ToastTone = 'success' | 'neutral' | 'error'
-type ToastState = { id: number; message: string; tone: ToastTone }
 
 export default function ShareScreen() {
   const styles = useThemedStyles(createStyles)
@@ -28,9 +23,7 @@ export default function ShareScreen() {
   const [isAutoSaving, setIsAutoSaving] = useState(false)
   const [saveCompleted, setSaveCompleted] = useState(false)
   const [saveOutcome, setSaveOutcome] = useState<SaveOutcome>('pending')
-  const [toast, setToast] = useState<ToastState | null>(null)
   const initialized = useRef(false)
-  const pendingToast = useRef<ToastState | null>(null)
 
   const finishShare = useCallback(() => {
     setSharedUrl(undefined)
@@ -39,8 +32,6 @@ export default function ShareScreen() {
     setIsAutoSaving(false)
     setSaveCompleted(false)
     setSaveOutcome('pending')
-    pendingToast.current = null
-    setToast(null)
     initialized.current = false
     resetShareIntent()
     router.replace('/(tabs)')
@@ -49,43 +40,21 @@ export default function ShareScreen() {
 
   const handleLoaderFinished = useCallback(() => {
     setIsAutoSaving(false)
-    const next = pendingToast.current
-    pendingToast.current = null
-    if (next) {
-      setToast(next)
-    } else {
-      finishShare()
-    }
+    finishShare()
   }, [finishShare])
 
   const runAutoSave = useCallback(async (url: string) => {
     setIsAutoSaving(true)
     setSaveCompleted(false)
     setSaveOutcome('pending')
-    pendingToast.current = null
 
     try {
       const result = await quickSaveSharedUrl(url)
       if (result === 'saved') {
-        pendingToast.current = {
-          id: Date.now(),
-          message: `Saved to ${UNSORTED_LABEL}`,
-          tone: 'success',
-        }
         setSaveOutcome('saved')
       } else if (result === 'duplicate') {
-        pendingToast.current = {
-          id: Date.now(),
-          message: 'Already in Trove',
-          tone: 'neutral',
-        }
         setSaveOutcome('duplicate')
       } else {
-        pendingToast.current = {
-          id: Date.now(),
-          message: 'Could not save this link',
-          tone: 'error',
-        }
         setSaveOutcome('error')
       }
       setSaveCompleted(true)
@@ -97,11 +66,6 @@ export default function ShareScreen() {
         showLimitAlert(e)
         finishShare()
         return
-      }
-      pendingToast.current = {
-        id: Date.now(),
-        message: 'Could not save this link',
-        tone: 'error',
       }
       setSaveOutcome('error')
       setSaveCompleted(true)
@@ -194,15 +158,6 @@ export default function ShareScreen() {
         onSave={handleSave}
         initialUrl={sharedUrl}
       />
-
-      {toast && (
-        <SaveToast
-          key={toast.id}
-          message={toast.message}
-          tone={toast.tone}
-          onHide={finishShare}
-        />
-      )}
     </View>
   )
 }

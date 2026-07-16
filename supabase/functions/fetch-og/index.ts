@@ -99,6 +99,37 @@ async function fetchTikTokOEmbed(url: string): Promise<PreviewMetadata | null> {
   }
 }
 
+function isYouTubeHost(host: string): boolean {
+  const h = host.replace(/^www\./, '').toLowerCase()
+  return h === 'youtube.com' || h === 'm.youtube.com' || h === 'youtu.be' || h.endsWith('.youtube.com')
+}
+
+async function fetchYouTubeOEmbed(url: string): Promise<PreviewMetadata | null> {
+  try {
+    const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`, {
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(6000),
+    })
+    if (!res.ok) return null
+
+    const data = await res.json()
+    const title = typeof data?.title === 'string' ? data.title.trim() : ''
+    const image = typeof data?.thumbnail_url === 'string' ? data.thumbnail_url : null
+    if (!title && !image) return null
+
+    const author = typeof data?.author_name === 'string' ? data.author_name.trim() : ''
+    return {
+      url,
+      title: title || 'YouTube video',
+      description: author ? `By ${author}` : null,
+      image,
+      siteName: 'YouTube',
+    }
+  } catch {
+    return null
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
@@ -112,10 +143,15 @@ serve(async (req) => {
 
     const host = new URL(url).hostname
     const isTikTok = host.includes('tiktok')
-    const tiktokMetadata = isTikTok ? await fetchTikTokOEmbed(url) : null
+    const isYouTube = isYouTubeHost(host)
+    const oembedMetadata = isTikTok
+      ? await fetchTikTokOEmbed(url)
+      : isYouTube
+        ? await fetchYouTubeOEmbed(url)
+        : null
 
-    if (tiktokMetadata?.title && tiktokMetadata.image) {
-      return new Response(JSON.stringify(tiktokMetadata), {
+    if (oembedMetadata?.title && oembedMetadata.image) {
+      return new Response(JSON.stringify(oembedMetadata), {
         headers: { ...CORS, 'Content-Type': 'application/json' },
       })
     }
@@ -133,16 +169,16 @@ serve(async (req) => {
         signal: AbortSignal.timeout(8000),
       })
     } catch (error) {
-      if (tiktokMetadata) {
-        return new Response(JSON.stringify(tiktokMetadata), {
+      if (oembedMetadata) {
+        return new Response(JSON.stringify(oembedMetadata), {
           headers: { ...CORS, 'Content-Type': 'application/json' },
         })
       }
       throw error
     }
     if (!res.ok) {
-      if (tiktokMetadata) {
-        return new Response(JSON.stringify(tiktokMetadata), {
+      if (oembedMetadata) {
+        return new Response(JSON.stringify(oembedMetadata), {
           headers: { ...CORS, 'Content-Type': 'application/json' },
         })
       }
@@ -157,10 +193,10 @@ serve(async (req) => {
 
     let result: PreviewMetadata = {
       url,
-      title: tiktokMetadata?.title ?? og(html, 'title') ?? meta(html, 'twitter:title') ?? jsonLd.title ?? titleTag ?? hostname,
-      description: tiktokMetadata?.description ?? og(html, 'description') ?? meta(html, 'description') ?? meta(html, 'twitter:description') ?? jsonLd.description ?? null,
-      image: tiktokMetadata?.image ?? og(html, 'image') ?? meta(html, 'twitter:image') ?? jsonLd.image ?? null,
-      siteName: tiktokMetadata?.siteName ?? og(html, 'site_name') ?? hostname,
+      title: oembedMetadata?.title ?? og(html, 'title') ?? meta(html, 'twitter:title') ?? jsonLd.title ?? titleTag ?? hostname,
+      description: oembedMetadata?.description ?? og(html, 'description') ?? meta(html, 'description') ?? meta(html, 'twitter:description') ?? jsonLd.description ?? null,
+      image: oembedMetadata?.image ?? og(html, 'image') ?? meta(html, 'twitter:image') ?? jsonLd.image ?? null,
+      siteName: oembedMetadata?.siteName ?? og(html, 'site_name') ?? hostname,
     }
 
     // Meta (Facebook/Instagram) increasingly serves a generic login-wall page

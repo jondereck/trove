@@ -341,6 +341,7 @@ export default function AccountScreen() {
             </>
           )}
           <SettingRow icon="sparkles-outline" label="AI preferences" onPress={() => router.push('/ai-preferences')} />
+          <SettingRow icon="notifications-outline" label="Notifications" onPress={() => router.push('/notification-settings')} />
           <SettingRow icon="color-palette-outline" label="Appearance" onPress={() => router.push('/appearance')} last />
         </SettingGroup>
 

@@ -26,6 +26,10 @@ import { fetchOGMetadata, suggestForSave, suggestNoteTitle } from '../lib/ai'
 import { fetchCollections, findSaveByUrl } from '../lib/db'
 import { prepareMediaForUpload, uploadMedia } from '../lib/storage'
 import { getSettings } from '../lib/settings'
+import { generateVideoThumbnailUri } from '../lib/videoThumb'
+import { extractTextFromImage } from '../lib/ocr'
+import { syncDigestNotification } from '../lib/digestNotifications'
+import * as FileSystem from 'expo-file-system/legacy'
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window')
 
@@ -229,15 +233,73 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
       return
     }
 
+    let imageUrl: string | undefined = kind === 'image' ? publicUrl : undefined
+    let ocrSource = kind === 'image' ? asset.uri : ''
+
+    if (kind === 'video') {
+      setLoadingStatus('Creating thumbnail…')
+      const localThumb = await generateVideoThumbnailUri(asset.uri)
+      if (localThumb) {
+        ocrSource = localThumb
+        try {
+          const base64 = await FileSystem.readAsStringAsync(localThumb, { encoding: 'base64' })
+          imageUrl = (await uploadMedia(base64, 'jpg', 'image/jpeg')) ?? localThumb
+        } catch {
+          imageUrl = localThumb
+        }
+      }
+    }
+
+    let ocrText = ''
+    if (ocrSource) {
+      setLoadingStatus('Reading text…')
+      ocrText = await extractTextFromImage(ocrSource)
+    }
+
+    let title = asset.fileName ?? (kind === 'video' ? 'Video' : 'Photo')
+    let description = ocrText.slice(0, 280)
+    let collection = 'Read Later'
+    let tags: string[] = []
+
+    const settings = await getSettings()
+    const wantSuggest =
+      !!(ocrText && (settings.aiSuggestTags || settings.aiSuggestCollections || settings.aiSuggestTitleDescription))
+
+    if (wantSuggest) {
+      setLoadingStatus('Asking AI for suggestions…')
+      try {
+        if (settings.aiSuggestTitleDescription) {
+          const suggested = await suggestNoteTitle(ocrText)
+          if (suggested) title = suggested
+        }
+        if (settings.aiSuggestTags || settings.aiSuggestCollections) {
+          const suggestion = await suggestForSave(
+            { url: publicUrl, title, description: ocrText },
+            collections,
+          )
+          collection = suggestion.collection
+          tags = suggestion.tags
+        }
+      } catch {
+        // keep filename defaults
+      }
+    }
+
     setDraft({
       url: kind === 'video' ? publicUrl : '',
       type: kind,
-      title: asset.fileName ?? (kind === 'video' ? 'Video' : 'Photo'),
-      description: '',
-      imageUrl: kind === 'image' ? publicUrl : undefined,
-      collection: 'Read Later',
-      tags: [],
+      title,
+      description,
+      imageUrl,
+      collection,
+      tags,
     })
+
+    const suggested = collection?.trim()
+    if (autoOrganizeRef.current && suggested && suggested.toLowerCase() !== 'read later') {
+      setSelectedCollection(suggested)
+    }
+
     setStep('preview')
   }
 
@@ -308,6 +370,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
     try {
       // Carry the manually chosen collection name ('' = stays in Inbox).
       await onSave?.({ ...draft, collection: selectedCollection })
+      void syncDigestNotification()
       onClose()
     } catch {
       setError('Could not save. Please try again.')
@@ -381,7 +444,11 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
 
           {/* ── INPUT STEP ── */}
           {step === 'input' && (
-            <>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.inputScroll}
+            >
               <Text style={styles.title}>Quick Save</Text>
 
               <View style={styles.typeRow}>
@@ -476,7 +543,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
               )}
 
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
-            </>
+            </ScrollView>
           )}
 
           {/* ── LOADING STEP ── */}
@@ -638,6 +705,9 @@ function createStyles(c: ColorPalette) {
   kvWrap: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  inputScroll: {
+    paddingBottom: SPACING.sm,
   },
   sheet: {
     backgroundColor: c.cream,

@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
-import { Alert } from 'react-native'
+import { useEffect, useState, useRef } from 'react'
+import { Alert, AppState, Platform } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { useFonts } from 'expo-font'
 import * as SplashScreen from 'expo-splash-screen'
+import * as Notifications from 'expo-notifications'
 import { ShareIntentProvider, useShareIntentContext } from 'expo-share-intent'
 import type { Session } from '@supabase/supabase-js'
 import {
@@ -43,6 +44,7 @@ import {
   restorePurchases,
   subscribeTier,
 } from '../lib/entitlements'
+import { syncDigestNotification } from '../lib/digestNotifications'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -103,6 +105,7 @@ function RootNavigator({ session, hasData, dismissed, fontsLoaded, fontError }: 
   const segments = useSegments()
   const router = useRouter()
   const { colors, resolvedScheme } = useTheme()
+  const handledNotification = useRef<string | null>(null)
 
   useEffect(() => {
     if (session === undefined || hasData === undefined) return
@@ -140,6 +143,33 @@ function RootNavigator({ session, hasData, dismissed, fontsLoaded, fontError }: 
     }
   }, [hasShareIntent, session, hasData, dismissed, fontsLoaded, fontError, segments, router])
 
+  useEffect(() => {
+    if (Platform.OS === 'web') return
+
+    const goInbox = (response: Notifications.NotificationResponse | null) => {
+      if (!response) return
+      const id = response.notification.request.identifier
+      if (handledNotification.current === id) return
+      const data = response.notification.request.content.data as { screen?: string } | undefined
+      if (data?.screen !== 'inbox') return
+      handledNotification.current = id
+      router.push('/(tabs)/inbox')
+    }
+
+    void Notifications.getLastNotificationResponseAsync().then(goInbox)
+    const sub = Notifications.addNotificationResponseReceivedListener(goInbox)
+    return () => sub.remove()
+  }, [router])
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return
+    void syncDigestNotification()
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') void syncDigestNotification()
+    })
+    return () => sub.remove()
+  }, [])
+
   return (
     <>
       <StatusBar style={resolvedScheme === 'dark' ? 'light' : 'dark'} />
@@ -155,6 +185,7 @@ function RootNavigator({ session, hasData, dismissed, fontsLoaded, fontError }: 
         <Stack.Screen name="change-password" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="ai-preferences" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="appearance" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="notification-settings" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="upgrade" options={{ animation: 'slide_from_bottom' }} />
       </Stack>
     </>

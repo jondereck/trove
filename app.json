@@ -49,6 +49,16 @@
             "android:launchMode": "singleTask"
           }
         }
+      ],
+      "expo-video",
+      "expo-image",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#c0613c",
+          "defaultChannel": "digests"
+        }
       ]
     ]
   }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   View, Text, TextInput, ScrollView, TouchableOpacity,
   StyleSheet, Alert, ActivityIndicator, Image, Linking,
+  KeyboardAvoidingView, Platform,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -12,13 +13,20 @@ import { DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
 import { Save, Collection } from '../../types'
 import { fetchSaveById, updateSave, deleteSave, fetchCollections } from '../../lib/db'
 import { repairThumbnail } from '../../lib/thumbnailRepair'
+import { syncDigestNotification } from '../../lib/digestNotifications'
+import SaveVideoPlayer from '../../components/SaveVideoPlayer'
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 }
 
 function getDomain(url?: string) {
-  try { return url ? new URL(url).hostname.replace(/^www\./, '') : '' } catch { return '' }
+  try {
+    if (!url || url.startsWith('file:')) return ''
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return ''
+  }
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -37,7 +45,6 @@ export default function SaveDetailScreen() {
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
 
-  // Edit state
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [tags, setTags] = useState<string[]>([])
@@ -73,6 +80,7 @@ export default function SaveDetailScreen() {
     })
     setSave(prev => prev ? { ...prev, title, description, tags, collection_id: selectedCollection } : prev)
     setEditing(false)
+    void syncDigestNotification()
   }
 
   const handleDelete = () => {
@@ -81,7 +89,11 @@ export default function SaveDetailScreen() {
       {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
-          if (save) { await deleteSave(save.id); router.back() }
+          if (save) {
+            await deleteSave(save.id)
+            void syncDigestNotification()
+            router.back()
+          }
         },
       },
     ])
@@ -122,10 +134,11 @@ export default function SaveDetailScreen() {
   }
 
   const currentCollection = collections.find(c => c.id === (editing ? selectedCollection : save.collection_id))
+  const domain = getDomain(save.url)
+  const showVideoPlayer = !editing && save.type === 'video' && !!save.url
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
           <Text style={styles.backText}>←</Text>
@@ -153,147 +166,154 @@ export default function SaveDetailScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        {/* Hero image */}
-        {save.image_url && !editing && (
-          <Image source={{ uri: save.image_url }} style={styles.heroImage} resizeMode="cover" />
-        )}
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={insets.top + 56}
+      >
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+        >
+          {showVideoPlayer ? (
+            <SaveVideoPlayer uri={save.url!} />
+          ) : save.image_url && !editing ? (
+            <Image source={{ uri: save.image_url }} style={styles.heroImage} resizeMode="cover" />
+          ) : null}
 
-        {/* Type + domain */}
-        <View style={styles.metaRow}>
-          <View style={[styles.typeBadge, { backgroundColor: TYPE_COLORS[save.type] + '22' }]}>
-            <Text style={[styles.typeBadgeText, { color: TYPE_COLORS[save.type] }]}>
-              {save.type.toUpperCase()}
-            </Text>
-          </View>
-          {save.url && (
-            <TouchableOpacity onPress={() => save.url && Linking.openURL(save.url)} activeOpacity={0.7}>
-              <Text style={styles.domain}>{getDomain(save.url)} ↗</Text>
-            </TouchableOpacity>
-          )}
-          {!editing && save.type === 'link' && !!save.url && (
-            <TouchableOpacity
-              onPress={handleRefreshPreview}
-              disabled={refreshingPreview}
-              style={styles.refreshBtn}
-              activeOpacity={0.7}
-            >
-              {refreshingPreview ? (
-                <ActivityIndicator size="small" color={colors.accent} />
-              ) : (
-                <Ionicons name="refresh-outline" size={14} color={colors.accent} />
-              )}
-              <Text style={styles.refreshText}>Refresh preview</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Title */}
-        {editing ? (
-          <TextInput
-            style={styles.titleInput}
-            value={title}
-            onChangeText={setTitle}
-            multiline
-            placeholder="Title"
-            placeholderTextColor={colors.muted}
-          />
-        ) : (
-          <Text style={styles.title}>{save.title}</Text>
-        )}
-
-        {/* Description / content */}
-        {editing ? (
-          <TextInput
-            style={styles.descInput}
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            placeholder="Description or note…"
-            placeholderTextColor={colors.muted}
-            textAlignVertical="top"
-          />
-        ) : (save.description || save.content) ? (
-          <Text style={styles.description}>{save.description || save.content}</Text>
-        ) : null}
-
-        {/* Collection */}
-        <Text style={styles.sectionLabel}>COLLECTION</Text>
-        {editing ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.colPicker}>
-            <TouchableOpacity
-              style={[styles.colChip, !selectedCollection && styles.colChipActive]}
-              onPress={() => setSelectedCollection(undefined)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.colChipText, !selectedCollection && styles.colChipTextActive]}>None</Text>
-            </TouchableOpacity>
-            {collections.map(c => (
+          <View style={styles.metaRow}>
+            <View style={[styles.typeBadge, { backgroundColor: TYPE_COLORS[save.type] + '22' }]}>
+              <Text style={[styles.typeBadgeText, { color: TYPE_COLORS[save.type] }]}>
+                {save.type.toUpperCase()}
+              </Text>
+            </View>
+            {domain ? (
+              <TouchableOpacity onPress={() => save.url && Linking.openURL(save.url)} activeOpacity={0.7}>
+                <Text style={styles.domain}>{domain} ↗</Text>
+              </TouchableOpacity>
+            ) : null}
+            {!editing && save.type === 'link' && !!save.url && (
               <TouchableOpacity
-                key={c.id}
-                style={[styles.colChip, selectedCollection === c.id && styles.colChipActive]}
-                onPress={() => setSelectedCollection(c.id)}
+                onPress={handleRefreshPreview}
+                disabled={refreshingPreview}
+                style={styles.refreshBtn}
                 activeOpacity={0.7}
               >
-                <Ionicons
-                  name={(c.icon as IoniconName) ?? DEFAULT_COLLECTION_ICON}
-                  size={14}
-                  color={selectedCollection === c.id ? colors.accent : c.color}
-                />
-                <Text style={[styles.colChipText, selectedCollection === c.id && styles.colChipTextActive]}>
-                  {c.name}
-                </Text>
+                {refreshingPreview ? (
+                  <ActivityIndicator size="small" color={colors.accent} />
+                ) : (
+                  <Ionicons name="refresh-outline" size={14} color={colors.accent} />
+                )}
+                <Text style={styles.refreshText}>Refresh preview</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {editing ? (
+            <TextInput
+              style={styles.titleInput}
+              value={title}
+              onChangeText={setTitle}
+              multiline
+              placeholder="Title"
+              placeholderTextColor={colors.muted}
+            />
+          ) : (
+            <Text style={styles.title}>{save.title}</Text>
+          )}
+
+          {editing ? (
+            <TextInput
+              style={styles.descInput}
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              placeholder="Description or note…"
+              placeholderTextColor={colors.muted}
+              textAlignVertical="top"
+            />
+          ) : (save.description || save.content) ? (
+            <Text style={styles.description}>{save.description || save.content}</Text>
+          ) : null}
+
+          <Text style={styles.sectionLabel}>COLLECTION</Text>
+          {editing ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.colPicker}>
+              <TouchableOpacity
+                style={[styles.colChip, !selectedCollection && styles.colChipActive]}
+                onPress={() => setSelectedCollection(undefined)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.colChipText, !selectedCollection && styles.colChipTextActive]}>None</Text>
+              </TouchableOpacity>
+              {collections.map(c => (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[styles.colChip, selectedCollection === c.id && styles.colChipActive]}
+                  onPress={() => setSelectedCollection(c.id)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={(c.icon as IoniconName) ?? DEFAULT_COLLECTION_ICON}
+                    size={14}
+                    color={selectedCollection === c.id ? colors.accent : c.color}
+                  />
+                  <Text style={[styles.colChipText, selectedCollection === c.id && styles.colChipTextActive]}>
+                    {c.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={styles.colDisplay}>
+              {currentCollection
+                ? (
+                  <View style={styles.colNameRow}>
+                    <Ionicons
+                      name={(currentCollection.icon as IoniconName) ?? DEFAULT_COLLECTION_ICON}
+                      size={15}
+                      color={currentCollection.color}
+                    />
+                    <Text style={styles.colName}>{currentCollection.name}</Text>
+                  </View>
+                )
+                : <Text style={styles.colNone}>No collection</Text>
+              }
+            </View>
+          )}
+
+          <Text style={styles.sectionLabel}>TAGS</Text>
+          <View style={styles.tagsRow}>
+            {(editing ? tags : save.tags)?.map((tag, i) => (
+              <TouchableOpacity
+                key={`${tag}-${i}`}
+                style={styles.tag}
+                onPress={() => editing && setTags(t => t.filter(x => x !== tag))}
+                activeOpacity={editing ? 0.7 : 1}
+              >
+                <Text style={styles.tagText}>{tag}{editing ? ' ×' : ''}</Text>
               </TouchableOpacity>
             ))}
-          </ScrollView>
-        ) : (
-          <View style={styles.colDisplay}>
-            {currentCollection
-              ? (
-                <View style={styles.colNameRow}>
-                  <Ionicons
-                    name={(currentCollection.icon as IoniconName) ?? DEFAULT_COLLECTION_ICON}
-                    size={15}
-                    color={currentCollection.color}
-                  />
-                  <Text style={styles.colName}>{currentCollection.name}</Text>
-                </View>
-              )
-              : <Text style={styles.colNone}>No collection</Text>
-            }
+            {editing && (
+              <TextInput
+                style={styles.tagInput}
+                value={tagInput}
+                onChangeText={setTagInput}
+                placeholder="+ add"
+                placeholderTextColor={colors.muted}
+                autoCapitalize="none"
+                returnKeyType="done"
+                onSubmitEditing={addTag}
+                blurOnSubmit={false}
+              />
+            )}
           </View>
-        )}
 
-        {/* Tags */}
-        <Text style={styles.sectionLabel}>TAGS</Text>
-        <View style={styles.tagsRow}>
-          {(editing ? tags : save.tags)?.map((tag, i) => (
-            <TouchableOpacity
-              key={`${tag}-${i}`}
-              style={styles.tag}
-              onPress={() => editing && setTags(t => t.filter(x => x !== tag))}
-              activeOpacity={editing ? 0.7 : 1}
-            >
-              <Text style={styles.tagText}>{tag}{editing ? ' ×' : ''}</Text>
-            </TouchableOpacity>
-          ))}
-          {editing && (
-            <TextInput
-              style={styles.tagInput}
-              value={tagInput}
-              onChangeText={setTagInput}
-              placeholder="+ add"
-              placeholderTextColor={colors.muted}
-              autoCapitalize="none"
-              returnKeyType="done"
-              onSubmitEditing={addTag}
-              blurOnSubmit={false}
-            />
-          )}
-        </View>
-
-        <Text style={styles.date}>Saved {formatDate(save.created_at)}</Text>
-      </ScrollView>
+          <Text style={styles.date}>Saved {formatDate(save.created_at)}</Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   )
 }
@@ -301,6 +321,7 @@ export default function SaveDetailScreen() {
 function createStyles(c: ColorPalette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
+    flex: { flex: 1 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: c.bg },
     notFound: { fontFamily: FONTS.serif, fontSize: 18, color: c.muted },
     header: {
@@ -318,7 +339,7 @@ function createStyles(c: ColorPalette) {
     saveBtnText: { fontSize: 14, fontFamily: FONTS.sansSemi, color: '#fff' },
     content: { padding: SPACING.lg, paddingBottom: SPACING.xl * 2, gap: SPACING.md },
     heroImage: { width: '100%', height: 200, borderRadius: RADIUS.lg, marginBottom: SPACING.sm },
-    metaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+    metaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, flexWrap: 'wrap' },
     typeBadge: { borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3 },
     typeBadgeText: { fontSize: 10, fontFamily: FONTS.sansBold, letterSpacing: 0.8 },
     domain: { fontSize: 13, fontFamily: FONTS.sans, color: c.accent },
@@ -333,7 +354,7 @@ function createStyles(c: ColorPalette) {
     descInput: {
       fontSize: 15, fontFamily: FONTS.sans, color: c.text, lineHeight: 22,
       borderWidth: 1.5, borderColor: c.border, borderRadius: RADIUS.md,
-      padding: SPACING.md, minHeight: 80,
+      padding: SPACING.md, minHeight: 120,
     },
     sectionLabel: { fontSize: 10, fontFamily: FONTS.sansSemi, color: c.muted, letterSpacing: 1, marginTop: SPACING.sm },
     colDisplay: { marginTop: SPACING.xs },
