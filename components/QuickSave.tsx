@@ -13,6 +13,7 @@ import {
   Image,
   ScrollView,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -29,6 +30,7 @@ import { getSettings } from '../lib/settings'
 import { generateVideoThumbnailUri } from '../lib/videoThumb'
 import { extractTextFromImage } from '../lib/ocr'
 import { syncDigestNotification } from '../lib/digestNotifications'
+import { quickSaveBottomPadding } from '../lib/quickSaveLayout'
 import * as FileSystem from 'expo-file-system/legacy'
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window')
@@ -87,6 +89,19 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
   const [customColl, setCustomColl] = useState<string | null>(null)
   const [suggestingTitle, setSuggestingTitle] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return
+    const show = Keyboard.addListener('keyboardDidShow', event => {
+      setKeyboardHeight(event.endCoordinates.height)
+    })
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0))
+    return () => {
+      show.remove()
+      hide.remove()
+    }
+  }, [])
 
   // Load real collections once on mount for AI suggestions
   useEffect(() => {
@@ -439,7 +454,15 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
         style={styles.kvWrap}
         pointerEvents="box-none"
       >
-        <Animated.View style={[styles.sheet, { paddingBottom: insets.bottom + SPACING.lg, transform: [{ translateY }] }]}>
+        <Animated.View
+          style={[
+            styles.sheet,
+            {
+              paddingBottom: quickSaveBottomPadding(Platform.OS, keyboardHeight, insets.bottom) + SPACING.lg,
+              transform: [{ translateY }],
+            },
+          ]}
+        >
           <View style={styles.handle} />
 
           {/* ── INPUT STEP ── */}
@@ -779,6 +802,7 @@ function createStyles(c: ColorPalette) {
   },
   inputNote: {
     minHeight: 100,
+    maxHeight: SCREEN_HEIGHT * 0.4,
     paddingTop: SPACING.md,
   },
   galleryBox: {

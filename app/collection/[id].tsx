@@ -15,6 +15,7 @@ import SaveCard from '../../components/SaveCard'
 import CollectionForm from '../../components/CollectionForm'
 import MoveToCollectionModal from '../../components/MoveToCollectionModal'
 import { canPinMoreCollections } from '../../constants/pinLimits'
+import { partitionPinned } from '../../lib/pinnedSections'
 
 export default function CollectionDetailScreen() {
   const colors = useColors()
@@ -160,8 +161,35 @@ export default function CollectionDetailScreen() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  const leftCol = saves.filter((_, i) => i % 2 === 0)
-  const rightCol = saves.filter((_, i) => i % 2 === 1)
+  const handleSavePinToggle = useCallback((saveId: string, pinned: boolean) => {
+    setSaves(prev => prev.map(save =>
+      save.id === saveId ? { ...save, is_pinned: pinned } : save
+    ))
+  }, [])
+
+  const { pinned: pinnedSaves, unpinned: unpinnedSaves } = partitionPinned(saves)
+
+  const renderSaveCard = (save: Save) => (
+    <SaveCard
+      key={save.id}
+      save={save}
+      selected={selectionMode ? selectedIds.has(save.id) : undefined}
+      onPress={() => selectionMode ? toggleSelect(save.id) : router.push(`/save/${save.id}`)}
+      onLongPress={() => !selectionMode && enterSelection(save.id)}
+      onPinToggle={pinned => handleSavePinToggle(save.id, pinned)}
+    />
+  )
+
+  const renderSaveGrid = (items: Save[]) => (
+    <View style={styles.grid}>
+      <View style={styles.col}>
+        {items.filter((_, i) => i % 2 === 0).map(renderSaveCard)}
+      </View>
+      <View style={styles.col}>
+        {items.filter((_, i) => i % 2 === 1).map(renderSaveCard)}
+      </View>
+    </View>
+  )
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -270,31 +298,24 @@ export default function CollectionDetailScreen() {
               <Text style={styles.emptyTitle}>No saves yet</Text>
               <Text style={styles.emptySubtitle}>Use AI Organize or set collection in a save to add items here.</Text>
             </View>
-          ) : (
-            <View style={styles.grid}>
-              <View style={styles.col}>
-                {leftCol.map(save => (
-                  <SaveCard
-                    key={save.id}
-                    save={save}
-                    selected={selectionMode ? selectedIds.has(save.id) : undefined}
-                    onPress={() => selectionMode ? toggleSelect(save.id) : router.push(`/save/${save.id}`)}
-                    onLongPress={() => !selectionMode && enterSelection(save.id)}
-                  />
-                ))}
+          ) : pinnedSaves.length > 0 ? (
+            <View>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="pin" size={13} color={colors.accent} />
+                <Text style={styles.sectionLabel}>PINNED</Text>
               </View>
-              <View style={styles.col}>
-                {rightCol.map(save => (
-                  <SaveCard
-                    key={save.id}
-                    save={save}
-                    selected={selectionMode ? selectedIds.has(save.id) : undefined}
-                    onPress={() => selectionMode ? toggleSelect(save.id) : router.push(`/save/${save.id}`)}
-                    onLongPress={() => !selectionMode && enterSelection(save.id)}
-                  />
-                ))}
-              </View>
+              {renderSaveGrid(pinnedSaves)}
+              {unpinnedSaves.length > 0 && (
+                <>
+                  <View style={[styles.sectionHeader, styles.sectionHeaderSecondary]}>
+                    <Text style={styles.sectionLabelMuted}>ALL SAVES</Text>
+                  </View>
+                  {renderSaveGrid(unpinnedSaves)}
+                </>
+              )}
             </View>
+          ) : (
+            renderSaveGrid(saves)
           )}
         </ScrollView>
       )}
@@ -355,6 +376,20 @@ function createStyles(c: ColorPalette) {
 
     loader: { marginTop: SPACING.xl * 3 },
     content: { padding: SPACING.lg, paddingBottom: SPACING.xl * 2 },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.xs,
+      marginBottom: SPACING.sm,
+    },
+    sectionHeaderSecondary: {
+      marginTop: SPACING.xl,
+      paddingTop: SPACING.md,
+      borderTopWidth: 1,
+      borderTopColor: c.border,
+    },
+    sectionLabel: { fontSize: 10, fontFamily: FONTS.monoMed, color: c.accent, letterSpacing: 1.2 },
+    sectionLabelMuted: { fontSize: 10, fontFamily: FONTS.monoMed, color: c.muted, letterSpacing: 1.2 },
     grid: { flexDirection: 'row', gap: SPACING.sm },
     col: { flex: 1 },
     empty: { alignItems: 'center', paddingTop: SPACING.xl * 3, gap: SPACING.md },

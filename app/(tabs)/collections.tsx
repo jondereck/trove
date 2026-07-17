@@ -29,6 +29,7 @@ import { fetchCollections, createCollection, deleteCollection, updateCollection 
 import { isLimitError, showLimitAlert } from '../../lib/upgradeAlert'
 import { subscribeDataChanges } from '../../lib/dataEvents'
 import { canPinMoreCollections, MAX_PINNED_COLLECTIONS } from '../../constants/pinLimits'
+import { partitionPinned } from '../../lib/pinnedSections'
 
 // Appends an alpha byte to a #rrggbb hex so a saturated collection color reads
 // as a soft pastel when layered over the cream cover base.
@@ -254,6 +255,31 @@ export default function CollectionsScreen() {
     })
   }, [])
 
+  const { pinned: pinnedCollections, unpinned: unpinnedCollections } = partitionPinned(collections)
+
+  const renderCollectionCard = (col: Collection) => (
+    <CollectionCard
+      key={col.id}
+      collection={col}
+      collections={collections}
+      selected={selectionMode ? selectedIds.has(col.id) : undefined}
+      onPress={() => onCardPress(col)}
+      onLongPress={() => !selectionMode && enterSelection(col.id)}
+      onPinToggle={pinned => handlePinToggle(col.id, pinned)}
+    />
+  )
+
+  const renderCollectionGrid = (items: Collection[]) => (
+    <View style={styles.grid}>
+      <View style={styles.col}>
+        {items.filter((_, i) => i % 2 === 0).map(renderCollectionCard)}
+      </View>
+      <View style={styles.col}>
+        {items.filter((_, i) => i % 2 === 1).map(renderCollectionCard)}
+      </View>
+    </View>
+  )
+
   return (
     <View style={[styles.wrapper, { paddingTop: insets.top }]}>
       {selectionMode && (
@@ -301,35 +327,24 @@ export default function CollectionsScreen() {
             <Text style={styles.emptyTitle}>No collections yet</Text>
             <Text style={styles.emptySubtitle}>Tap "New +" to create your first collection.</Text>
           </View>
-        ) : (
-          <View style={styles.grid}>
-            <View style={styles.col}>
-              {collections.filter((_, i) => i % 2 === 0).map(col => (
-                <CollectionCard
-                  key={col.id}
-                  collection={col}
-                  collections={collections}
-                  selected={selectionMode ? selectedIds.has(col.id) : undefined}
-                  onPress={() => onCardPress(col)}
-                  onLongPress={() => !selectionMode && enterSelection(col.id)}
-                  onPinToggle={pinned => handlePinToggle(col.id, pinned)}
-                />
-              ))}
+        ) : pinnedCollections.length > 0 ? (
+          <View>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="pin" size={13} color={colors.accent} />
+              <Text style={styles.sectionLabel}>PINNED</Text>
             </View>
-            <View style={styles.col}>
-              {collections.filter((_, i) => i % 2 === 1).map(col => (
-                <CollectionCard
-                  key={col.id}
-                  collection={col}
-                  collections={collections}
-                  selected={selectionMode ? selectedIds.has(col.id) : undefined}
-                  onPress={() => onCardPress(col)}
-                  onLongPress={() => !selectionMode && enterSelection(col.id)}
-                  onPinToggle={pinned => handlePinToggle(col.id, pinned)}
-                />
-              ))}
-            </View>
+            {renderCollectionGrid(pinnedCollections)}
+            {unpinnedCollections.length > 0 && (
+              <>
+                <View style={[styles.sectionHeader, styles.sectionHeaderSecondary]}>
+                  <Text style={styles.sectionLabelMuted}>ALL COLLECTIONS</Text>
+                </View>
+                {renderCollectionGrid(unpinnedCollections)}
+              </>
+            )}
           </View>
+        ) : (
+          renderCollectionGrid(collections)
         )}
       </ScrollView>
 
@@ -455,6 +470,10 @@ function CollectionCard({
   const inSelectionMode = selected !== undefined
   const [isPinned, setIsPinned] = useState(!!collection.is_pinned)
 
+  useEffect(() => {
+    setIsPinned(!!collection.is_pinned)
+  }, [collection.id, collection.is_pinned])
+
   const handlePin = async () => {
     const next = !isPinned
     if (next && !canPinMoreCollections(collections, collection.id)) {
@@ -463,7 +482,13 @@ function CollectionCard({
     }
     setIsPinned(next)
     try {
-      await updateCollection(collection.id, { is_pinned: next })
+      // updateCollection returns false (without throwing) when the write is
+      // rejected, e.g. the is_pinned column is missing — revert instead of lying.
+      const ok = await updateCollection(collection.id, { is_pinned: next })
+      if (!ok) {
+        setIsPinned(!next)
+        return
+      }
       onPinToggle?.(next)
     } catch {
       setIsPinned(!next)
@@ -549,6 +574,20 @@ function createStyles(c: ColorPalette) {
   newBtn: { backgroundColor: c.accent, borderRadius: 999, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
   newBtnText: { fontSize: 13, fontFamily: FONTS.sansSemi, color: '#fff' },
   loader: { marginTop: SPACING.xl * 3 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginBottom: SPACING.sm,
+  },
+  sectionHeaderSecondary: {
+    marginTop: SPACING.xl,
+    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: c.border,
+  },
+  sectionLabel: { fontSize: 10, fontFamily: FONTS.monoMed, color: c.accent, letterSpacing: 1.2 },
+  sectionLabelMuted: { fontSize: 10, fontFamily: FONTS.monoMed, color: c.muted, letterSpacing: 1.2 },
 
   // 2-column grid
   grid: { flexDirection: 'row', gap: 14 },

@@ -4,15 +4,20 @@ import ChestLoaderVisual from './ChestLoaderVisual'
 import { ColorPalette, FONTS, SPACING } from '../constants/theme'
 import { useThemedStyles } from '../contexts/ThemeContext'
 import {
-  CYCLE_MS,
+  PENDING_LOOP_MS,
+  SUCCESS_MS,
   FADE_OUT_MS,
+  SUCCESS_SCENE,
   SUCCESS_HOLD_MS,
   resolveLoaderPhase,
   sceneAt,
+  sceneForAnimation,
   type SaveOutcome,
 } from '../lib/chestLoaderTimeline'
 
-export { CYCLE_MS, SUCCESS_HOLD_MS, FADE_OUT_MS }
+export { PENDING_LOOP_MS, SUCCESS_MS, SUCCESS_HOLD_MS, FADE_OUT_MS }
+
+const PENDING_PROGRESS = PENDING_LOOP_MS / (PENDING_LOOP_MS + SUCCESS_MS)
 
 interface ShareSaveAnimationProps {
   active: boolean
@@ -37,6 +42,7 @@ export default function ShareSaveAnimation({
   const progress = useRef(new Animated.Value(0)).current
   const cycleAnim = useRef<Animated.CompositeAnimation | null>(null)
   const cycleStartedAt = useRef(0)
+  const successStartedAt = useRef<number | null>(null)
   const holdStartedAt = useRef<number | null>(null)
   const tickTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const finishedRef = useRef(false)
@@ -78,13 +84,14 @@ export default function ShareSaveAnimation({
     holdingRef.current = false
     setHolding(false)
     holdStartedAt.current = null
+    successStartedAt.current = null
     cycleStartedAt.current = Date.now()
     setScene(sceneAt(0))
     stopCycleAnim()
     progress.setValue(0)
     cycleAnim.current = Animated.timing(progress, {
-      toValue: 1,
-      duration: CYCLE_MS,
+      toValue: PENDING_PROGRESS,
+      duration: PENDING_LOOP_MS,
       easing: Easing.linear,
       useNativeDriver: true,
     })
@@ -93,11 +100,30 @@ export default function ShareSaveAnimation({
     })
   }
 
+  const beginSuccess = () => {
+    if (successStartedAt.current !== null) return
+    successStartedAt.current = Date.now()
+    setScene(SUCCESS_SCENE)
+    stopCycleAnim()
+    progress.setValue(PENDING_PROGRESS)
+    cycleAnim.current = Animated.timing(progress, {
+      toValue: 1,
+      duration: SUCCESS_MS,
+      easing: Easing.linear,
+      useNativeDriver: true,
+    })
+    cycleAnim.current.start(({ finished }) => {
+      if (!finished) return
+      successStartedAt.current = Date.now() - SUCCESS_MS
+      evaluatePhase()
+    })
+  }
+
   const enterHoldSuccess = () => {
     if (holdingRef.current) return
     holdingRef.current = true
     holdStartedAt.current = Date.now()
-    setScene(sceneAt(CYCLE_MS - 1))
+    setScene(SUCCESS_SCENE)
     stopCycleAnim()
     progress.setValue(1)
     setHolding(true)
@@ -109,20 +135,27 @@ export default function ShareSaveAnimation({
     const cycleElapsedMs = Date.now() - cycleStartedAt.current
     const holdElapsedMs =
       holdStartedAt.current == null ? 0 : Date.now() - holdStartedAt.current
+    const successElapsedMs =
+      successStartedAt.current == null ? undefined : Date.now() - successStartedAt.current
 
     const phase = resolveLoaderPhase({
       saveCompleted: saveCompletedRef.current,
       outcome: outcomeRef.current,
-      cycleElapsedMs: holdingRef.current ? CYCLE_MS : cycleElapsedMs,
+      cycleElapsedMs: successStartedAt.current == null ? cycleElapsedMs : PENDING_LOOP_MS,
+      successElapsedMs,
       holdElapsedMs,
     })
 
     if (!holdingRef.current) {
-      setScene(sceneAt(cycleElapsedMs))
+      setScene(sceneForAnimation(cycleElapsedMs, successElapsedMs))
     }
 
     if (phase === 'restartCycle') {
       beginCycle()
+      return
+    }
+    if (phase === 'playingSuccess') {
+      beginSuccess()
       return
     }
     if (phase === 'holdingSuccess') {
@@ -139,6 +172,7 @@ export default function ShareSaveAnimation({
       clearTimers()
       stopCycleAnim()
       holdingRef.current = false
+      successStartedAt.current = null
       setHolding(false)
       if (visible) {
         Animated.timing(containerOpacity, {
@@ -174,7 +208,7 @@ export default function ShareSaveAnimation({
 
   const handleCycleComplete = () => {
     if (!active || finishedRef.current || holdingRef.current) return
-    cycleStartedAt.current = Date.now() - CYCLE_MS
+    cycleStartedAt.current = Date.now() - PENDING_LOOP_MS
     evaluatePhase()
   }
 

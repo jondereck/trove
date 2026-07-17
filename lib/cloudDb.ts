@@ -2,11 +2,13 @@ import { supabase } from './supabase'
 import { Save, Collection, LibraryFilter, LibraryPageOptions, LibraryPageResult } from '../types'
 import { getUserId } from './session'
 import { normalizeUrl } from './url'
+import { dbErrorSummary, isMissingViewedColumn } from './cloudDbColumns'
 
 // Pin columns (`is_pinned`) are optional until supabase/add-pinned.sql is run.
 // Probed once per session; queries fall back to created_at/name ordering.
 
 let pinColumnsAvailable: boolean | null = null
+let viewedColumnAvailable: boolean | null = null
 
 const byNewest = (a: Save, b: Save) => b.created_at.localeCompare(a.created_at)
 
@@ -31,6 +33,21 @@ async function hasPinColumns(): Promise<boolean> {
   return pinColumnsAvailable
 }
 
+async function hasViewedColumn(): Promise<boolean> {
+  if (viewedColumnAvailable !== null) return viewedColumnAvailable
+  const { error } = await supabase.from('saves').select('is_viewed').limit(1)
+  if (!error) {
+    viewedColumnAvailable = true
+    return true
+  }
+  if (isMissingViewedColumn(error)) {
+    viewedColumnAvailable = false
+    return false
+  }
+  console.error('hasViewedColumn:', dbErrorSummary(error))
+  return false
+}
+
 function omitPin<T extends { is_pinned?: boolean }>(updates: T): Omit<T, 'is_pinned'> {
   const { is_pinned: _, ...rest } = updates
   return rest
@@ -53,9 +70,10 @@ async function pinSafeUpdates<T extends { is_pinned?: boolean }>(
 function applyLibraryFilter<T extends { eq: (col: string, val: unknown) => T }>(
   query: T,
   filter: LibraryFilter,
+  viewedOk: boolean,
 ): T {
   let q = query.eq('is_inbox', false)
-  if (filter === 'unread') return q.eq('is_viewed', false)
+  if (filter === 'unread') return viewedOk ? q.eq('is_viewed', false) : q
   if (filter === 'fav') return q.eq('is_favorite', true)
   if (filter !== 'all') return q.eq('type', filter)
   return q
@@ -76,11 +94,14 @@ export async function fetchLibrarySavesPage({
   offset,
   filter,
 }: LibraryPageOptions): Promise<LibraryPageResult> {
-  const pinOk = await hasPinColumns()
+  const [pinOk, viewedOk] = await Promise.all([
+    hasPinColumns(),
+    filter === 'unread' ? hasViewedColumn() : Promise.resolve(true),
+  ])
   let query = supabase.from('saves').select('*', { count: 'exact' })
   if (pinOk) query = query.order('is_pinned', { ascending: false })
   query = query.order('created_at', { ascending: false })
-  query = applyLibraryFilter(query, filter)
+  query = applyLibraryFilter(query, filter, viewedOk)
 
   let { data, error, count } = await query.range(offset, offset + limit - 1)
   if (error && missingPinColumn(error)) {
@@ -89,7 +110,7 @@ export async function fetchLibrarySavesPage({
       .from('saves')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
-    query = applyLibraryFilter(query, filter)
+    query = applyLibraryFilter(query, filter, viewedOk)
     ;({ data, error, count } = await query.range(offset, offset + limit - 1))
   }
   if (error) {
@@ -119,12 +140,20 @@ export async function fetchInboxSaves(): Promise<Save[]> {
 }
 
 export async function fetchInboxUnreadCount(): Promise<number> {
+  if (!(await hasViewedColumn())) return 0
   const { count, error } = await supabase
     .from('saves')
     .select('*', { count: 'exact', head: true })
     .eq('is_inbox', true)
     .eq('is_viewed', false)
-  if (error) { console.error('fetchInboxUnreadCount:', error.message); return 0 }
+  if (error) {
+    if (isMissingViewedColumn(error)) {
+      viewedColumnAvailable = false
+      return 0
+    }
+    console.error('fetchInboxUnreadCount:', dbErrorSummary(error))
+    return 0
+  }
   return count ?? 0
 }
 
@@ -295,7 +324,8 @@ export async function createSave(input: {
   }
   let { data, error } = await supabase.from('saves').insert(row).select().single()
   // is_viewed is optional until supabase/add-viewed.sql is applied.
-  if (error?.message?.includes('is_viewed')) {
+  if (isMissingViewedColumn(error)) {
+    viewedColumnAvailable = false
     const { is_viewed: _, ...withoutViewed } = row
     ;({ data, error } = await supabase.from('saves').insert(withoutViewed).select().single())
   }

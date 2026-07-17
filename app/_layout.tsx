@@ -45,6 +45,7 @@ import {
   subscribeTier,
 } from '../lib/entitlements'
 import { syncDigestNotification } from '../lib/digestNotifications'
+import { recordNotification, syncPresentedNotifications } from '../lib/notificationLog'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -148,8 +149,9 @@ function RootNavigator({ session, hasData, dismissed, fontsLoaded, fontError }: 
 
     const goInbox = (response: Notifications.NotificationResponse | null) => {
       if (!response) return
-      const id = response.notification.request.identifier
+      const id = `${response.notification.request.identifier}:${response.notification.date}`
       if (handledNotification.current === id) return
+      void recordNotification(response.notification)
       const data = response.notification.request.content.data as { screen?: string } | undefined
       if (data?.screen !== 'inbox') return
       handledNotification.current = id
@@ -157,15 +159,25 @@ function RootNavigator({ session, hasData, dismissed, fontsLoaded, fontError }: 
     }
 
     void Notifications.getLastNotificationResponseAsync().then(goInbox)
-    const sub = Notifications.addNotificationResponseReceivedListener(goInbox)
-    return () => sub.remove()
+    const responseSub = Notifications.addNotificationResponseReceivedListener(goInbox)
+    const receivedSub = Notifications.addNotificationReceivedListener(notification => {
+      void recordNotification(notification)
+    })
+    return () => {
+      responseSub.remove()
+      receivedSub.remove()
+    }
   }, [router])
 
   useEffect(() => {
     if (Platform.OS === 'web') return
     void syncDigestNotification()
+    void syncPresentedNotifications()
     const sub = AppState.addEventListener('change', state => {
-      if (state === 'active') void syncDigestNotification()
+      if (state === 'active') {
+        void syncDigestNotification()
+        void syncPresentedNotifications()
+      }
     })
     return () => sub.remove()
   }, [])
@@ -186,6 +198,7 @@ function RootNavigator({ session, hasData, dismissed, fontsLoaded, fontError }: 
         <Stack.Screen name="ai-preferences" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="appearance" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="notification-settings" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="upgrade" options={{ animation: 'slide_from_bottom' }} />
       </Stack>
     </>

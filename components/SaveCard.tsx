@@ -145,6 +145,10 @@ export default function SaveCard({ save, onPress, onLongPress, selected, onFavor
     setIsUnread(save.is_viewed === false)
   }, [save.id, save.is_viewed])
 
+  useEffect(() => {
+    setIsPinned(!!save.is_pinned)
+  }, [save.id, save.is_pinned])
+
   const markViewed = async () => {
     if (!isUnread) return
     setIsUnread(false)
@@ -186,7 +190,13 @@ export default function SaveCard({ save, onPress, onLongPress, selected, onFavor
     const next = !isPinned
     setIsPinned(next)
     try {
-      await updateSave(save.id, { is_pinned: next })
+      // updateSave returns false (without throwing) when the write is rejected,
+      // e.g. the is_pinned column is missing — revert instead of lying.
+      const ok = await updateSave(save.id, { is_pinned: next })
+      if (!ok) {
+        setIsPinned(!next)
+        return
+      }
       onPinToggle?.(next)
     } catch {
       setIsPinned(!next)

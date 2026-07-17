@@ -1,21 +1,25 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
-  CYCLE_MS,
+  PENDING_LOOP_MS,
+  SUCCESS_MS,
   SUCCESS_HOLD_MS,
   FADE_OUT_MS,
   sceneAt,
+  sceneForAnimation,
+  SUCCESS_SCENE,
   resolveLoaderPhase,
 } from './chestLoaderTimeline'
 
 describe('chestLoaderTimeline', () => {
   it('exports the spec durations', () => {
-    assert.equal(CYCLE_MS, 3200)
+    assert.equal(PENDING_LOOP_MS, 2600)
+    assert.equal(SUCCESS_MS, 600)
     assert.equal(SUCCESS_HOLD_MS, 800)
     assert.equal(FADE_OUT_MS, 260)
   })
 
-  it('maps elapsed ms within a cycle to the six storyboard scenes', () => {
+  it('maps pending elapsed time only to non-success storyboard scenes', () => {
     assert.deepEqual(sceneAt(0), {
       index: 1,
       title: 'Stashing your link...',
@@ -46,22 +50,28 @@ describe('chestLoaderTimeline', () => {
       title: 'Stashing your link...',
       subtitle: 'Finalizing',
     })
-    assert.deepEqual(sceneAt(2900), {
-      index: 6,
-      title: 'Added to your Trove!',
-      subtitle: 'Ready whenever you need it.',
+    assert.deepEqual(sceneAt(2599), {
+      index: 5,
+      title: 'Stashing your link...',
+      subtitle: 'Finalizing',
     })
-    assert.deepEqual(sceneAt(3199), {
+    assert.deepEqual(SUCCESS_SCENE, {
       index: 6,
       title: 'Added to your Trove!',
       subtitle: 'Ready whenever you need it.',
     })
   })
 
-  it('wraps elapsed time into the current cycle for scene lookup', () => {
-    assert.equal(sceneAt(3200).index, 1)
-    assert.equal(sceneAt(3800).index, 2)
-    assert.equal(sceneAt(6100).index, 6)
+  it('wraps pending elapsed time without ever returning success', () => {
+    assert.equal(sceneAt(2600).index, 1)
+    assert.equal(sceneAt(3200).index, 2)
+    assert.equal(sceneAt(5500).index, 1)
+  })
+
+  it('keeps the success copy visible throughout the success animation', () => {
+    assert.equal(sceneForAnimation(1200, undefined).index, 2)
+    assert.deepEqual(sceneForAnimation(2600, 0), SUCCESS_SCENE)
+    assert.deepEqual(sceneForAnimation(2600, 300), SUCCESS_SCENE)
   })
 
   it('keeps playing while save is still in flight', () => {
@@ -69,7 +79,7 @@ describe('chestLoaderTimeline', () => {
       resolveLoaderPhase({
         saveCompleted: false,
         outcome: 'pending',
-        cycleElapsedMs: 3100,
+        cycleElapsedMs: 2500,
       }),
       'playing'
     )
@@ -77,13 +87,13 @@ describe('chestLoaderTimeline', () => {
       resolveLoaderPhase({
         saveCompleted: false,
         outcome: 'pending',
-        cycleElapsedMs: 3200,
+        cycleElapsedMs: 2600,
       }),
       'restartCycle'
     )
   })
 
-  it('finishes the current cycle after a successful save, then holds, then fades', () => {
+  it('finishes the pending loop before playing success once, then holds and fades', () => {
     assert.equal(
       resolveLoaderPhase({
         saveCompleted: true,
@@ -96,7 +106,25 @@ describe('chestLoaderTimeline', () => {
       resolveLoaderPhase({
         saveCompleted: true,
         outcome: 'saved',
-        cycleElapsedMs: 3200,
+        cycleElapsedMs: 2600,
+      }),
+      'playingSuccess'
+    )
+    assert.equal(
+      resolveLoaderPhase({
+        saveCompleted: true,
+        outcome: 'saved',
+        cycleElapsedMs: 2600,
+        successElapsedMs: 599,
+      }),
+      'playingSuccess'
+    )
+    assert.equal(
+      resolveLoaderPhase({
+        saveCompleted: true,
+        outcome: 'saved',
+        cycleElapsedMs: 2600,
+        successElapsedMs: 600,
         holdElapsedMs: 0,
       }),
       'holdingSuccess'
@@ -105,7 +133,8 @@ describe('chestLoaderTimeline', () => {
       resolveLoaderPhase({
         saveCompleted: true,
         outcome: 'saved',
-        cycleElapsedMs: 3200,
+        cycleElapsedMs: 2600,
+        successElapsedMs: 600,
         holdElapsedMs: 799,
       }),
       'holdingSuccess'
@@ -114,7 +143,8 @@ describe('chestLoaderTimeline', () => {
       resolveLoaderPhase({
         saveCompleted: true,
         outcome: 'saved',
-        cycleElapsedMs: 3200,
+        cycleElapsedMs: 2600,
+        successElapsedMs: 600,
         holdElapsedMs: 800,
       }),
       'fadingOut'

@@ -36,6 +36,11 @@ import { showUpgradeAlert } from '../../lib/upgradeAlert'
 import { subscribeDataChanges } from '../../lib/dataEvents'
 import { getSettings, patchSettings } from '../../lib/settings'
 import { cacheProfile, peekProfile } from '../../lib/profileCache'
+import { partitionPinned } from '../../lib/pinnedSections'
+import {
+  getUnreadNotificationCount,
+  subscribeNotificationLog,
+} from '../../lib/notificationLog'
 
 type LibraryView = 'grid' | 'list'
 
@@ -75,6 +80,7 @@ export default function LibraryScreen() {
   const [filter, setFilter] = useState<LibraryFilter>('all')
   const [viewMode, setViewMode] = useState<LibraryView>('grid')
   const [aiVisible, setAiVisible] = useState(false)
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState(0)
 
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -124,6 +130,14 @@ export default function LibraryScreen() {
 
   useEffect(() => {
     getSettings().then(s => setViewMode(s.libraryView ?? 'grid'))
+  }, [])
+
+  useEffect(() => {
+    const refresh = () => {
+      getUnreadNotificationCount().then(setNotificationUnreadCount).catch(() => {})
+    }
+    refresh()
+    return subscribeNotificationLog(refresh)
   }, [])
 
   useFocusEffect(
@@ -279,8 +293,8 @@ export default function LibraryScreen() {
     .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
     .toUpperCase()
 
-  const leftCol = saves.filter((_, i) => i % 2 === 0)
-  const rightCol = saves.filter((_, i) => i % 2 === 1)
+  const { pinned: pinnedSaves, unpinned: unpinnedSaves } = partitionPinned(saves)
+  const hasPinnedSaves = pinnedSaves.length > 0
 
   const renderSaveCard = (save: Save) => (
     <SaveCard
@@ -292,6 +306,13 @@ export default function LibraryScreen() {
       onLongPress={() => !selectionMode && enterSelection(save.id)}
       onPinToggle={pinned => handlePinToggle(save.id, pinned)}
     />
+  )
+
+  const renderSaveGrid = (items: Save[]) => (
+    <View style={styles.grid}>
+      <View style={styles.col}>{items.filter((_, i) => i % 2 === 0).map(renderSaveCard)}</View>
+      <View style={styles.col}>{items.filter((_, i) => i % 2 === 1).map(renderSaveCard)}</View>
+    </View>
   )
 
   return (
@@ -347,14 +368,31 @@ export default function LibraryScreen() {
                 <Text style={styles.kickerAccent}>{dateLabel}</Text>
               </View>
             </View>
-            <TouchableOpacity
-              onPress={() => router.push('/account')}
-              activeOpacity={0.75}
-              style={styles.settingsBtn}
-              accessibilityLabel="Settings"
-            >
-              <Ionicons name="settings-outline" size={22} color={colors.text} />
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                onPress={() => router.push('/notifications')}
+                activeOpacity={0.75}
+                style={styles.settingsBtn}
+                accessibilityLabel="Notifications"
+              >
+                <Ionicons name="notifications-outline" size={22} color={colors.text} />
+                {notificationUnreadCount > 0 ? (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationBadgeText}>
+                      {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
+                    </Text>
+                  </View>
+                ) : null}
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.push('/account')}
+                activeOpacity={0.75}
+                style={styles.settingsBtn}
+                accessibilityLabel="Settings"
+              >
+                <Ionicons name="settings-outline" size={22} color={colors.text} />
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -435,15 +473,30 @@ export default function LibraryScreen() {
                   : 'Try a different filter or save something new.'}
             </Text>
           </View>
+        ) : hasPinnedSaves ? (
+          <View>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="pin" size={13} color={colors.accent} />
+              <Text style={styles.sectionLabel}>PINNED</Text>
+            </View>
+            {viewMode === 'list'
+              ? <View style={styles.list}>{pinnedSaves.map(renderSaveCard)}</View>
+              : renderSaveGrid(pinnedSaves)}
+            {unpinnedSaves.length > 0 && (
+              <>
+                <View style={[styles.sectionHeader, styles.sectionHeaderSecondary]}>
+                  <Text style={styles.sectionLabelMuted}>ALL SAVES</Text>
+                </View>
+                {viewMode === 'list'
+                  ? <View style={styles.list}>{unpinnedSaves.map(renderSaveCard)}</View>
+                  : renderSaveGrid(unpinnedSaves)}
+              </>
+            )}
+          </View>
         ) : viewMode === 'list' ? (
-          <View style={styles.list}>
-            {saves.map(renderSaveCard)}
-          </View>
+          <View style={styles.list}>{saves.map(renderSaveCard)}</View>
         ) : (
-          <View style={styles.grid}>
-            <View style={styles.col}>{leftCol.map(renderSaveCard)}</View>
-            <View style={styles.col}>{rightCol.map(renderSaveCard)}</View>
-          </View>
+          renderSaveGrid(saves)
         )}
 
         {loadingMore && (
@@ -493,6 +546,11 @@ function createStyles(c: ColorPalette) {
     paddingTop: SPACING.lg, paddingBottom: SPACING.lg,
   },
   headerLeft: { flex: 1, paddingRight: SPACING.md },
+  headerActions: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginTop: SPACING.md,
+  },
   greetingLine: {
     fontSize: 34,
     fontFamily: FONTS.serifItal,
@@ -505,7 +563,7 @@ function createStyles(c: ColorPalette) {
   kickerAccent: { fontSize: 11, fontFamily: FONTS.monoMed, color: c.accent, letterSpacing: 1 },
   dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: c.muted },
   settingsBtn: {
-    marginTop: SPACING.md,
+    position: 'relative',
     width: 40,
     height: 40,
     borderRadius: RADIUS.md,
@@ -514,6 +572,23 @@ function createStyles(c: ColorPalette) {
     backgroundColor: c.card,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    minWidth: 17,
+    height: 17,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: c.accent,
+  },
+  notificationBadgeText: {
+    fontFamily: FONTS.sansBold,
+    fontSize: 9,
+    color: '#fff',
   },
 
   filterBar: {
@@ -563,6 +638,20 @@ function createStyles(c: ColorPalette) {
 
   loader: { marginTop: SPACING.xl * 3 },
   loadMore: { marginVertical: SPACING.lg },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginBottom: SPACING.sm,
+  },
+  sectionHeaderSecondary: {
+    marginTop: SPACING.xl,
+    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: c.border,
+  },
+  sectionLabel: { fontSize: 10, fontFamily: FONTS.monoMed, color: c.accent, letterSpacing: 1.2 },
+  sectionLabelMuted: { fontSize: 10, fontFamily: FONTS.monoMed, color: c.muted, letterSpacing: 1.2 },
   grid: { flexDirection: 'row', gap: SPACING.sm },
   list: { gap: SPACING.sm },
   col: { flex: 1 },

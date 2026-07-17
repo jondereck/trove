@@ -4,6 +4,62 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Fix pins not persisting: missing DB columns + stale card pin state (2026-07-17)
+**Files:** `components/SaveCard.tsx`, `app/(tabs)/collections.tsx`, Supabase migration `add_pinned_columns`
+
+Pinning looked like it worked but reverted after switching to Collections/Library. Root cause:
+`supabase/add-pinned.sql` was never applied to the cloud project, so `saves.is_pinned` /
+`collections.is_pinned` didn't exist. `updateSave`/`updateCollection` strip the pin field when the
+column is missing and return `false` **without throwing**, but the cards only reverted on a thrown
+error — so the pin icon stayed filled while nothing was saved, and the next refetch dropped it.
+
+- Applied the `is_pinned` migration to the Supabase project (both tables).
+- `SaveCard.handlePin` / `CollectionCard.handlePin` now revert the icon when the update returns `false`.
+- Both cards resync their internal pinned state from props (`save.is_pinned` / `collection.is_pinned`)
+  so recycled card instances no longer show a stale pin after items move between sections or the
+  list refetches.
+
+Note: if the masonry columns still look uneven after these fixes, reload the dev client (Metro was
+fast-refreshing mid-edit while the pinned-section refactor landed); the committed layout code renders
+two equal `flex: 1` columns.
+
+---
+
+### Separate pinned saves and collections (2026-07-17)
+**Files:** `app/(tabs)/index.tsx`, `app/collection/[id].tsx`,
+`app/(tabs)/collections.tsx`, `lib/pinnedSections.ts`, `lib/pinnedSections.test.ts`
+
+Pinned saves and collections now render in a labeled section ahead of the remaining items.
+Each group receives its own balanced masonry columns, while screens without pinned items retain
+their previous header-free layout.
+
+---
+
+### Fix QuickSave keyboard, share success timing, unread tracking, notification access (2026-07-17)
+**Files:** `components/QuickSave.tsx`, `lib/quickSaveLayout.ts`,
+`lib/quickSaveLayout.test.ts`, `lib/chestLoaderTimeline.ts`,
+`lib/chestLoaderTimeline.test.ts`, `components/ShareSaveAnimation.tsx`,
+`lib/cloudDb.ts`, `lib/cloudDbColumns.ts`, `lib/cloudDbColumns.test.ts`,
+`app/(tabs)/index.tsx`, `app/notifications.tsx`, `app/_layout.tsx`,
+`lib/notificationLog.ts`, `lib/notificationLogCore.ts`,
+`lib/notificationLogCore.test.ts`, `supabase/add-viewed.sql`
+
+**QuickSave keyboard:** Android now applies the visible IME height as sheet bottom padding, while
+long note input height is capped so its text remains visible and scrollable above the keyboard.
+
+**Share animation:** The pending chest sequence loops without success text or checkmark. The
+one-shot success segment starts only after the database save returns `saved`, then holds and exits.
+
+**Unread tracking:** Applied the existing `add-viewed.sql` migration to the cloud project. Cloud
+queries now probe the optional column once and degrade quietly if an older schema is encountered,
+while preserving actionable logging for unrelated database errors.
+
+**Notifications:** The Library bell now opens an in-app notification inbox with persisted local
+digest history, unread styling/count, empty state, and tap-through to Inbox. Digest controls remain
+under Account → Notifications.
+
+---
+
 ### Multi-issue sprint — video, OCR, digest, YouTube, keyboard, toast (2026-07-16)
 **Files:** `app/share.tsx`, `supabase/functions/fetch-og/index.ts`, `components/QuickSave.tsx`,
 `app/save/[id].tsx`, `components/SaveVideoPlayer.tsx`, `lib/videoThumb.ts`, `lib/ocr.ts`,
