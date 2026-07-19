@@ -57,7 +57,8 @@
     "web": "expo start --web",
     "test:timeline": "tsx --test lib/chestLoaderTimeline.test.ts",
     "test:library-cache": "tsx --test lib/libraryCache.test.ts",
-    "test:search": "tsx --test lib/searchMatch.test.ts"
+    "test:search": "tsx --test lib/searchMatch.test.ts",
+    "test:share-media": "tsx --test lib/shareMedia.test.ts"
   },
   "private": true
 }

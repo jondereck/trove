@@ -9,6 +9,7 @@ import { ColorPalette, FONTS, SPACING } from '../constants/theme'
 import { useThemedStyles } from '../contexts/ThemeContext'
 import { createSave, upsertCollectionByName } from '../lib/db'
 import { extractSharedUrl, exitAfterShare } from '../lib/shareIntent'
+import { getShareableMediaFiles, quickSaveSharedMedia } from '../lib/shareMedia'
 import { quickSaveSharedUrl } from '../lib/shareSave'
 import { getSettings } from '../lib/settings'
 import { isLimitError, showLimitAlert } from '../lib/upgradeAlert'
@@ -23,6 +24,7 @@ export default function ShareScreen() {
   const [isAutoSaving, setIsAutoSaving] = useState(false)
   const [saveCompleted, setSaveCompleted] = useState(false)
   const [saveOutcome, setSaveOutcome] = useState<SaveOutcome>('pending')
+  const [loadingStatus, setLoadingStatus] = useState('')
   const initialized = useRef(false)
 
   const finishShare = useCallback(() => {
@@ -42,6 +44,30 @@ export default function ShareScreen() {
     setIsAutoSaving(false)
     finishShare()
   }, [finishShare])
+
+  const runAutoSaveMedia = useCallback(async (files: NonNullable<typeof shareIntent>['files']) => {
+    const mediaFiles = getShareableMediaFiles(files)
+    if (!mediaFiles.length) {
+      setSaveOutcome('error')
+      setSaveCompleted(true)
+      return
+    }
+
+    setIsAutoSaving(true)
+    setSaveCompleted(false)
+    setSaveOutcome('pending')
+
+    try {
+      const result = await quickSaveSharedMedia(mediaFiles, (done, total) => {
+        setLoadingStatus(`Saving ${done} of ${total}…`)
+      })
+      setSaveOutcome(result === 'saved' ? 'saved' : 'error')
+      setSaveCompleted(true)
+    } catch {
+      setSaveOutcome('error')
+      setSaveCompleted(true)
+    }
+  }, [])
 
   const runAutoSave = useCallback(async (url: string) => {
     setIsAutoSaving(true)
@@ -85,6 +111,13 @@ export default function ShareScreen() {
     initialized.current = true
 
     const url = extractSharedUrl(shareIntent?.webUrl, shareIntent?.text)
+    const mediaFiles = getShareableMediaFiles(shareIntent?.files)
+
+    if (mediaFiles.length > 0) {
+      void runAutoSaveMedia(shareIntent?.files)
+      return
+    }
+
     if (!url) {
       setInvalidShare(true)
       const timer = setTimeout(finishShare, 1800)
@@ -99,7 +132,7 @@ export default function ShareScreen() {
         void runAutoSave(url)
       }
     })
-  }, [hasShareIntent, shareIntent, finishShare, runAutoSave])
+  }, [hasShareIntent, shareIntent, finishShare, runAutoSave, runAutoSaveMedia])
 
   const handleSave = async (draft: Draft) => {
     try {
@@ -141,9 +174,15 @@ export default function ShareScreen() {
     <View style={styles.container}>
       {invalidShare && (
         <View style={styles.errorWrap}>
-          <Text style={styles.errorText}>Share a valid link to Trove</Text>
+          <Text style={styles.errorText}>Nothing to save — share a link, photo, or video</Text>
         </View>
       )}
+
+      {loadingStatus ? (
+        <View style={styles.statusWrap}>
+          <Text style={styles.statusText}>{loadingStatus}</Text>
+        </View>
+      ) : null}
 
       <ShareSaveAnimation
         active={isAutoSaving}
@@ -179,6 +218,18 @@ function createStyles(c: ColorPalette) {
       fontFamily: FONTS.sansMed,
       color: c.textSub,
       textAlign: 'center',
+    },
+    statusWrap: {
+      position: 'absolute',
+      bottom: SPACING.xl * 2,
+      left: 0,
+      right: 0,
+      alignItems: 'center',
+    },
+    statusText: {
+      fontSize: 14,
+      fontFamily: FONTS.sansMed,
+      color: c.muted,
     },
   })
 }

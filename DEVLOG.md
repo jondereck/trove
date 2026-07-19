@@ -4,6 +4,18 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Gallery share — photos and videos from system share sheet (2026-07-19)
+**Files:** `app.json`, `lib/shareMedia.ts`, `lib/shareMediaCore.ts`, `app/share.tsx`
+
+Trove now registers for `image/*` and `video/*` share intents (Android + iOS), including
+multi-select up to 10 files. Shared media auto-saves to Inbox with the chest animation; per-file
+caps unchanged (5 MB images, 10 MB videos).
+
+**Requires native rebuild** after pulling: `npx expo prebuild --no-install` then
+`npx expo run:android` or `npx expo run:ios` (not Expo Go).
+
+---
+
 ### Bugfix sprint — auth, cache, search, uploads, notifications, preferences (2026-07-19)
 **Files:** `app/(auth)/login.tsx`, `app/(auth)/signup.tsx`, `lib/libraryCache.ts`,
 `app/(tabs)/index.tsx`, `lib/searchMatch.ts`, `lib/batchMediaUpload.ts`,
