@@ -257,6 +257,7 @@ export async function createCollection(input: {
   color?: string
   description?: string
   cover_image_url?: string | null
+  is_pinned?: boolean
   created_at?: string
 }): Promise<Collection | null> {
   const cols = await loadCollections()
@@ -268,6 +269,7 @@ export async function createCollection(input: {
     color: input.color ?? '#c0613c',
     description: input.description,
     cover_image_url: input.cover_image_url ?? null,
+    is_pinned: input.is_pinned ?? false,
     created_at: input.created_at ?? new Date().toISOString(),
   }
   await persistCollections([...cols, col])

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   View, Text, TextInput, ScrollView, TouchableOpacity,
   StyleSheet, Alert, ActivityIndicator, Image, Linking,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, InteractionManager,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -12,6 +12,7 @@ import { useColors, useThemedStyles } from '../../contexts/ThemeContext'
 import { DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
 import { Save, Collection } from '../../types'
 import { fetchSaveById, updateSave, deleteSave, fetchCollections } from '../../lib/db'
+import { deferMarkSaveViewed } from '../../lib/saveViewed'
 import { repairThumbnail } from '../../lib/thumbnailRepair'
 import { syncDigestNotification } from '../../lib/digestNotifications'
 import SaveVideoPlayer from '../../components/SaveVideoPlayer'
@@ -51,6 +52,7 @@ export default function SaveDetailScreen() {
   const [tagInput, setTagInput] = useState('')
   const [selectedCollection, setSelectedCollection] = useState<string | undefined>()
   const [refreshingPreview, setRefreshingPreview] = useState(false)
+  const mountedRef = useRef(true)
 
   const load = useCallback(async () => {
     const [s, cols] = await Promise.all([fetchSaveById(id), fetchCollections()])
@@ -60,15 +62,29 @@ export default function SaveDetailScreen() {
       setDescription(s.description ?? '')
       setTags(s.tags ?? [])
       setSelectedCollection(s.collection_id ?? undefined)
-      if (s.is_viewed === false) {
-        await updateSave(s.id, { is_viewed: true })
-        setSave(prev => prev ? { ...prev, is_viewed: true } : prev)
-      }
     }
     setCollections(cols)
   }, [id])
 
   useEffect(() => { load().finally(() => setLoading(false)) }, [load])
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
+  useEffect(() => {
+    if (!save || save.is_viewed !== false) return
+
+    deferMarkSaveViewed({
+      isUnread: true,
+      saveId: save.id,
+      markViewed: (saveId) => updateSave(saveId, { is_viewed: true }),
+      runAfterInteractions: InteractionManager.runAfterInteractions,
+      onPersisted: () => setSave(prev => prev ? { ...prev, is_viewed: true } : prev),
+      isMounted: () => mountedRef.current,
+    })
+  }, [save?.id, save?.is_viewed])
 
   const handleSave = async () => {
     if (!save) return

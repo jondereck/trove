@@ -5,6 +5,7 @@ import { FONTS, SPACING, RADIUS, ColorPalette } from '../constants/theme'
 import { useColors, useThemedStyles } from '../contexts/ThemeContext'
 import { Save } from '../types'
 import { updateSave } from '../lib/db'
+import { nextIsUnreadAfterPersist } from '../lib/saveViewed'
 import { repairThumbnail } from '../lib/thumbnailRepair'
 
 function getDomain(url?: string): string {
@@ -151,9 +152,9 @@ export default function SaveCard({ save, onPress, onLongPress, selected, onFavor
 
   const markViewed = async () => {
     if (!isUnread) return
-    setIsUnread(false)
     try {
-      await updateSave(save.id, { is_viewed: true })
+      const ok = await updateSave(save.id, { is_viewed: true })
+      setIsUnread(nextIsUnreadAfterPersist(isUnread, ok))
     } catch {
       setIsUnread(true)
     }

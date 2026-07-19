@@ -26,7 +26,6 @@ import { cacheProfile, clearProfileCache, formatProfileName, peekProfile } from 
 import { supabase } from '../lib/supabase'
 import { isLoggedIn } from '../lib/session'
 import { getTier, subscribeTier } from '../lib/entitlements'
-import { exportData, importData } from '../lib/transfer'
 import { AvatarTooLargeError, pickAndUploadAvatar } from '../lib/storage'
 import { requestAuthFlow } from '../lib/authNavigation'
 import { shouldPromptAccountForCloud, showCloudAccountPrompt } from '../lib/authGate'
@@ -126,47 +125,6 @@ export default function AccountScreen() {
       setUploadingAvatar(false)
     }
   }, [uploadingAvatar])
-
-  const handleExport = useCallback(async () => {
-    try {
-      await exportData()
-    } catch (e: any) {
-      Alert.alert('Export failed', e?.message ?? String(e))
-    }
-  }, [])
-
-  const handleImport = useCallback(async () => {
-    try {
-      const res = await importData()
-      if (!res) return
-      const thumbs = res.thumbnailsRepaired
-        ? ` Refetched ${res.thumbnailsRepaired} link preview${res.thumbnailsRepaired === 1 ? '' : 's'}.`
-        : ''
-      const skipped =
-        res.skipped
-          ? ` Skipped ${res.skipped} duplicate or empty row${res.skipped === 1 ? '' : 's'}.`
-          : ''
-      const limited =
-        res.limited
-          ? ` ${res.limited} item${res.limited === 1 ? '' : 's'} not imported — free plan limit.`
-          : ''
-      const message =
-        res.source === 'raindrop'
-          ? `Imported ${res.saves} save${res.saves === 1 ? '' : 's'} from Raindrop (${res.collections} collection${res.collections === 1 ? '' : 's'}).${skipped}${limited}${thumbs}`
-          : `Added ${res.saves} saves and ${res.collections} collections.${limited}${thumbs}`
-      if (res.limited) {
-        Alert.alert('Import complete', message, [
-          { text: 'OK', style: 'cancel' },
-          { text: 'See plans', onPress: () => router.push('/upgrade') },
-        ])
-      } else {
-        Alert.alert('Import complete', message)
-      }
-      fetchCounts().then(setCounts)
-    } catch (e: any) {
-      Alert.alert('Import failed', e?.message ?? String(e))
-    }
-  }, [router])
 
   const toggleEditing = useCallback(async () => {
     if (editing) {
@@ -347,8 +305,13 @@ export default function AccountScreen() {
         </SettingGroup>
 
         <SettingGroup title="Data">
-          <SettingRow icon="cloud-upload-outline" label="Export data" onPress={handleExport} />
-          <SettingRow icon="cloud-download-outline" label="Import data" onPress={handleImport} last />
+          <SettingRow
+            icon="save-outline"
+            label="Local backup"
+            hint="Automatic snapshots, restore, and manual transfer"
+            onPress={() => router.push('/backup-settings')}
+            last
+          />
         </SettingGroup>
 
         <SettingGroup title="Support">

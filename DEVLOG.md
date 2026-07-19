@@ -4,6 +4,115 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Wire automatic daily backup on launch / resume (2026-07-19)
+**Files:** `app/_layout.tsx`
+
+Native root layout now calls `runAutoBackupIfDue()` on first mount and whenever
+`AppState` becomes `active`, alongside digest sync. The call is fire-and-forget
+(errors swallowed) so splash/navigation never wait on ZIP creation. Web still
+skips the whole AppState effect. One snapshot per local calendar day when the
+toggle is on; retention and validation live in `lib/autoBackup`.
+
+---
+
+### Task 4 review hardening — backup settings reliability (2026-07-19)
+**Files:** `app/backup-settings.tsx`, `lib/settings.ts`, `lib/settings.test.ts`, `lib/autoBackupService.ts`, `lib/autoBackup.test.ts`, `lib/backupSettingsUi.ts`, `lib/backupSettingsUi.test.ts`, `components/Settings.tsx`, `contexts/ThemeContext.tsx`, `app/ai-preferences.tsx`, `app/notification-settings.tsx`, `app/(tabs)/index.tsx`
+
+Guarded all backup-screen alerts and navigation with `mountedRef` (plus disabled back while busy) so restore/import/export cannot show stale dialogs after leaving the screen. `patchSettings` now throws on SecureStore write failure with a test injectable adapter; backup toggle only updates UI on success, and other callers revert or reload on failure. Retention prune deletes sidecar metadata only after the ZIP delete succeeds; sidecar counts reject unsafe or excessive integers. Trove import result copy uses correct singular/plural labels; toggle switches expose busy accessibility state.
+
+---
+
+### Local backup settings screen (2026-07-19)
+**Files:** `app/backup-settings.tsx`, `app/_layout.tsx`, `app/account.tsx`, `components/Settings.tsx`, `lib/autoBackup.ts`, `lib/autoBackupService.ts`, `lib/autoBackup.test.ts`, `lib/backupSettingsUi.ts`, `lib/backupSettingsUi.test.ts`
+
+Added a dedicated Local backup screen linked from Account → Data. Automatic daily backup
+toggle reads/writes `autoBackupEnabled` via settings; status and snapshot actions use the Task 3
+auto-backup APIs. Restore opens a snapshot picker with merge-only confirmation; Export latest
+shares the newest snapshot or surfaces sharing errors. Manual export/import moved here from
+Account. Pure UI helpers cover snapshot labels, last-saved status, restore confirmation, and
+import result copy; web shows unavailable automatic-backup messaging while manual transfer keeps
+existing behavior where supported.
+
+Review hardening writes validated count metadata sidecars only after each ZIP becomes durable,
+loads counts without reopening archives, ignores missing/malformed sidecars for legacy
+compatibility, and prunes matching sidecars best-effort. Focus refreshes are cancellation-safe
+and error-handled; action-specific locks prevent duplicate restore/toggle/transfer presses while
+showing only the active spinner. Restore limits now link to Plans, disabled status remains
+visible with retained snapshots, the picker keeps scrolling by using a non-pressable sheet, and
+shared settings controls expose disabled/busy/switch accessibility state.
+
+---
+
+### Reject unsafe backup media filenames (2026-07-19)
+**Files:** `lib/backupArchiveCore.ts`, `lib/backupArchive.ts`, `lib/storage.ts`, `lib/backupArchive.test.ts`
+
+Media sentinels now require a strict nonempty basename before any extraction, local-file, or
+Storage path is constructed. Traversal segments, slash/backslash separators, absolute or drive
+syntax, control characters, malformed escaping, and recursively encoded separators are rejected.
+Automatic archive validation rejects unsafe references up front, while manual restore aborts
+actionably before invoking a media target. Existing timestamped names with hyphens, underscores,
+dots, and extensions remain supported.
+
+---
+
+### Bind automatic restore to captured backend/account (2026-07-19)
+**Files:** `lib/backupArchiveCore.ts`, `lib/backupArchive.ts`, `lib/autoBackupService.ts`, `lib/autoBackup.ts`, `lib/cloudDb.ts`, `lib/cloudDbColumns.ts`, `lib/storage.ts`, and focused tests
+
+Automatic snapshot restore now creates one immutable restore target for the captured local or
+Cloud scope. The merge pipeline performs all reads, writes, media imports, cap handling, and
+thumbnail behavior through that target while retaining scope guards as fast aborts. Local
+restores call `localDb` directly; Cloud restores bind queries, insert payloads, and Storage paths
+to the captured user ID so an auth switch fails RLS instead of routing into the new account.
+Automatic restore safely defers thumbnail repair because its existing implementation routes
+dynamically; manual imports retain the dynamic adapter and existing repair behavior. Free-tier
+caps, collection-name merging, URL dedupe, media restoration, and field round-trip are preserved.
+
+---
+
+### Automatic daily backup service (2026-07-19)
+**Files:** `lib/autoBackupCore.ts`, `lib/autoBackupService.ts`, `lib/autoBackup.ts`, `lib/autoBackupCore.test.ts`, `lib/autoBackup.test.ts`, `lib/settings.ts`
+
+Default-on automatic backup runs opportunistically via `runAutoBackupIfDue()` (no background
+scheduler). Snapshots are v2 ZIP archives in `${documentDirectory}backups/<scope>/`, namespaced
+per local vs signed-in Cloud user using collision-resistant path-safe encoding. Due once per
+local calendar day; retains newest 7; structurally validates `backup.json` before durable
+`moveAsync`; failed setup, listing, creation, or validation releases the mutex and never prunes
+or advances due state. Restore accepts only strict snapshot IDs in the active scope, and export
+reports unavailable sharing. Web returns safe no-op/disabled results. Public APIs: status, list,
+restore (merge), export latest (share). Lifecycle wiring remains deferred to its separate task.
+
+Review hardening captures one immutable data scope per operation and aborts before durable
+placement if the signed-in account changes. A module-wide lock deduplicates runs across service
+instances, while UUID-suffixed cache/extraction paths avoid same-millisecond collisions.
+Automatic archive validation now rejects malformed save and collection records, and snapshot
+parsing rejects impossible calendar dates and unsafe timestamps. Manual legacy imports retain
+their existing permissive normalization path.
+
+Final concurrency hardening gives archive creation and restore extraction independent
+UUID-suffixed staging directories. Automatic restore now carries an optional scope guard through
+the merge pipeline, checking before target reads, around every collection/save write, before
+thumbnail repair, and again after merge; manual imports need no guard. Export-latest similarly
+rechecks its captured scope immediately before sharing, and snapshot timestamps are constrained
+to the valid JavaScript `Date` range.
+
+---
+
+### Backup archive refactor for durable automatic backups (2026-07-19)
+**Files:** `lib/backupArchive.ts`, `lib/backupArchiveCore.ts`, `lib/backupArchive.test.ts`, `lib/transfer.ts`, `lib/cloudDb.ts`, `lib/localDb.ts`
+
+Extracted v2 ZIP create/merge-restore into `lib/backupArchive.ts` so callers can write to a
+known URI without SAF/share pickers. Manual export/import in `lib/transfer.ts` now adapts to
+that API. Restore round-trip covers `is_favorite`, `is_pinned`, `is_viewed`, collection
+`cover_image_url` (with bundled local covers), and timestamps. Cloud `createSave` honors
+`input.is_viewed ?? false` instead of forcing unread.
+
+Review fixes preserve octet-stream Raindrop CSV detection, retry shared-media copies after a
+failed first attempt, and clean extracted ZIP staging after unzip, read, or JSON parse failures.
+Cloud save creation now strips missing optional viewed/pinned columns in either error order,
+with at most two retries while preserving unrelated database errors.
+
+---
+
 ### Fix search: partial tags + case-insensitive cloud fallback (2026-07-19)
 **Files:** `lib/searchMatch.ts`, `lib/cloudDb.ts`, `lib/localDb.ts`
 

@@ -38,7 +38,9 @@ export default function AIPreferencesScreen() {
     setSettings(prev => {
       if (!prev) return prev
       const next = { ...prev, [key]: !prev[key] }
-      patchSettings({ [key]: next[key] })
+      patchSettings({ [key]: next[key] }).catch(() => {
+        getSettings().then(setSettings)
+      })
       return next
     })
   }

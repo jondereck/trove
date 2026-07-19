@@ -38,7 +38,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setAppearance = useCallback((mode: AppearanceMode) => {
     setAppearanceState(mode)
-    patchSettings({ appearance: mode })
+    patchSettings({ appearance: mode }).catch(() => {
+      getSettings().then(s => setAppearanceState(s.appearance))
+    })
   }, [])
 
   const value = useMemo(

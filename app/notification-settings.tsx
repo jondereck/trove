@@ -83,9 +83,13 @@ export default function NotificationSettingsScreen() {
   useFocusEffect(useCallback(() => { load() }, [load]))
 
   const apply = async (patch: Partial<Settings>) => {
-    const next = await patchSettings(patch)
-    setSettings(next)
-    await syncDigestNotification(next)
+    try {
+      const next = await patchSettings(patch)
+      setSettings(next)
+      await syncDigestNotification(next)
+    } catch {
+      load()
+    }
   }
 
   const toggleEnabled = async () => {

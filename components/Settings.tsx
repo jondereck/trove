@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { ColorPalette, FONTS, RADIUS, SPACING } from '../constants/theme'
 import { useColors, useThemedStyles } from '../contexts/ThemeContext'
@@ -33,6 +33,7 @@ function createStyles(c: ColorPalette) {
 
     row: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 15, paddingHorizontal: 16 },
     rowBorder: { borderBottomWidth: 1, borderBottomColor: c.border },
+    rowDisabled: { opacity: 0.5 },
     rowIcon: {
       width: 34,
       height: 34,
@@ -76,7 +77,19 @@ function dangerSoftColor(c: ColorPalette) {
   return c.bg === '#121110' ? DANGER_SOFT_DARK : DANGER_SOFT_LIGHT
 }
 
-export function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+export function Toggle({
+  on,
+  onToggle,
+  disabled = false,
+  busy = false,
+  accessibilityLabel,
+}: {
+  on: boolean
+  onToggle: () => void
+  disabled?: boolean
+  busy?: boolean
+  accessibilityLabel?: string
+}) {
   const colors = useColors()
   const styles = useThemedStyles(createStyles)
   const x = useRef(new Animated.Value(on ? 1 : 0)).current
@@ -89,7 +102,14 @@ export function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) 
   const bg = x.interpolate({ inputRange: [0, 1], outputRange: [trackOffColor(colors), colors.accent] })
 
   return (
-    <TouchableOpacity activeOpacity={0.8} onPress={onToggle}>
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={onToggle}
+      disabled={disabled}
+      accessibilityRole="switch"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ checked: on, disabled, busy }}
+    >
       <Animated.View style={[styles.track, { backgroundColor: bg }]}>
         <Animated.View style={[styles.knob, { left }]} />
       </Animated.View>
@@ -107,6 +127,8 @@ export function SettingRow({
   toggle,
   on,
   last,
+  disabled = false,
+  busy = false,
 }: {
   icon: IoniconName
   label: string
@@ -117,16 +139,22 @@ export function SettingRow({
   toggle?: boolean
   on?: boolean
   last?: boolean
+  disabled?: boolean
+  busy?: boolean
 }) {
   const colors = useColors()
   const styles = useThemedStyles(createStyles)
 
   return (
     <TouchableOpacity
-      style={[styles.row, !last && styles.rowBorder]}
+      style={[styles.row, !last && styles.rowBorder, disabled && styles.rowDisabled]}
       onPress={onPress}
       activeOpacity={onPress ? 0.6 : 1}
-      disabled={!onPress && !toggle}
+      disabled={disabled || (!onPress && !toggle)}
+      accessible={!toggle}
+      accessibilityRole={onPress && !toggle ? 'button' : undefined}
+      accessibilityLabel={label}
+      accessibilityState={{ disabled, busy }}
     >
       <View style={[styles.rowIcon, danger && { backgroundColor: dangerSoftColor(colors) }]}>
         <Ionicons name={icon} size={18} color={danger ? DANGER : colors.accent} />
@@ -136,8 +164,16 @@ export function SettingRow({
         {hint ? <Text style={styles.rowHint}>{hint}</Text> : null}
       </View>
       {value ? <Text style={styles.rowValue}>{value}</Text> : null}
-      {toggle ? (
-        <Toggle on={!!on} onToggle={() => onPress?.()} />
+      {busy && !toggle ? (
+        <ActivityIndicator size="small" color={colors.accent} />
+      ) : toggle ? (
+        <Toggle
+          on={!!on}
+          onToggle={() => onPress?.()}
+          disabled={disabled}
+          busy={busy}
+          accessibilityLabel={label}
+        />
       ) : onPress && !danger ? (
         <Ionicons name="chevron-forward" size={18} color={faintColor(colors)} />
       ) : null}

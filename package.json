@@ -58,7 +58,9 @@
     "test:timeline": "tsx --test lib/chestLoaderTimeline.test.ts",
     "test:library-cache": "tsx --test lib/libraryCache.test.ts",
     "test:search": "tsx --test lib/searchMatch.test.ts",
-    "test:share-media": "tsx --test lib/shareMedia.test.ts"
+    "test:share-media": "tsx --test lib/shareMedia.test.ts",
+    "test:backup": "tsx --test lib/backupArchive.test.ts lib/autoBackupCore.test.ts lib/autoBackup.test.ts lib/backupSettingsUi.test.ts lib/settings.test.ts lib/saveViewed.test.ts",
+    "test:save-viewed": "tsx --test lib/saveViewed.test.ts"
   },
   "private": true
 }

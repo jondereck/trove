@@ -2,7 +2,12 @@ import { supabase } from './supabase'
 import { Save, Collection, LibraryFilter, LibraryPageOptions, LibraryPageResult } from '../types'
 import { getUserId } from './session'
 import { normalizeUrl } from './url'
-import { dbErrorSummary, isMissingViewedColumn } from './cloudDbColumns'
+import {
+  bindExpectedUserId,
+  dbErrorSummary,
+  isMissingViewedColumn,
+  stripMissingOptionalColumn,
+} from './cloudDbColumns'
 import { rankSavesByTerms } from './searchMatch'
 
 // Pin columns (`is_pinned`) are optional until supabase/add-pinned.sql is run.
@@ -264,8 +269,11 @@ export async function fetchSearchSuggestions(): Promise<string[]> {
 // Returns an existing save with the same (normalized) URL for the current
 // user, or null. New saves are stored normalized, so a plain match catches
 // links that differ only by tracking params, `www.`, or a trailing slash.
-export async function findSaveByUrl(url: string): Promise<Save | null> {
-  let userId = getUserId()
+export async function findSaveByUrl(
+  url: string,
+  expectedUserId?: string,
+): Promise<Save | null> {
+  let userId = expectedUserId ?? getUserId()
   if (!userId) {
     const { data: { user } } = await supabase.auth.getUser()
     userId = user?.id ?? null
@@ -292,10 +300,12 @@ export async function createSave(input: {
   tags?: string[]
   is_inbox?: boolean
   is_favorite?: boolean
+  is_pinned?: boolean
+  is_viewed?: boolean
   created_at?: string
-}): Promise<Save | null> {
+}, expectedUserId?: string): Promise<Save | null> {
   // Prefer the sync session cache; fall back to getUser() for a fresh token.
-  let userId = getUserId()
+  let userId = expectedUserId ?? getUserId()
   if (!userId) {
     const { data: { user } } = await supabase.auth.getUser()
     userId = user?.id ?? null
@@ -304,25 +314,35 @@ export async function createSave(input: {
   // Store the canonical URL and skip inserting a near-duplicate.
   const url = input.url ? normalizeUrl(input.url) : undefined
   if (url) {
-    const existing = await findSaveByUrl(url)
+    const existing = await findSaveByUrl(url, userId)
     if (existing) return existing
   }
-  const row = {
+  const row = bindExpectedUserId({
     ...input,
     url,
-    user_id: userId,
     tags: input.tags ?? [],
     is_inbox: input.is_inbox ?? true,
-    is_viewed: false,
+    is_viewed: input.is_viewed ?? false,
+  }, userId)
+  let payload: Record<string, unknown> = { ...row }
+  let { data, error } = await supabase.from('saves').insert(payload).select().single()
+  for (let retry = 0; error && retry < 2; retry++) {
+    const nextPayload = stripMissingOptionalColumn(payload, error)
+    if (!nextPayload) break
+    if ('is_viewed' in payload && !('is_viewed' in nextPayload)) {
+      viewedColumnAvailable = false
+    }
+    if ('is_pinned' in payload && !('is_pinned' in nextPayload)) {
+      pinColumnsAvailable = false
+    }
+    payload = nextPayload
+    ;({ data, error } = await supabase.from('saves').insert(payload).select().single())
   }
-  let { data, error } = await supabase.from('saves').insert(row).select().single()
-  // is_viewed is optional until supabase/add-viewed.sql is applied.
-  if (isMissingViewedColumn(error)) {
-    viewedColumnAvailable = false
-    const { is_viewed: _, ...withoutViewed } = row
-    ;({ data, error } = await supabase.from('saves').insert(withoutViewed).select().single())
+  if (error) {
+    if (expectedUserId) throw new Error(`createSave: ${error.message}`)
+    console.error('createSave:', error.message)
+    return null
   }
-  if (error) { console.error('createSave:', error.message); return null }
   return data as Save
 }
 
@@ -349,26 +369,38 @@ export async function deleteSave(id: string): Promise<boolean> {
 
 // ── Collections ───────────────────────────────────────────────────────────────
 
-export async function fetchCollections(): Promise<Collection[]> {
+export async function fetchCollections(expectedUserId?: string): Promise<Collection[]> {
   const pinOk = await hasPinColumns()
   let query = supabase.from('collections').select('*')
+  if (expectedUserId) query = query.eq('user_id', expectedUserId)
   if (pinOk) query = query.order('is_pinned', { ascending: false })
   query = query.order('name')
 
   let { data: cols, error } = await query
   if (error && missingPinColumn(error)) {
     pinColumnsAvailable = false
-    ;({ data: cols, error } = await supabase.from('collections').select('*').order('name'))
+    let fallback = supabase.from('collections').select('*')
+    if (expectedUserId) fallback = fallback.eq('user_id', expectedUserId)
+    ;({ data: cols, error } = await fallback.order('name'))
   }
-  if (error) { console.error('fetchCollections:', error.message); return [] }
+  if (error) {
+    if (expectedUserId) throw new Error(`fetchCollections: ${error.message}`)
+    console.error('fetchCollections:', error.message)
+    return []
+  }
   if (!cols?.length) return []
 
   // One query gives both counts and recent cover images, merged client-side.
-  const { data: rows } = await supabase
+  let savesQuery = supabase
     .from('saves')
     .select('collection_id, image_url, created_at')
     .not('collection_id', 'is', null)
     .order('created_at', { ascending: false })
+  if (expectedUserId) savesQuery = savesQuery.eq('user_id', expectedUserId)
+  const { data: rows, error: rowsError } = await savesQuery
+  if (rowsError && expectedUserId) {
+    throw new Error(`fetchCollections: ${rowsError.message}`)
+  }
 
   const countMap: Record<string, number> = {}
   const coverMap: Record<string, string[]> = {}
@@ -411,16 +443,27 @@ export async function createCollection(input: {
   color?: string
   description?: string
   cover_image_url?: string | null
+  is_pinned?: boolean
   created_at?: string
-}): Promise<Collection | null> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const { data, error } = await supabase
-    .from('collections')
-    .insert({ ...input, user_id: user.id, icon: input.icon ?? 'folder-outline', color: input.color ?? '#c0613c' })
-    .select()
-    .single()
-  if (error) { console.error('createCollection:', error.message); return null }
+}, expectedUserId?: string): Promise<Collection | null> {
+  const userId = expectedUserId ?? (await supabase.auth.getUser()).data.user?.id
+  if (!userId) return null
+  const row = bindExpectedUserId({
+    ...input,
+    icon: input.icon ?? 'folder-outline',
+    color: input.color ?? '#c0613c',
+  }, userId)
+  let { data, error } = await supabase.from('collections').insert(row).select().single()
+  if (error && missingPinColumn(error) && 'is_pinned' in input) {
+    pinColumnsAvailable = false
+    const { is_pinned: _, ...withoutPin } = row
+    ;({ data, error } = await supabase.from('collections').insert(withoutPin).select().single())
+  }
+  if (error) {
+    if (expectedUserId) throw new Error(`createCollection: ${error.message}`)
+    console.error('createCollection:', error.message)
+    return null
+  }
   return data as Collection
 }
 
@@ -518,11 +561,25 @@ export async function updateProfile(
 }
 
 // Lightweight head counts for the Account stats row.
-export async function fetchCounts(): Promise<{ saves: number; collections: number }> {
+export async function fetchCounts(expectedUserId?: string): Promise<{
+  saves: number
+  collections: number
+}> {
+  let savesQuery = supabase.from('saves').select('*', { count: 'exact', head: true })
+  let collectionsQuery = supabase
+    .from('collections')
+    .select('*', { count: 'exact', head: true })
+  if (expectedUserId) {
+    savesQuery = savesQuery.eq('user_id', expectedUserId)
+    collectionsQuery = collectionsQuery.eq('user_id', expectedUserId)
+  }
   const [s, c] = await Promise.all([
-    supabase.from('saves').select('*', { count: 'exact', head: true }),
-    supabase.from('collections').select('*', { count: 'exact', head: true }),
+    savesQuery,
+    collectionsQuery,
   ])
+  if (expectedUserId && (s.error || c.error)) {
+    throw new Error(`fetchCounts: ${(s.error ?? c.error)!.message}`)
+  }
   return { saves: s.count ?? 0, collections: c.count ?? 0 }
 }
 

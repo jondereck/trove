@@ -1,11 +1,13 @@
 import * as ImagePicker from 'expo-image-picker'
 import * as FileSystem from 'expo-file-system/legacy'
+import * as Crypto from 'expo-crypto'
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator'
 import { decode } from 'base64-arraybuffer'
 import { supabase } from './supabase'
 import { updateProfile } from './cloudDb'
 import { isLoggedIn } from './session'
 import { hasCloud } from './entitlements'
+import { requireSafeMediaBasename } from './backupArchiveCore'
 
 const BUCKET = 'media'
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024 // 2 MB cap on avatar uploads
@@ -110,10 +112,11 @@ export async function prepareMediaForUpload(
 // local media dir by default (no base64 round-trip), Storage upload for
 // Cloud subscribers so the restored save never points at a dead file:// path.
 export async function importMediaFile(srcUri: string, filename: string): Promise<string | null> {
+  const safeName = requireSafeMediaBasename(filename)
   try {
     if (isLoggedIn() && hasCloud()) {
       const base64 = await FileSystem.readAsStringAsync(srcUri, { encoding: 'base64' })
-      const ext = filename.split('.').pop() ?? 'jpg'
+      const ext = safeName.split('.').pop() ?? 'jpg'
       const contentType = ext === 'mp4' ? 'video/mp4' : `image/${ext}`
       return await uploadMedia(base64, ext, contentType)
     }
@@ -121,11 +124,43 @@ export async function importMediaFile(srcUri: string, filename: string): Promise
     if (!dirInfo.exists) {
       await FileSystem.makeDirectoryAsync(LOCAL_MEDIA_DIR, { intermediates: true })
     }
-    const dest = `${LOCAL_MEDIA_DIR}${Date.now()}-${filename}`
+    const dest = `${LOCAL_MEDIA_DIR}${Date.now()}-${safeName}`
     await FileSystem.copyAsync({ from: srcUri, to: dest })
     return dest
   } catch (e) {
     console.error('importMediaFile:', e)
+    return null
+  }
+}
+
+export async function importMediaFileForTarget(
+  srcUri: string,
+  filename: string,
+  target: { kind: 'local' } | { kind: 'cloud'; userId: string },
+): Promise<string | null> {
+  const safeName = requireSafeMediaBasename(filename)
+  if (target.kind === 'cloud') {
+    const base64 = await FileSystem.readAsStringAsync(srcUri, { encoding: 'base64' })
+    const ext = safeName.split('.').pop() ?? 'jpg'
+    const contentType = ext === 'mp4' ? 'video/mp4' : `image/${ext}`
+    const path = `${target.userId}/${Date.now()}-${Crypto.randomUUID()}.${ext}`
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, decode(base64), { contentType, upsert: false })
+    if (error) throw new Error(`importMediaFile: ${error.message}`)
+    return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
+  }
+
+  try {
+    const dirInfo = await FileSystem.getInfoAsync(LOCAL_MEDIA_DIR)
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(LOCAL_MEDIA_DIR, { intermediates: true })
+    }
+    const dest = `${LOCAL_MEDIA_DIR}${Date.now()}-${Crypto.randomUUID()}-${safeName}`
+    await FileSystem.copyAsync({ from: srcUri, to: dest })
+    return dest
+  } catch (error) {
+    console.error('importMediaFileForTarget:', error)
     return null
   }
 }

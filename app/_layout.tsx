@@ -47,6 +47,7 @@ import {
 } from '../lib/entitlements'
 import { syncDigestNotification } from '../lib/digestNotifications'
 import { recordNotification, syncPresentedNotifications } from '../lib/notificationLog'
+import { runAutoBackupIfDue } from '../lib/autoBackup'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -174,10 +175,12 @@ function RootNavigator({ session, hasData, dismissed, fontsLoaded, fontError }: 
     if (Platform.OS === 'web') return
     void syncDigestNotification()
     void syncPresentedNotifications()
+    void runAutoBackupIfDue().catch(() => {})
     const sub = AppState.addEventListener('change', state => {
       if (state === 'active') {
         void syncDigestNotification()
         void syncPresentedNotifications()
+        void runAutoBackupIfDue().catch(() => {})
       }
     })
     return () => sub.remove()
@@ -199,6 +202,7 @@ function RootNavigator({ session, hasData, dismissed, fontsLoaded, fontError }: 
         <Stack.Screen name="ai-preferences" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="appearance" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="notification-settings" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="backup-settings" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="upgrade" options={{ animation: 'slide_from_bottom' }} />
       </Stack>

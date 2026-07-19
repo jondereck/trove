@@ -322,7 +322,9 @@ export default function LibraryScreen() {
   const toggleViewMode = useCallback(() => {
     setViewMode(prev => {
       const next: LibraryView = prev === 'grid' ? 'list' : 'grid'
-      patchSettings({ libraryView: next })
+      patchSettings({ libraryView: next }).catch(() => {
+        getSettings().then(s => setViewMode(s.libraryView))
+      })
       return next
     })
   }, [])
