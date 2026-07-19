@@ -16,6 +16,7 @@ import { useRouter, useFocusEffect } from 'expo-router'
 import Constants from 'expo-constants'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
+import { BRAND } from '../constants/branding'
 import { ColorPalette, FONTS, RADIUS, SPACING } from '../constants/theme'
 import { useColors, useThemedStyles } from '../contexts/ThemeContext'
 import Avatar from '../components/Avatar'
@@ -340,7 +341,7 @@ export default function AccountScreen() {
               />
             </>
           )}
-          <SettingRow icon="sparkles-outline" label="AI preferences" onPress={() => router.push('/ai-preferences')} />
+          <SettingRow icon="sparkles-outline" label="Preference" onPress={() => router.push('/ai-preferences')} />
           <SettingRow icon="notifications-outline" label="Notifications" onPress={() => router.push('/notification-settings')} />
           <SettingRow icon="color-palette-outline" label="Appearance" onPress={() => router.push('/appearance')} last />
         </SettingGroup>
@@ -357,6 +358,19 @@ export default function AccountScreen() {
             onPress={() => Linking.openURL(SUPPORT_EMAIL).catch(() => {})}
             last
           />
+        </SettingGroup>
+
+        <SettingGroup title="Legal">
+          <View style={styles.privacyCard}>
+            <View style={styles.privacyBadge}>
+              <Ionicons name="shield-checkmark-outline" size={14} color={colors.accent} />
+              <Text style={styles.privacyBadgeText}>Privacy notice</Text>
+            </View>
+            <Text style={styles.privacyBody}>
+              Your saves stay on this device by default. If you sign in with {BRAND.name} Cloud,
+              your library and account data are synced to our server so you can access them across devices.
+            </Text>
+          </View>
         </SettingGroup>
 
         {loggedIn && (
@@ -451,6 +465,37 @@ function createStyles(c: ColorPalette) {
     bannerText: { flex: 1 },
     bannerTitle: { fontFamily: FONTS.sansBold, fontSize: 15, color: '#fff' },
     bannerSub: { fontFamily: FONTS.sans, fontSize: 12.5, color: 'rgba(255,255,255,0.85)', marginTop: 1 },
+
+    privacyCard: {
+      marginHorizontal: SPACING.lg,
+      backgroundColor: c.card,
+      borderRadius: RADIUS.lg,
+      borderWidth: 1,
+      borderColor: c.border,
+      padding: SPACING.lg,
+      gap: SPACING.sm,
+    },
+    privacyBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      alignSelf: 'flex-start',
+      backgroundColor: c.accentSoft,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 99,
+    },
+    privacyBadgeText: {
+      fontFamily: FONTS.sansSemi,
+      fontSize: 12,
+      color: c.accent,
+    },
+    privacyBody: {
+      fontFamily: FONTS.sans,
+      fontSize: 13,
+      lineHeight: 19,
+      color: c.textSub,
+    },
 
     footer: { textAlign: 'center', fontFamily: FONTS.mono, fontSize: 11, color: faintColor(c), marginTop: 4 },
   })

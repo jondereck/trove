@@ -9,6 +9,7 @@ import { useColors } from '../../contexts/ThemeContext'
 import { UNSORTED_LABEL } from '../../constants/labels'
 import QuickSave from '../../components/QuickSave'
 import SaveToast from '../../components/SaveToast'
+import { getSettings } from '../../lib/settings'
 import { createSave, fetchInboxUnreadCount, upsertCollectionByName } from '../../lib/db'
 import { subscribeDataChanges } from '../../lib/dataEvents'
 import { isLimitError, showLimitAlert } from '../../lib/upgradeAlert'
@@ -140,14 +141,19 @@ export default function TabsLayout() {
   }
 
   const handleQuickSave = async () => {
-    try {
-      const text = await Clipboard.getStringAsync()
-      const isUrl = /^https?:\/\//i.test(text.trim())
-      if (isUrl) {
-        setSharedUrl(text.trim())
+    const settings = await getSettings()
+    if (settings.clipboardAutoPaste) {
+      try {
+        const text = await Clipboard.getStringAsync()
+        const isUrl = /^https?:\/\//i.test(text.trim())
+        if (isUrl) {
+          setSharedUrl(text.trim())
+        }
+      } catch {
+        // clipboard unavailable — open normally
       }
-    } catch {
-      // clipboard unavailable — open normally
+    } else {
+      setSharedUrl(undefined)
     }
     setQuickSaveVisible(true)
   }

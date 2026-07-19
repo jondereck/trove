@@ -50,7 +50,7 @@ export default function AIPreferencesScreen() {
           <Ionicons name="chevron-back" size={20} color={colors.accent} />
           <Text style={styles.topAction}>Settings</Text>
         </TouchableOpacity>
-        <Text style={styles.topTitle}>AI preferences</Text>
+        <Text style={styles.topTitle}>Preference</Text>
         <View style={styles.topSpacer} />
       </View>
 
@@ -58,6 +58,18 @@ export default function AIPreferencesScreen() {
         contentContainerStyle={{ paddingTop: SPACING.lg, paddingBottom: insets.bottom + SPACING.xl * 2 }}
         showsVerticalScrollIndicator={false}
       >
+        <SettingGroup title="Quick save">
+          <SettingRow
+            icon="clipboard-outline"
+            label="Auto-fill from clipboard"
+            hint="When you tap +, paste a copied link into QuickSave automatically."
+            toggle
+            on={!!settings?.clipboardAutoPaste}
+            onPress={() => toggle('clipboardAutoPaste')}
+            last
+          />
+        </SettingGroup>
+
         <SettingGroup title="Sharing">
           <SettingRow
             icon="share-outline"

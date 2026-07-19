@@ -13,6 +13,8 @@ export interface Settings {
   libraryView: 'grid' | 'list'
   /** When true, OS shares open the QuickSave preview (with AI). When false, auto-save to Unsorted. */
   shareReviewModal: boolean
+  /** When true, QuickSave pre-fills a clipboard URL on + tap. */
+  clipboardAutoPaste: boolean
   appearance: AppearanceMode
   /** Local inbox digest notification master switch. */
   digestEnabled: boolean
@@ -30,6 +32,7 @@ const DEFAULTS: Settings = {
   aiSuggestCollections: true,
   libraryView: 'grid',
   shareReviewModal: false,
+  clipboardAutoPaste: true,
   appearance: 'system',
   digestEnabled: false,
   digestCadence: 'weekly',
