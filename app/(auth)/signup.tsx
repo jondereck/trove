@@ -21,6 +21,7 @@ import { useColors, useThemedStyles } from '../../contexts/ThemeContext'
 import { BRAND } from '../../constants/branding'
 import BrandLogo from '../../components/BrandLogo'
 import { canOpenSignUp } from '../../lib/authGate'
+import { clearAuthFlow } from '../../lib/authNavigation'
 
 export default function SignupScreen() {
   const insets = useSafeAreaInsets()
@@ -57,8 +58,16 @@ export default function SignupScreen() {
     setGoogleLoading(true)
     const { error } = await signInWithGoogle()
     setGoogleLoading(false)
-    if (error) setError(error)
-    // On success the root layout's onAuthStateChange redirects to (tabs)
+    if (error) {
+      setError(error)
+      return
+    }
+
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) {
+      clearAuthFlow()
+      router.replace('/(tabs)')
+    }
   }
 
   const handleSignUp = async () => {
@@ -77,23 +86,30 @@ export default function SignupScreen() {
     }
 
     setLoading(true)
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
     })
 
+    if (error) {
+      setLoading(false)
+      setError(error.message)
+      return
+    }
+
     // Save first name immediately (trigger has already created the profiles row)
-    if (!error && firstName.trim()) {
+    if (firstName.trim()) {
       await updateProfile({ first_name: firstName.trim() })
     }
 
-    setLoading(false)
-
-    if (error) {
-      setError(error.message)
-    } else {
-      setSuccess(true)
+    if (data.session) {
+      clearAuthFlow()
+      router.replace('/(tabs)')
+      return
     }
+
+    setLoading(false)
+    setSuccess(true)
   }
 
   if (success) {

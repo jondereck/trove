@@ -49,8 +49,14 @@ export default function LoginScreen() {
     })
 
     setLoading(false)
-    if (error) setError(error.message)
-    // On success the root layout's onAuthStateChange fires and redirects to (tabs)
+    if (error) {
+      setError(error.message)
+      return
+    }
+
+    clearAuthFlow()
+    clearCloudVerifyPending()
+    router.replace('/(tabs)')
   }
 
   const handleGoogle = async () => {
@@ -58,8 +64,17 @@ export default function LoginScreen() {
     setGoogleLoading(true)
     const { error } = await signInWithGoogle()
     setGoogleLoading(false)
-    if (error) setError(error)
-    // On success the root layout's onAuthStateChange redirects to (tabs)
+    if (error) {
+      setError(error)
+      return
+    }
+
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) {
+      clearAuthFlow()
+      clearCloudVerifyPending()
+      router.replace('/(tabs)')
+    }
   }
 
   const handleForgotPassword = async () => {
