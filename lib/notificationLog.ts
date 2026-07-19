@@ -25,7 +25,10 @@ function fromNotification(notification: Notifications.Notification): Notificatio
     body: content.body ?? '',
     date,
     read: false,
-    screen: data?.screen === 'inbox' ? 'inbox' : undefined,
+    screen:
+      data?.screen === 'inbox' || data?.screen === 'library-unread' || data?.screen === 'backup-settings'
+        ? data.screen
+        : undefined,
   }
 }
 

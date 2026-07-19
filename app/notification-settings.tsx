@@ -14,8 +14,9 @@ import {
 import {
   cancelDigestNotification,
   requestDigestPermissions,
-  syncDigestNotification,
 } from '../lib/digestNotifications'
+import { cancelUnreadNotification } from '../lib/unreadNotifications'
+import { syncAllDigestNotifications } from '../lib/notificationsSync'
 import { useColors, useThemedStyles } from '../contexts/ThemeContext'
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -86,23 +87,27 @@ export default function NotificationSettingsScreen() {
     try {
       const next = await patchSettings(patch)
       setSettings(next)
-      await syncDigestNotification(next)
+      await syncAllDigestNotifications(next)
     } catch {
       load()
     }
   }
 
-  const toggleEnabled = async () => {
+  const ensurePermission = async () => {
+    const ok = await requestDigestPermissions()
+    if (!ok) {
+      Alert.alert(
+        'Notifications blocked',
+        'Enable notifications for Trove in system settings to get digests.',
+      )
+    }
+    return ok
+  }
+
+  const toggleInbox = async () => {
     if (!settings) return
     if (!settings.digestEnabled) {
-      const ok = await requestDigestPermissions()
-      if (!ok) {
-        Alert.alert(
-          'Notifications blocked',
-          'Enable notifications for Trove in system settings to get inbox digests.',
-        )
-        return
-      }
+      if (!(await ensurePermission())) return
       await apply({ digestEnabled: true })
     } else {
       await apply({ digestEnabled: false })
@@ -110,9 +115,22 @@ export default function NotificationSettingsScreen() {
     }
   }
 
+  const toggleUnread = async () => {
+    if (!settings) return
+    if (!settings.unreadDigestEnabled) {
+      if (!(await ensurePermission())) return
+      await apply({ unreadDigestEnabled: true })
+    } else {
+      await apply({ unreadDigestEnabled: false })
+      await cancelUnreadNotification()
+    }
+  }
+
   const setCadence = async (digestCadence: DigestCadence) => {
     await apply({ digestCadence })
   }
+
+  const scheduleVisible = !!(settings?.digestEnabled || settings?.unreadDigestEnabled)
 
   return (
     <View style={styles.container}>
@@ -130,22 +148,30 @@ export default function NotificationSettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.sectionHint}>
-          Get a local reminder when you have unsorted items in Inbox. No account required — scheduled on this device.
+          Local reminders on this device. No account required. Inbox covers unsorted items; Unopened covers saves you have not opened yet. Both share the schedule below.
         </Text>
 
-        <SettingGroup title="Inbox digest">
+        <SettingGroup title="Reminders">
           <SettingRow
-            icon="notifications-outline"
-            label="Enable digest"
-            hint="Remind me about unsorted saves"
+            icon="file-tray-outline"
+            label="Inbox digest"
+            hint="Unsorted saves waiting to be filed"
             toggle
             on={!!settings?.digestEnabled}
-            onPress={toggleEnabled}
+            onPress={toggleInbox}
+          />
+          <SettingRow
+            icon="eye-outline"
+            label="Unopened digest"
+            hint="Saves marked NEW you have not opened"
+            toggle
+            on={!!settings?.unreadDigestEnabled}
+            onPress={toggleUnread}
             last
           />
         </SettingGroup>
 
-        {settings?.digestEnabled ? (
+        {scheduleVisible && settings ? (
           <>
             <SettingGroup title="How often">
               <SettingRow

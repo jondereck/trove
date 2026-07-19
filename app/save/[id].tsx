@@ -14,7 +14,7 @@ import { Save, Collection } from '../../types'
 import { fetchSaveById, updateSave, deleteSave, fetchCollections } from '../../lib/db'
 import { deferMarkSaveViewed } from '../../lib/saveViewed'
 import { repairThumbnail } from '../../lib/thumbnailRepair'
-import { syncDigestNotification } from '../../lib/digestNotifications'
+import { syncAllDigestNotifications } from '../../lib/notificationsSync'
 import SaveVideoPlayer from '../../components/SaveVideoPlayer'
 
 function formatDate(iso: string) {
@@ -96,7 +96,7 @@ export default function SaveDetailScreen() {
     })
     setSave(prev => prev ? { ...prev, title, description, tags, collection_id: selectedCollection } : prev)
     setEditing(false)
-    void syncDigestNotification()
+    void syncAllDigestNotifications()
   }
 
   const handleDelete = () => {
@@ -107,7 +107,7 @@ export default function SaveDetailScreen() {
         onPress: async () => {
           if (save) {
             await deleteSave(save.id)
-            void syncDigestNotification()
+            void syncAllDigestNotifications()
             router.back()
           }
         },

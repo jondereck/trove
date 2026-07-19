@@ -163,6 +163,23 @@ export async function fetchInboxUnreadCount(): Promise<number> {
   return count ?? 0
 }
 
+export async function fetchUnreadLibraryCount(): Promise<number> {
+  if (!(await hasViewedColumn())) return 0
+  const { count, error } = await supabase
+    .from('saves')
+    .select('*', { count: 'exact', head: true })
+    .eq('is_viewed', false)
+  if (error) {
+    if (isMissingViewedColumn(error)) {
+      viewedColumnAvailable = false
+      return 0
+    }
+    console.error('fetchUnreadLibraryCount:', dbErrorSummary(error))
+    return 0
+  }
+  return count ?? 0
+}
+
 export async function fetchSave(id: string): Promise<Save | null> {
   const { data, error } = await supabase
     .from('saves')

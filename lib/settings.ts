@@ -21,6 +21,8 @@ export interface Settings {
   digestHour: number
   /** 0=Sunday … 6=Saturday when cadence is weekly. */
   digestWeekday: number
+  /** Local unread-review digest (NEW / is_viewed === false). */
+  unreadDigestEnabled: boolean
   /** Daily automatic local-device backup master switch. */
   autoBackupEnabled: boolean
 }
@@ -38,6 +40,7 @@ const DEFAULTS: Settings = {
   digestCadence: 'weekly',
   digestHour: 10,
   digestWeekday: 0,
+  unreadDigestEnabled: false,
   autoBackupEnabled: true,
 }
 

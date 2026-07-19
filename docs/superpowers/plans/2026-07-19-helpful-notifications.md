@@ -150,7 +150,6 @@ export function buildInboxDigestContent(count: number) {
 
 export function buildUnreadDigestContent(count: number) {
   const noun = count === 1 ? 'save' : 'saves'
-  const verb = count === 1 ? 'has' : 'have'
   return {
     title: 'Unopened in Trove',
     body: `You have ${count} ${noun} you have not opened yet`,
@@ -158,8 +157,6 @@ export function buildUnreadDigestContent(count: number) {
   }
 }
 ```
-
-Note: drop the unused `verb` binding in the real file — keep body exactly as the tests assert.
 
 - [ ] **Step 4: Run test to verify it passes**
 

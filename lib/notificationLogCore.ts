@@ -6,7 +6,7 @@ export interface NotificationLogEntry {
   body: string
   date: string
   read: boolean
-  screen?: 'inbox'
+  screen?: 'inbox' | 'library-unread' | 'backup-settings'
   cadence?: 'daily' | 'weekly'
 }
 

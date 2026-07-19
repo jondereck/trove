@@ -49,6 +49,7 @@ function defaultSettings(overrides: Partial<Settings> = {}): Settings {
     digestCadence: 'weekly',
     digestHour: 10,
     digestWeekday: 0,
+    unreadDigestEnabled: false,
     autoBackupEnabled: true,
     ...overrides,
   }

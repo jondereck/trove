@@ -50,6 +50,7 @@ export const fetchLibrarySavesPage = (opts: LibraryPageOptions) => pick().fetchL
 export const fetchLibraryCount = () => pick().fetchLibraryCount()
 export const fetchInboxSaves = () => pick().fetchInboxSaves()
 export const fetchInboxUnreadCount = () => pick().fetchInboxUnreadCount()
+export const fetchUnreadLibraryCount = () => pick().fetchUnreadLibraryCount()
 export const fetchSave = (id: string) => pick().fetchSave(id)
 export const fetchSaveById = (id: string) => pick().fetchSaveById(id)
 export const fetchCollectionSaves = (collectionId: string) => pick().fetchCollectionSaves(collectionId)
