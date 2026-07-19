@@ -26,6 +26,7 @@ describe('libraryCache', () => {
     const snapshot = {
       saves: [{
         id: '1',
+        user_id: 'user-1',
         title: 'Test',
         type: 'link' as const,
         tags: [],
