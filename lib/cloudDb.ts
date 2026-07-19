@@ -3,6 +3,7 @@ import { Save, Collection, LibraryFilter, LibraryPageOptions, LibraryPageResult 
 import { getUserId } from './session'
 import { normalizeUrl } from './url'
 import { dbErrorSummary, isMissingViewedColumn } from './cloudDbColumns'
+import { fieldMatchesTerm, tagMatchesTerm } from './searchMatch'
 
 // Pin columns (`is_pinned`) are optional until supabase/add-pinned.sql is run.
 // Probed once per session; queries fall back to created_at/name ordering.
@@ -229,7 +230,15 @@ export async function searchSaves(query: string): Promise<Save[]> {
     .order('created_at', { ascending: false })
     .limit(50)
   if (fbError) { console.error('searchSaves:', fbError.message); return [] }
-  return (fallback ?? []) as Save[]
+  return ((fallback ?? []) as Save[]).filter(save =>
+    terms.every(term =>
+      fieldMatchesTerm(term, save.title)
+      || tagMatchesTerm(term, save.tags)
+      || fieldMatchesTerm(term, save.description)
+      || fieldMatchesTerm(term, save.content)
+      || fieldMatchesTerm(term, save.url)
+    ),
+  )
 }
 
 export async function searchCollections(query: string): Promise<Collection[]> {

@@ -47,6 +47,10 @@ as $$
       or coalesce(s.content, '') ilike '%' || t || '%'
       or coalesce(s.url, '') ilike '%' || t || '%'
       or public.tags_to_text(s.tags) ilike '%' || t || '%'
+      or exists (
+        select 1 from unnest(s.tags) tag
+        where tag ilike '%' || t || '%'
+      )
     )
     from unnest(terms) as t
   )
