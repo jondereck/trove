@@ -2,6 +2,7 @@ import * as Linking from 'expo-linking'
 import * as WebBrowser from 'expo-web-browser'
 import { supabase } from './supabase'
 import { fetchProfile, updateProfile } from './cloudDb'
+import { namesFromUserMetadata } from './profileCache'
 
 // Auth helpers shared by the (auth) screens and the account page.
 //
@@ -56,13 +57,10 @@ export async function syncProviderProfile(): Promise<void> {
 
   const updates: { first_name?: string; last_name?: string; avatar_url?: string } = {}
 
-  if (!profile?.first_name && !profile?.last_name) {
-    const full = (meta.full_name ?? meta.name ?? '').trim()
-    const first = (meta.given_name ?? full.split(' ')[0] ?? '').trim()
-    const last = (meta.family_name ?? full.split(' ').slice(1).join(' ') ?? '').trim()
-    if (first) updates.first_name = first
-    if (last) updates.last_name = last
-  }
+  const { first: metaFirst, last: metaLast } = namesFromUserMetadata(meta)
+  // Fill each blank independently — previously skipped last_name when first_name existed.
+  if (!profile?.first_name?.trim() && metaFirst) updates.first_name = metaFirst
+  if (!profile?.last_name?.trim() && metaLast) updates.last_name = metaLast
 
   if (!profile?.avatar_url) {
     const photo = meta.avatar_url ?? meta.picture

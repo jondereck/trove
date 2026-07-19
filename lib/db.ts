@@ -8,7 +8,7 @@
 import { isLoggedIn } from './session'
 import * as cloud from './cloudDb'
 import * as local from './localDb'
-import { emitDataChange } from './dataEvents'
+import { emitDataChange, emitViewedChange } from './dataEvents'
 import { getTier, hasCloud } from './entitlements'
 import { FREE_SAVE_CAP, FREE_COLLECTION_CAP } from '../constants/limits'
 import type { LibraryPageOptions } from '../types'
@@ -71,7 +71,17 @@ export async function createSave(input: Parameters<typeof cloud.createSave>[0]) 
 }
 export async function updateSave(id: string, updates: Parameters<typeof cloud.updateSave>[1]) {
   const updated = await pick().updateSave(id, updates)
-  if (updated) emitDataChange('saves')
+  if (updated) {
+    // Viewed-only writes must not remount Library cards (blank Image bug on return).
+    const keys = Object.keys(updates).filter(
+      (key) => updates[key as keyof typeof updates] !== undefined,
+    )
+    if (keys.length === 1 && keys[0] === 'is_viewed') {
+      emitViewedChange({ id, is_viewed: updates.is_viewed === true })
+    } else {
+      emitDataChange('saves')
+    }
+  }
   return updated
 }
 export async function deleteSave(id: string) {

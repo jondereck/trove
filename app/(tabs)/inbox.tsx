@@ -53,8 +53,14 @@ export default function InboxScreen() {
     }, [loadData])
   )
 
-  useEffect(() => subscribeDataChanges(() => {
-    loadData().catch(() => {})
+  useEffect(() => subscribeDataChanges((change, payload) => {
+    if (change === 'viewed' && payload) {
+      setSaves(prev => prev.map(s => s.id === payload.id ? { ...s, is_viewed: payload.is_viewed } : s))
+      return
+    }
+    if (change === 'saves' || change === 'collections') {
+      loadData().catch(() => {})
+    }
   }), [loadData])
 
   const onRefresh = useCallback(async () => {

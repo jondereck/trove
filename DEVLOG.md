@@ -4,6 +4,29 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Fix blank unread cards, Settings CTAs, auth flash, last name (2026-07-19)
+**Files:** `lib/db.ts`, `lib/dataEvents.ts`, `lib/dataEvents.test.ts`, `lib/profileCache.ts`,
+`lib/profileName.test.ts`, `lib/auth.ts`, `app/save/[id].tsx`, `app/(tabs)/index.tsx`,
+`app/(tabs)/inbox.tsx`, `app/(tabs)/collections.tsx`, `components/SaveCard.tsx`,
+`app/account.tsx`, `app/(auth)/_layout.tsx`, `app/(auth)/login.tsx`, `app/(auth)/signup.tsx`
+
+**Blank NEW cards:** Marking a save viewed no longer emits a full `saves` reload (which remounted
+Library cards under the detail stack and left blank/white Image views on back). Viewed-only writes
+emit a quiet `viewed` patch; Library/Inbox update `is_viewed` in place. Detail marks viewed on blur
+(leave screen), not on open.
+
+**Settings CTAs:** Removed the guest “Create account to sync” banner/row and “Already have Cloud?
+Sign in” row from Settings. Plan/upgrade flows remain the account entry points.
+
+**Post-login flash:** Auth layout shows a loader while session resolves and redirects when signed in
+instead of mounting the login/signup stack. Login/signup keep their spinner after success until
+navigation unmounts them.
+
+**Last name:** Provider sync and Settings load now fill missing `last_name` independently of
+`first_name` (metadata fallback + persist). Display name uses both names with two-line wrapping.
+
+---
+
 ### Wire automatic daily backup on launch / resume (2026-07-19)
 **Files:** `app/_layout.tsx`
 

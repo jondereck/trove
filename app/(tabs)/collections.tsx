@@ -82,7 +82,8 @@ export default function CollectionsScreen() {
     }, [loadCollections])
   )
 
-  useEffect(() => subscribeDataChanges(() => {
+  useEffect(() => subscribeDataChanges((change) => {
+    if (change === 'viewed') return
     if (showCreate) {
       pendingRefresh.current = true
       return

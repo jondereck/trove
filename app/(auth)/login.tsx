@@ -48,12 +48,13 @@ export default function LoginScreen() {
       password,
     })
 
-    setLoading(false)
     if (error) {
+      setLoading(false)
       setError(error.message)
       return
     }
 
+    // Keep the spinner until navigation unmounts this screen — no form flash.
     clearAuthFlow()
     clearCloudVerifyPending()
     router.replace('/(tabs)')
@@ -63,8 +64,8 @@ export default function LoginScreen() {
     setError('')
     setGoogleLoading(true)
     const { error } = await signInWithGoogle()
-    setGoogleLoading(false)
     if (error) {
+      setGoogleLoading(false)
       setError(error)
       return
     }
@@ -74,7 +75,9 @@ export default function LoginScreen() {
       clearAuthFlow()
       clearCloudVerifyPending()
       router.replace('/(tabs)')
+      return
     }
+    setGoogleLoading(false)
   }
 
   const handleForgotPassword = async () => {

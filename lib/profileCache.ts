@@ -21,6 +21,17 @@ export function clearProfileCache(): void {
   snapshot = null
 }
 
+export function namesFromUserMetadata(meta: Record<string, unknown> | null | undefined): {
+  first: string
+  last: string
+} {
+  const data = meta ?? {}
+  const full = String(data.full_name ?? data.name ?? '').trim()
+  const first = String(data.given_name ?? full.split(' ')[0] ?? '').trim()
+  const last = String(data.family_name ?? full.split(' ').slice(1).join(' ') ?? '').trim()
+  return { first, last }
+}
+
 export function formatProfileName(
   first: string | null | undefined,
   last: string | null | undefined,

@@ -196,9 +196,23 @@ export default function LibraryScreen() {
     }, [filter, loadData])
   )
 
-  useEffect(() => subscribeDataChanges(() => {
-    loadData(false).catch(() => {})
-  }), [loadData])
+  useEffect(() => subscribeDataChanges((change, payload) => {
+    if (change === 'viewed' && payload) {
+      setSaves(prev => {
+        if (filter === 'unread' && payload.is_viewed) {
+          return prev.filter(s => s.id !== payload.id)
+        }
+        return prev.map(s => s.id === payload.id ? { ...s, is_viewed: payload.is_viewed } : s)
+      })
+      if (filter === 'unread' && payload.is_viewed) {
+        setFilteredTotal(t => Math.max(0, t - 1))
+      }
+      return
+    }
+    if (change === 'saves' || change === 'collections') {
+      loadData(false).catch(() => {})
+    }
+  }), [loadData, filter])
 
   useEffect(() => {
     if (skipFilterReload.current) {

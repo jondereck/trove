@@ -15,20 +15,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useFocusEffect } from 'expo-router'
 import Constants from 'expo-constants'
 import { Ionicons } from '@expo/vector-icons'
-import { LinearGradient } from 'expo-linear-gradient'
 import { BRAND } from '../constants/branding'
 import { ColorPalette, FONTS, RADIUS, SPACING } from '../constants/theme'
 import { useColors, useThemedStyles } from '../contexts/ThemeContext'
 import Avatar from '../components/Avatar'
 import { SettingGroup, SettingRow } from '../components/Settings'
 import { fetchCounts, fetchProfile, updateProfile } from '../lib/db'
-import { cacheProfile, clearProfileCache, formatProfileName, peekProfile } from '../lib/profileCache'
+import { cacheProfile, clearProfileCache, formatProfileName, namesFromUserMetadata, peekProfile } from '../lib/profileCache'
 import { supabase } from '../lib/supabase'
 import { isLoggedIn } from '../lib/session'
 import { getTier, subscribeTier } from '../lib/entitlements'
 import { AvatarTooLargeError, pickAndUploadAvatar } from '../lib/storage'
-import { requestAuthFlow } from '../lib/authNavigation'
-import { shouldPromptAccountForCloud, showCloudAccountPrompt } from '../lib/authGate'
 
 const SUPPORT_EMAIL = 'mailto:jonderecknifas@gmail.com?subject=Trove%20support'
 
@@ -74,7 +71,6 @@ export default function AccountScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const cached = peekProfile()
-  const upgradeGradient = [colors.accent, '#7a4f86'] as const
 
   const [loggedIn, setLoggedIn] = useState(isLoggedIn())
   const [tier, setTier] = useState(getTier())
@@ -90,18 +86,43 @@ export default function AccountScreen() {
   const loadProfile = useCallback(async () => {
     const signedIn = isLoggedIn()
     setLoggedIn(signedIn)
+    let userEmail = ''
+    let metaNames = { first: '', last: '' }
     if (signedIn) {
       const { data: { user } } = await supabase.auth.getUser()
-      setEmail(user?.email ?? '')
+      userEmail = user?.email ?? ''
+      metaNames = namesFromUserMetadata(user?.user_metadata as Record<string, unknown> | undefined)
+      setEmail(userEmail)
     } else {
       setEmail('')
       clearProfileCache()
     }
     const profile = await fetchProfile()
-    setFirst(profile?.first_name ?? '')
-    setLast(profile?.last_name ?? '')
+    let nextFirst = profile?.first_name?.trim() || metaNames.first
+    let nextLast = profile?.last_name?.trim() || metaNames.last
+    // Persist provider last/first into profiles when the DB row is missing one side.
+    if (signedIn && profile && (
+      (!profile.first_name?.trim() && nextFirst) ||
+      (!profile.last_name?.trim() && nextLast)
+    )) {
+      const ok = await updateProfile({
+        first_name: nextFirst || profile.first_name,
+        last_name: nextLast || profile.last_name,
+      })
+      if (ok) {
+        const refreshed = await fetchProfile()
+        if (refreshed) {
+          nextFirst = refreshed.first_name?.trim() || nextFirst
+          nextLast = refreshed.last_name?.trim() || nextLast
+          cacheProfile(refreshed)
+        }
+      }
+    } else if (profile) {
+      cacheProfile(profile)
+    }
+    setFirst(nextFirst)
+    setLast(nextLast)
     setAvatarUrl(profile?.avatar_url ?? null)
-    if (profile) cacheProfile(profile)
     setProfileReady(true)
   }, [])
 
@@ -153,22 +174,12 @@ export default function AccountScreen() {
     ])
   }, [])
 
-  const openLogin = useCallback(() => {
-    requestAuthFlow()
-    router.push('/(auth)/login')
-  }, [router])
-
-  const openCloudSignup = useCallback(() => {
-    showCloudAccountPrompt(router, { onNotNow: () => {} })
-  }, [router])
-
   useEffect(() => subscribeTier(setTier), [])
 
   const planLabel = tier === 'cloud' ? 'Cloud' : tier === 'unlocked' ? 'Unlocked' : 'Free'
   const displayName = loggedIn
     ? formatProfileName(first, last, email)
     : 'Guest'
-  const needsCloudAccount = !loggedIn && shouldPromptAccountForCloud()
 
   return (
     <View style={styles.container}>
@@ -226,7 +237,7 @@ export default function AccountScreen() {
             </View>
           ) : profileReady ? (
             <View style={styles.nameBlock}>
-              <Text style={styles.name}>{displayName}</Text>
+              <Text style={styles.name} numberOfLines={2}>{displayName}</Text>
               <Text style={styles.email}>{loggedIn ? email : 'Saving on this device'}</Text>
             </View>
           ) : (
@@ -251,28 +262,6 @@ export default function AccountScreen() {
           )}
         </View>
 
-        {needsCloudAccount && (
-          <TouchableOpacity activeOpacity={0.9} style={styles.bannerWrap} onPress={openCloudSignup}>
-            <LinearGradient
-              colors={upgradeGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.banner}
-            >
-              <View style={styles.bannerIcon}>
-                <Ionicons name="cloud-outline" size={22} color="#fff" />
-              </View>
-              <View style={styles.bannerText}>
-                <Text style={styles.bannerTitle}>Create an account to sync</Text>
-                <Text style={styles.bannerSub}>
-                  Cloud is active — sign in so your library syncs across devices
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#fff" />
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
-
         <SettingGroup title="Account">
           {loggedIn ? (
             <>
@@ -283,22 +272,7 @@ export default function AccountScreen() {
                 onPress={() => router.push('/change-password')}
               />
             </>
-          ) : (
-            <>
-              {needsCloudAccount && (
-                <SettingRow
-                  icon="person-add-outline"
-                  label="Create account to sync"
-                  onPress={openCloudSignup}
-                />
-              )}
-              <SettingRow
-                icon="log-in-outline"
-                label="Already have Cloud? Sign in"
-                onPress={openLogin}
-              />
-            </>
-          )}
+          ) : null}
           <SettingRow icon="sparkles-outline" label="Preference" onPress={() => router.push('/ai-preferences')} />
           <SettingRow icon="notifications-outline" label="Notifications" onPress={() => router.push('/notification-settings')} />
           <SettingRow icon="color-palette-outline" label="Appearance" onPress={() => router.push('/appearance')} last />
@@ -381,7 +355,14 @@ function createStyles(c: ColorPalette) {
     },
     nameBlock: { alignItems: 'center', minHeight: 52, justifyContent: 'center' },
     nameLoader: { marginVertical: SPACING.sm },
-    name: { fontFamily: FONTS.serif, fontSize: 30, color: c.text, lineHeight: 34 },
+    name: {
+      fontFamily: FONTS.serif,
+      fontSize: 30,
+      color: c.text,
+      lineHeight: 34,
+      textAlign: 'center',
+      paddingHorizontal: SPACING.md,
+    },
     email: { fontFamily: FONTS.sans, fontSize: 14, color: c.muted, marginTop: 3 },
     nameInputs: { flexDirection: 'row', gap: 10, width: '100%', maxWidth: 300 },
     nameInput: {
@@ -414,20 +395,6 @@ function createStyles(c: ColorPalette) {
     statValueHighlight: { color: c.accent },
     statLabel: { fontFamily: FONTS.sansSemi, fontSize: 11.5, color: c.muted, marginTop: 4 },
     statDivider: { width: 1, backgroundColor: c.border },
-
-    bannerWrap: { marginHorizontal: SPACING.lg, marginBottom: SPACING.xl, borderRadius: RADIUS.lg, overflow: 'hidden' },
-    banner: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 16, paddingHorizontal: 18 },
-    bannerIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    bannerText: { flex: 1 },
-    bannerTitle: { fontFamily: FONTS.sansBold, fontSize: 15, color: '#fff' },
-    bannerSub: { fontFamily: FONTS.sans, fontSize: 12.5, color: 'rgba(255,255,255,0.85)', marginTop: 1 },
 
     privacyCard: {
       marginHorizontal: SPACING.lg,

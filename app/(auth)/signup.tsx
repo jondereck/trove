@@ -57,8 +57,8 @@ export default function SignupScreen() {
     setError('')
     setGoogleLoading(true)
     const { error } = await signInWithGoogle()
-    setGoogleLoading(false)
     if (error) {
+      setGoogleLoading(false)
       setError(error)
       return
     }
@@ -67,7 +67,9 @@ export default function SignupScreen() {
     if (session) {
       clearAuthFlow()
       router.replace('/(tabs)')
+      return
     }
+    setGoogleLoading(false)
   }
 
   const handleSignUp = async () => {

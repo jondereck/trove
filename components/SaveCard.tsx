@@ -296,6 +296,11 @@ function LinkCard({
   const [imgError, setImgError] = useState(false)
   const [imageUrl, setImageUrl] = useState(save.image_url)
 
+  useEffect(() => {
+    setImageUrl(save.image_url)
+    setImgError(false)
+  }, [save.id, save.image_url])
+
   // Self-heal a missing or broken thumbnail with one throttled OG refetch
   // (repairThumbnail no-ops if this save was already attempted in the last 24h).
   useEffect(() => {
@@ -308,7 +313,7 @@ function LinkCard({
       }
     })
     return () => { alive = false }
-  }, [imgError, imageUrl])
+  }, [imgError, imageUrl, save])
 
   return (
     <>

@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   View, Text, TextInput, ScrollView, TouchableOpacity,
   StyleSheet, Alert, ActivityIndicator, Image, Linking,
-  KeyboardAvoidingView, Platform, InteractionManager,
+  KeyboardAvoidingView, Platform,
 } from 'react-native'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { ColorPalette, FONTS, SPACING, RADIUS } from '../../constants/theme'
@@ -12,7 +12,6 @@ import { useColors, useThemedStyles } from '../../contexts/ThemeContext'
 import { DEFAULT_COLLECTION_ICON, IoniconName } from '../../constants/icons'
 import { Save, Collection } from '../../types'
 import { fetchSaveById, updateSave, deleteSave, fetchCollections } from '../../lib/db'
-import { deferMarkSaveViewed } from '../../lib/saveViewed'
 import { repairThumbnail } from '../../lib/thumbnailRepair'
 import { syncDigestNotification } from '../../lib/digestNotifications'
 import SaveVideoPlayer from '../../components/SaveVideoPlayer'
@@ -53,6 +52,8 @@ export default function SaveDetailScreen() {
   const [selectedCollection, setSelectedCollection] = useState<string | undefined>()
   const [refreshingPreview, setRefreshingPreview] = useState(false)
   const mountedRef = useRef(true)
+  const saveRef = useRef<Save | null>(null)
+  saveRef.current = save
 
   const load = useCallback(async () => {
     const [s, cols] = await Promise.all([fetchSaveById(id), fetchCollections()])
@@ -73,18 +74,20 @@ export default function SaveDetailScreen() {
     return () => { mountedRef.current = false }
   }, [])
 
-  useEffect(() => {
-    if (!save || save.is_viewed !== false) return
-
-    deferMarkSaveViewed({
-      isUnread: true,
-      saveId: save.id,
-      markViewed: (saveId) => updateSave(saveId, { is_viewed: true }),
-      runAfterInteractions: InteractionManager.runAfterInteractions,
-      onPersisted: () => setSave(prev => prev ? { ...prev, is_viewed: true } : prev),
-      isMounted: () => mountedRef.current,
-    })
-  }, [save?.id, save?.is_viewed])
+  // Mark viewed when leaving the detail screen so Library does not remount mid-push.
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        const current = saveRef.current
+        if (!current || current.is_viewed !== false) return
+        void updateSave(current.id, { is_viewed: true }).then(ok => {
+          if (ok && mountedRef.current) {
+            setSave(prev => prev ? { ...prev, is_viewed: true } : prev)
+          }
+        })
+      }
+    }, []),
+  )
 
   const handleSave = async () => {
     if (!save) return
