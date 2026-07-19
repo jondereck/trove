@@ -5,6 +5,7 @@ import {
   mergeNotificationEntries,
   type NotificationLogEntry,
 } from './notificationLogCore'
+import { getSettings } from './settings'
 
 const STORAGE_KEY = 'trove.notification-log.v1'
 const listeners = new Set<() => void>()
@@ -61,9 +62,20 @@ export async function getNotificationLog(): Promise<NotificationLogEntry[]> {
 export async function recordNotification(
   notification: Notifications.Notification,
 ): Promise<NotificationLogEntry[]> {
+  let entry = fromNotification(notification)
+  if (entry.title === 'Trove Inbox') {
+    const settings = await getSettings()
+    if (settings.digestEnabled) {
+      entry = { ...entry, cadence: settings.digestCadence }
+    }
+  }
   return updateStored(entries =>
-    mergeNotificationEntries(entries, [fromNotification(notification)]),
+    mergeNotificationEntries(entries, [entry]),
   )
+}
+
+export async function clearNotificationLog(): Promise<NotificationLogEntry[]> {
+  return updateStored(() => [])
 }
 
 export async function syncPresentedNotifications(): Promise<NotificationLogEntry[]> {

@@ -7,6 +7,7 @@ export interface NotificationLogEntry {
   date: string
   read: boolean
   screen?: 'inbox'
+  cadence?: 'daily' | 'weekly'
 }
 
 export function mergeNotificationEntries(

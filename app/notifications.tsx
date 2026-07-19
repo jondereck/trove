@@ -11,10 +11,12 @@ import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ColorPalette, FONTS, RADIUS, SPACING } from '../constants/theme'
+import { DANGER } from '../components/Settings'
 import { useColors, useThemedStyles } from '../contexts/ThemeContext'
 import {
   markAllNotificationsRead,
   syncPresentedNotifications,
+  clearNotificationLog,
 } from '../lib/notificationLog'
 import type { NotificationLogEntry } from '../lib/notificationLogCore'
 
@@ -25,6 +27,18 @@ function formatDate(value: string): string {
   return sameDay
     ? date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
     : date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+}
+
+function formatEntryMeta(entry: NotificationLogEntry): string {
+  const date = new Date(entry.date)
+  const cadenceLabel = entry.cadence === 'daily'
+    ? 'Daily'
+    : entry.cadence === 'weekly'
+      ? 'Weekly'
+      : 'Update'
+  const datePart = date.toLocaleDateString([], { day: 'numeric', month: 'short' })
+  const timePart = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  return `${cadenceLabel} · ${datePart}, ${timePart}`
 }
 
 export default function NotificationsScreen() {
@@ -65,6 +79,10 @@ export default function NotificationsScreen() {
     if (entry.screen === 'inbox') router.push('/(tabs)/inbox')
   }
 
+  const handleClearAll = () => {
+    void clearNotificationLog().then(setEntries)
+  }
+
   return (
     <View style={styles.container}>
       <View style={[styles.topBar, insetStyles.topBar]}>
@@ -77,7 +95,19 @@ export default function NotificationsScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.accent} />
         </TouchableOpacity>
         <Text style={styles.topTitle}>Notifications</Text>
-        <View style={styles.topSpacer} />
+        {entries.length > 0 ? (
+          <TouchableOpacity
+            style={styles.clearBtn}
+            onPress={handleClearAll}
+            activeOpacity={0.7}
+            accessibilityLabel="Clear all notifications"
+          >
+            <Ionicons name="close" size={14} color={DANGER} />
+            <Text style={styles.clearBtnText}>Clear all</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.topSpacer} />
+        )}
       </View>
 
       <ScrollView
@@ -117,6 +147,7 @@ export default function NotificationsScreen() {
                 />
               </View>
               <View style={styles.cardText}>
+                <Text style={styles.cardMeta}>{formatEntryMeta(entry)}</Text>
                 <View style={styles.cardHeader}>
                   <Text style={[styles.cardTitle, !entry.read && styles.cardTitleUnread]}>
                     {entry.title}
@@ -162,6 +193,22 @@ function createStyles(c: ColorPalette) {
     },
     topSpacer: {
       width: 44,
+    },
+    clearBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: SPACING.sm,
+      paddingVertical: 6,
+      borderRadius: RADIUS.sm,
+      borderWidth: 1,
+      borderColor: c.bg === '#121110' ? '#4a2e28' : '#f0d4cc',
+      backgroundColor: c.bg === '#121110' ? '#2a1e1a' : '#fdf0ec',
+    },
+    clearBtnText: {
+      fontFamily: FONTS.sansSemi,
+      fontSize: 12,
+      color: DANGER,
     },
     content: {
       paddingHorizontal: SPACING.lg,
@@ -226,6 +273,12 @@ function createStyles(c: ColorPalette) {
     },
     cardText: {
       flex: 1,
+    },
+    cardMeta: {
+      fontFamily: FONTS.sans,
+      fontSize: 11,
+      color: c.muted,
+      marginBottom: 2,
     },
     cardHeader: {
       flexDirection: 'row',
