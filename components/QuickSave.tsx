@@ -26,6 +26,7 @@ import { SaveType, OGMetadata, AISuggestion, Collection } from '../types'
 import { fetchOGMetadata, suggestForSave, suggestNoteTitle } from '../lib/ai'
 import { fetchCollections, findSaveByUrl } from '../lib/db'
 import { prepareMediaForUpload, uploadMedia } from '../lib/storage'
+import { uploadImageBatch, MAX_BATCH_IMAGES } from '../lib/batchMediaUpload'
 import { getSettings } from '../lib/settings'
 import { generateVideoThumbnailUri } from '../lib/videoThumb'
 import { extractTextFromImage } from '../lib/ocr'
@@ -220,12 +221,53 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
       return
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
+    const pickerOptions: ImagePicker.ImagePickerOptions = {
       mediaTypes: kind === 'video' ? ['videos'] : ['images'],
       quality: 0.8,
       base64: true,
-    })
+    }
+    if (kind === 'image') {
+      pickerOptions.allowsMultipleSelection = true
+      pickerOptions.selectionLimit = MAX_BATCH_IMAGES
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync(pickerOptions)
     if (result.canceled || !result.assets?.length) return
+
+    if (kind === 'image' && result.assets.length > 1) {
+      setStep('loading')
+      const { uploaded, failures } = await uploadImageBatch(result.assets, (done, total) => {
+        setLoadingStatus(`Uploading ${done} of ${total}…`)
+      })
+
+      for (const item of uploaded) {
+        const baseName = item.fileName?.replace(/\.[^.]+$/, '') || 'Photo'
+        await onSave?.({
+          url: '',
+          type: 'image',
+          title: baseName,
+          description: '',
+          imageUrl: item.publicUrl,
+          collection: '',
+          tags: [],
+        })
+      }
+
+      if (uploaded.length > 0 && failures.length === 0) {
+        onClose()
+        return
+      }
+
+      if (uploaded.length > 0 && failures.length > 0) {
+        setError(`${failures.length} photo(s) skipped. ${failures[0].message}`)
+        onClose()
+        return
+      }
+
+      setError(failures[0]?.message ?? 'Could not upload the selected photos.')
+      setStep('input')
+      return
+    }
 
     const asset = result.assets[0]
     setStep('loading')
