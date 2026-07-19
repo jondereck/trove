@@ -41,6 +41,11 @@ import {
   getUnreadNotificationCount,
   subscribeNotificationLog,
 } from '../../lib/notificationLog'
+import {
+  cacheLibrarySnapshot,
+  loadLibraryCache,
+  peekLibraryCache,
+} from '../../lib/libraryCache'
 
 type LibraryView = 'grid' | 'list'
 
@@ -61,17 +66,19 @@ function getGreeting(): string {
   return 'Good evening'
 }
 
+const initialCache = peekLibraryCache()
+
 export default function LibraryScreen() {
   const colors = useColors()
   const styles = useThemedStyles(createStyles)
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const [saves, setSaves] = useState<Save[]>([])
-  const [libraryTotal, setLibraryTotal] = useState(0)
-  const [filteredTotal, setFilteredTotal] = useState(0)
-  const [inboxSaves, setInboxSaves] = useState<Save[]>([])
-  const [collections, setCollections] = useState<Collection[]>([])
-  const [loading, setLoading] = useState(true)
+  const [saves, setSaves] = useState<Save[]>(initialCache?.saves ?? [])
+  const [libraryTotal, setLibraryTotal] = useState(initialCache?.libraryTotal ?? 0)
+  const [filteredTotal, setFilteredTotal] = useState(initialCache?.filteredTotal ?? 0)
+  const [inboxSaves, setInboxSaves] = useState<Save[]>(initialCache?.inboxSaves ?? [])
+  const [collections, setCollections] = useState<Collection[]>(initialCache?.collections ?? [])
+  const [loading, setLoading] = useState(!initialCache)
   const [loadingMore, setLoadingMore] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const cachedProfile = peekProfile()
@@ -128,6 +135,41 @@ export default function LibraryScreen() {
     if (showSpinner) setLoading(false)
   }, [loadMeta, loadLibraryPage])
 
+  const persistCache = useCallback((
+    nextSaves: Save[],
+    nextLibraryTotal: number,
+    nextFilteredTotal: number,
+    nextInbox: Save[],
+    nextCollections: Collection[],
+  ) => {
+    void cacheLibrarySnapshot({
+      saves: nextSaves,
+      libraryTotal: nextLibraryTotal,
+      filteredTotal: nextFilteredTotal,
+      inboxSaves: nextInbox,
+      collections: nextCollections,
+      filter,
+      cachedAt: new Date().toISOString(),
+    })
+  }, [filter])
+
+  useEffect(() => {
+    void loadLibraryCache().then(cached => {
+      if (!cached || cached.filter !== filter) return
+      setSaves(cached.saves)
+      setLibraryTotal(cached.libraryTotal)
+      setFilteredTotal(cached.filteredTotal)
+      setInboxSaves(cached.inboxSaves)
+      setCollections(cached.collections)
+      setLoading(false)
+    })
+  }, [filter])
+
+  useEffect(() => {
+    if (!initialLoadDone.current) return
+    void persistCache(saves, libraryTotal, filteredTotal, inboxSaves, collections)
+  }, [saves, libraryTotal, filteredTotal, inboxSaves, collections, persistCache])
+
   useEffect(() => {
     getSettings().then(s => setViewMode(s.libraryView ?? 'grid'))
   }, [])
@@ -144,11 +186,14 @@ export default function LibraryScreen() {
     useCallback(() => {
       if (!initialLoadDone.current) {
         initialLoadDone.current = true
+        const cached = peekLibraryCache()
+        if (cached && cached.filter === filter) {
+          setLoading(false)
+          return
+        }
         loadData(true)
-      } else {
-        loadData(false)
       }
-    }, [loadData])
+    }, [filter, loadData])
   )
 
   useEffect(() => subscribeDataChanges(() => {

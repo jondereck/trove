@@ -27,6 +27,7 @@ import { supabase } from '../lib/supabase'
 import { isOnboardingDismissed, subscribeOnboarding } from '../lib/firstLaunch'
 import { hasLocalData } from '../lib/localDb'
 import { migrateLocalToCloud } from '../lib/migrateLocal'
+import { clearLibraryCache } from '../lib/libraryCache'
 import { syncProviderProfile } from '../lib/auth'
 import {
   clearAuthFlow,
@@ -246,6 +247,7 @@ export default function RootLayout() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
       if (event === 'SIGNED_IN') {
+        void clearLibraryCache()
         clearAuthFlow()
         syncProviderProfile()
         const linkThenMigrate = session?.user.id
@@ -256,6 +258,7 @@ export default function RootLayout() {
           .then(() => maybeVerifyCloudAfterSignIn(router))
       }
       if (event === 'SIGNED_OUT') {
+        void clearLibraryCache()
         clearCloudVerifyPending()
         logOutPurchases()
         clearProfileCache()
