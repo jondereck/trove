@@ -17,13 +17,13 @@ describe('shouldScheduleCountDigest', () => {
 describe('buildUnreadDigestContent', () => {
   it('uses singular copy and library-unread deep link', () => {
     const c = buildUnreadDigestContent(1)
-    assert.equal(c.title, 'Unopened in Trove')
-    assert.equal(c.body, 'You have 1 save you have not opened yet')
+    assert.equal(c.title, 'New in Trove')
+    assert.equal(c.body, 'You have 1 new save to open')
     assert.deepEqual(c.data, { screen: 'library-unread' })
   })
 
   it('uses plural copy', () => {
-    assert.equal(buildUnreadDigestContent(4).body, 'You have 4 saves you have not opened yet')
+    assert.equal(buildUnreadDigestContent(4).body, 'You have 4 new saves to open')
   })
 })
 

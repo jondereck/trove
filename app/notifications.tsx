@@ -132,7 +132,7 @@ export default function NotificationsScreen() {
             </View>
             <Text style={styles.emptyTitle}>All caught up</Text>
             <Text style={styles.emptyText}>
-              Inbox and unopened reminders will appear here.
+              Inbox and new-saves reminders will appear here.
             </Text>
           </View>
         ) : (

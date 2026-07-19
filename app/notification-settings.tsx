@@ -148,13 +148,13 @@ export default function NotificationSettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.sectionHint}>
-          Local reminders on this device. No account required. Inbox covers unsorted items; Unopened covers saves you have not opened yet. Both share the schedule below.
+          Local reminders on this device. No account required. Inbox covers unsorted items; New saves covers ones you have not opened yet. Both share the schedule below.
         </Text>
 
         <SettingGroup title="Reminders">
           <SettingRow
             icon="file-tray-outline"
-            label="Inbox digest"
+            label="Inbox reminder"
             hint="Unsorted saves waiting to be filed"
             toggle
             on={!!settings?.digestEnabled}
@@ -162,8 +162,8 @@ export default function NotificationSettingsScreen() {
           />
           <SettingRow
             icon="eye-outline"
-            label="Unopened digest"
-            hint="Saves marked NEW you have not opened"
+            label="New saves reminder"
+            hint="Remind me about saves I haven't opened yet"
             toggle
             on={!!settings?.unreadDigestEnabled}
             onPress={toggleUnread}

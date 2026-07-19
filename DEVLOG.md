@@ -14,9 +14,10 @@ Running record of changes, fixes, and decisions. Most recent first.
 `app/notifications.tsx`, `app/_layout.tsx`, `app/(tabs)/index.tsx`, `app/save/[id].tsx`,
 `components/QuickSave.tsx`
 
-Added an opt-in **Unopened digest** beside Inbox digest (shared hour/cadence). Counts
+Added an opt-in **New saves reminder** beside Inbox reminder (shared hour/cadence). Counts
 `is_viewed === false` library-wide; taps deep-link to Library with the Unread filter via a
 one-shot intent. Still local-only via `expo-notifications` — no remote push. Default off.
+Copy uses plain language (“New saves reminder” / “New in Trove”) instead of “digest”.
 
 ---
 

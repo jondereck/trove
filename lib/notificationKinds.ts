@@ -18,8 +18,8 @@ export function buildInboxDigestContent(count: number) {
 export function buildUnreadDigestContent(count: number) {
   const noun = count === 1 ? 'save' : 'saves'
   return {
-    title: 'Unopened in Trove',
-    body: `You have ${count} ${noun} you have not opened yet`,
+    title: 'New in Trove',
+    body: `You have ${count} new ${noun} to open`,
     data: { screen: 'library-unread' as const },
   }
 }
