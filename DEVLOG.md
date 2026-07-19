@@ -4,6 +4,16 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Fix search: partial tags + case-insensitive cloud fallback (2026-07-19)
+**Files:** `lib/searchMatch.ts`, `lib/cloudDb.ts`, `lib/localDb.ts`
+
+Cloud search fell back to `tags.cs.{term}` (exact array contains), so querying `hair`
+never returned a save tagged `haircut` when the title didn't also contain "hair". Now:
+shared `rankSavesByTerms` does substring + case-insensitive matching; when the RPC is
+missing or returns empty, we scan recent saves client-side instead of the exact-tag filter.
+
+---
+
 ### Gallery share — photos and videos from system share sheet (2026-07-19)
 **Files:** `app.json`, `lib/shareMedia.ts`, `lib/shareMediaCore.ts`, `app/share.tsx`
 

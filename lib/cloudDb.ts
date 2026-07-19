@@ -3,7 +3,7 @@ import { Save, Collection, LibraryFilter, LibraryPageOptions, LibraryPageResult 
 import { getUserId } from './session'
 import { normalizeUrl } from './url'
 import { dbErrorSummary, isMissingViewedColumn } from './cloudDbColumns'
-import { fieldMatchesTerm, tagMatchesTerm } from './searchMatch'
+import { rankSavesByTerms } from './searchMatch'
 
 // Pin columns (`is_pinned`) are optional until supabase/add-pinned.sql is run.
 // Probed once per session; queries fall back to created_at/name ordering.
@@ -204,41 +204,25 @@ export async function searchSaves(query: string): Promise<Save[]> {
   const terms = tokenizeSearchQuery(query)
   if (!terms.length) return []
 
-  // Ranked search: title > tags > description/content > url, every term must
-  // match somewhere. Requires supabase/search-upgrade.sql to have been run.
+  // Prefer the ranked RPC when available (full library, server-side).
   const { data, error } = await supabase.rpc('search_saves', { terms })
-  if (!error) return (data ?? []) as Save[]
+  if (!error) {
+    const ranked = rankSavesByTerms((data ?? []) as Save[], terms)
+    // Non-empty RPC results are trusted. Empty may mean an older/incomplete
+    // RPC missed partial tag matches (hair → haircut) — fall through.
+    if (ranked.length > 0) return ranked
+  }
 
-  // Migration not run yet — fall back to the legacy OR ilike query.
-  const conditions = terms
-    .map(sanitizeFilterTerm)
-    .filter(Boolean)
-    .flatMap(w => [
-      `title.ilike.%${w}%`,
-      `description.ilike.%${w}%`,
-      `content.ilike.%${w}%`,
-      `url.ilike.%${w}%`,
-      `tags.cs.{${w}}`,
-    ])
-    .join(',')
-  if (!conditions) return []
-
-  const { data: fallback, error: fbError } = await supabase
+  // Broad client-side fallback: fetch recent saves and match with partial,
+  // case-insensitive tag/title rules. Covers missing RPC and exact-only
+  // PostgREST tag filters (tags.cs) that miss "hair" vs "haircut".
+  const { data: rows, error: fbError } = await supabase
     .from('saves')
     .select('*')
-    .or(conditions)
     .order('created_at', { ascending: false })
-    .limit(50)
+    .limit(500)
   if (fbError) { console.error('searchSaves:', fbError.message); return [] }
-  return ((fallback ?? []) as Save[]).filter(save =>
-    terms.every(term =>
-      fieldMatchesTerm(term, save.title)
-      || tagMatchesTerm(term, save.tags)
-      || fieldMatchesTerm(term, save.description)
-      || fieldMatchesTerm(term, save.content)
-      || fieldMatchesTerm(term, save.url)
-    ),
-  )
+  return rankSavesByTerms((rows ?? []) as Save[], terms)
 }
 
 export async function searchCollections(query: string): Promise<Collection[]> {

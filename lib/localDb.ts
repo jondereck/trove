@@ -3,7 +3,7 @@ import * as Crypto from 'expo-crypto'
 import { Save, Collection, LibraryFilter, LibraryPageOptions, LibraryPageResult } from '../types'
 import { normalizeUrl } from './url'
 import { tokenizeSearchQuery, type Profile } from './cloudDb'
-import { fieldMatchesTerm, tagMatchesTerm } from './searchMatch'
+import { rankSavesByTerms } from './searchMatch'
 
 // Device-local data layer (AsyncStorage) — used when no user is signed in.
 // Mirrors lib/cloudDb.ts function-for-function so lib/db.ts can route between
@@ -119,35 +119,7 @@ export const fetchSavesByCollection = fetchCollectionSaves
 export async function searchSaves(query: string): Promise<Save[]> {
   const terms = tokenizeSearchQuery(query)
   if (!terms.length) return []
-
-  const saves = await loadSaves()
-
-  const scored: { save: Save; score: number }[] = []
-  for (const s of saves) {
-    const title = s.title.toLowerCase()
-    const description = (s.description ?? '').toLowerCase()
-    const content = (s.content ?? '').toLowerCase()
-    const url = (s.url ?? '').toLowerCase()
-
-    let score = 0
-    let allMatch = true
-    for (const w of terms) {
-      let termScore = 0
-      if (fieldMatchesTerm(w, title)) termScore += 4
-      if (tagMatchesTerm(w, s.tags)) termScore += 3
-      if (fieldMatchesTerm(w, description)) termScore += 2
-      if (fieldMatchesTerm(w, content)) termScore += 2
-      if (fieldMatchesTerm(w, url)) termScore += 1
-      if (termScore === 0) { allMatch = false; break }
-      score += termScore
-    }
-    if (allMatch) scored.push({ save: s, score })
-  }
-
-  return scored
-    .sort((a, b) => b.score - a.score || byNewest(a.save, b.save))
-    .slice(0, 50)
-    .map(x => x.save)
+  return rankSavesByTerms(await loadSaves(), terms)
 }
 
 export async function searchCollections(query: string): Promise<Collection[]> {
