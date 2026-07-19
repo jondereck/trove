@@ -4,6 +4,33 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Bugfix sprint — auth, cache, search, uploads, notifications, preferences (2026-07-19)
+**Files:** `app/(auth)/login.tsx`, `app/(auth)/signup.tsx`, `lib/libraryCache.ts`,
+`app/(tabs)/index.tsx`, `lib/searchMatch.ts`, `lib/batchMediaUpload.ts`,
+`components/QuickSave.tsx`, `app/notifications.tsx`, `lib/notificationLog.ts`,
+`lib/settings.ts`, `app/ai-preferences.tsx`, `app/account.tsx`, `app/(tabs)/_layout.tsx`
+
+**Auth:** Login, Google sign-in, and immediate-session sign-up now call `router.replace('/(tabs)')`
+right after success so the auth screen does not linger.
+
+**Library cache:** AsyncStorage snapshot (`lib/libraryCache.ts`) hydrates the Library on cold start;
+tab refocus no longer silently refetches. Pull-to-refresh and data-change events still reload.
+Cache clears on sign-in/sign-out.
+
+**Search:** Shared `tagMatchesTerm` helper — partial tag match (e.g. `hair` finds tag `haircut`).
+Cloud fallback re-filters client-side; SQL RPC updated for per-tag `ilike`.
+
+**Multi-image upload:** QuickSave image picker supports up to 10 photos at once; each file still
+respects the 5 MB image cap.
+
+**Notifications:** History screen gets Clear all, Daily/Weekly meta labels on digest entries.
+
+**Preferences:** Renamed AI preferences → Preference; new clipboard auto-fill toggle (default on).
+
+**Privacy:** Privacy notice card added to Account/Settings.
+
+---
+
 ### Fix pins not persisting: missing DB columns + stale card pin state (2026-07-17)
 **Files:** `components/SaveCard.tsx`, `app/(tabs)/collections.tsx`, Supabase migration `add_pinned_columns`
 
