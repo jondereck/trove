@@ -205,34 +205,38 @@ export default function SaveCard({ save, onPress, onLongPress, selected, onFavor
   }
 
   return (
-    <Animated.View style={[
-      styles.card,
-      {
-        transform: [{ scale }],
-        backgroundColor: isUnread ? colors.accentSoft : colors.card,
-        borderColor: isUnread ? colors.accentBorder : colors.border,
-      },
-      save.type === 'note' && !isUnread && [styles.cardNote, { backgroundColor: colors.cream, borderColor: colors.border }],
-      isUnread && { borderLeftWidth: 4, borderLeftColor: colors.accent },
-      selected && [styles.cardSelected, { borderColor: colors.accent }],
-    ]}>
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: isUnread ? colors.accentSoft : colors.card,
+          borderColor: isUnread ? colors.accentBorder : colors.border,
+        },
+        save.type === 'note' && !isUnread && [styles.cardNote, { backgroundColor: colors.cream, borderColor: colors.border }],
+        selected && [styles.cardSelected, { borderColor: colors.accent }],
+      ]}
+    >
+      {/* Absolute stripe — never toggle borderLeftWidth (Android blank-card bug). */}
+      {isUnread ? <View style={[styles.unreadStripe, { backgroundColor: colors.accent }]} /> : null}
       {isUnread ? (
         <View style={[styles.newBadge, { backgroundColor: colors.accent }]}>
           <Text style={styles.newBadgeText}>NEW</Text>
         </View>
       ) : null}
-      <Pressable onPress={onPress} onLongPress={onLongPress} onPressIn={onPressIn} onPressOut={onPressOut}>
-        {layout === 'list' ? (
-          <ListCard save={save} isUnread={isUnread} onOpenLink={openLink} colors={colors} />
-        ) : (
-          <>
-            {save.type === 'link' && <LinkCard save={save} isUnread={isUnread} onOpenLink={openLink} colors={colors} />}
-            {save.type === 'note' && <NoteCard save={save} isUnread={isUnread} colors={colors} />}
-            {save.type === 'image' && <ImageCard save={save} isUnread={isUnread} colors={colors} />}
-            {save.type === 'video' && <VideoCard save={save} isUnread={isUnread} colors={colors} />}
-          </>
-        )}
-      </Pressable>
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <Pressable onPress={onPress} onLongPress={onLongPress} onPressIn={onPressIn} onPressOut={onPressOut}>
+          {layout === 'list' ? (
+            <ListCard save={save} isUnread={isUnread} onOpenLink={openLink} colors={colors} />
+          ) : (
+            <>
+              {save.type === 'link' && <LinkCard save={save} isUnread={isUnread} onOpenLink={openLink} colors={colors} />}
+              {save.type === 'note' && <NoteCard save={save} isUnread={isUnread} colors={colors} />}
+              {save.type === 'image' && <ImageCard save={save} isUnread={isUnread} colors={colors} />}
+              {save.type === 'video' && <VideoCard save={save} isUnread={isUnread} colors={colors} />}
+            </>
+          )}
+        </Pressable>
+      </Animated.View>
 
       {/* Pin + favorite */}
       {!inSelectionMode && (
@@ -274,7 +278,7 @@ export default function SaveCard({ save, onPress, onLongPress, selected, onFavor
           </View>
         </View>
       )}
-    </Animated.View>
+    </View>
   )
 }
 
@@ -313,7 +317,9 @@ function LinkCard({
       }
     })
     return () => { alive = false }
-  }, [imgError, imageUrl, save])
+    // Intentionally depend on id + image flags only — a new `save` object on
+    // viewed patches must not re-trigger repair and blank the hero.
+  }, [imgError, imageUrl, save.id])
 
   return (
     <>
@@ -553,6 +559,14 @@ function createStyles(c: ColorPalette) {
   },
   cardSelected: {
     borderWidth: 2,
+  },
+  unreadStripe: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+    zIndex: 2,
   },
   newBadge: {
     position: 'absolute',

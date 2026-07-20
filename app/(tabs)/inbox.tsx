@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   View,
   Text,
@@ -40,6 +40,7 @@ export default function InboxScreen() {
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showMoveModal, setShowMoveModal] = useState(false)
+  const initialLoadDone = useRef(false)
 
   const loadData = useCallback(async () => {
     const [inboxSaves, cols] = await Promise.all([fetchInboxSaves(), fetchCollections()])
@@ -49,7 +50,12 @@ export default function InboxScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadData().finally(() => setLoading(false))
+      // First visit loads; returning from detail must not remount the grid
+      // (Android blanks SaveCard Images when the list fully reloads mid-stack).
+      if (!initialLoadDone.current) {
+        initialLoadDone.current = true
+        loadData().finally(() => setLoading(false))
+      }
     }, [loadData])
   )
 

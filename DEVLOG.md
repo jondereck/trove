@@ -4,6 +4,18 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Fix blank SaveCards after opening unread (Android) (2026-07-20)
+**Files:** `components/SaveCard.tsx`, `app/(tabs)/inbox.tsx`
+
+Unread → read was toggling `borderLeftWidth` on an `Animated.View` that also used
+native-driver scale transforms, which blanks the entire card subtree on Android
+(empty white cards in Unsorted/Library). Fix: keep chrome on a plain `View`, move
+scale to an inner animated wrapper, and draw the NEW accent as an absolute stripe.
+Inbox no longer full-reloads on every focus (only first mount + pull/events), so
+returning from detail does not remount the masonry grid.
+
+---
+
 ### Helpful local notifications — unread digest (2026-07-19)
 **Files:** `lib/notificationKinds.ts`, `lib/notificationKinds.test.ts`, `lib/notificationScheduler.ts`,
 `lib/notificationScheduler.test.ts`, `lib/unreadCount.ts`, `lib/unreadCount.test.ts`,
