@@ -4,6 +4,7 @@ import { Save, Collection, LibraryFilter, LibraryPageOptions, LibraryPageResult 
 import { normalizeUrl } from './url'
 import { tokenizeSearchQuery, type Profile } from './cloudDb'
 import { rankSavesByTerms } from './searchMatch'
+import { countUnreadLibrarySaves } from './unreadCount'
 
 // Device-local data layer (AsyncStorage) — used when no user is signed in.
 // Mirrors lib/cloudDb.ts function-for-function so lib/db.ts can route between
@@ -97,6 +98,11 @@ export async function fetchInboxSaves(): Promise<Save[]> {
 export async function fetchInboxUnreadCount(): Promise<number> {
   const saves = await loadSaves()
   return saves.filter(s => s.is_inbox && s.is_viewed === false).length
+}
+
+export async function fetchUnreadLibraryCount(): Promise<number> {
+  const saves = await loadSaves()
+  return countUnreadLibrarySaves(saves)
 }
 
 export async function fetchSave(id: string): Promise<Save | null> {

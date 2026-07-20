@@ -2,9 +2,15 @@ import { Platform } from 'react-native'
 import * as Notifications from 'expo-notifications'
 import { fetchInboxSaves } from './db'
 import { getSettings, type DigestCadence, type Settings } from './settings'
+import {
+  DIGEST_CHANNEL_ID,
+  INBOX_DIGEST_ID,
+  buildInboxDigestContent,
+} from './notificationKinds'
+import { decideScheduleDigest } from './notificationScheduler'
 
-export const DIGEST_NOTIFICATION_ID = 'trove-inbox-digest'
-export const DIGEST_CHANNEL_ID = 'digests'
+export const DIGEST_NOTIFICATION_ID = INBOX_DIGEST_ID
+export { DIGEST_CHANNEL_ID }
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -16,7 +22,7 @@ Notifications.setNotificationHandler({
   }),
 })
 
-async function ensureAndroidChannel() {
+export async function ensureDigestAndroidChannel() {
   if (Platform.OS !== 'android') return
   await Notifications.setNotificationChannelAsync(DIGEST_CHANNEL_ID, {
     name: 'Digests',
@@ -37,7 +43,7 @@ export async function requestDigestPermissions(): Promise<boolean> {
 export async function cancelDigestNotification() {
   if (Platform.OS === 'web') return
   try {
-    await Notifications.cancelScheduledNotificationAsync(DIGEST_NOTIFICATION_ID)
+    await Notifications.cancelScheduledNotificationAsync(INBOX_DIGEST_ID)
   } catch {
     // ignore — may not be scheduled
   }
@@ -48,7 +54,7 @@ function weekdayForExpo(digestWeekday: number): number {
   return ((digestWeekday % 7) + 7) % 7 + 1
 }
 
-function buildTrigger(settings: Settings): Notifications.NotificationTriggerInput {
+export function buildDigestTrigger(settings: Settings): Notifications.NotificationTriggerInput {
   const hour = Math.min(23, Math.max(0, settings.digestHour))
   if (settings.digestCadence === 'daily') {
     return {
@@ -74,28 +80,27 @@ export async function syncDigestNotification(override?: Partial<Settings>): Prom
 
   const settings = { ...(await getSettings()), ...override }
   await cancelDigestNotification()
-
   if (!settings.digestEnabled) return
+
+  const inbox = await fetchInboxSaves()
+  const count = inbox.length
+  if (decideScheduleDigest({ enabled: true, count }) === 'skip') return
 
   const permitted = await requestDigestPermissions()
   if (!permitted) return
 
-  const inbox = await fetchInboxSaves()
-  const count = inbox.length
-  if (count === 0) return
+  await ensureDigestAndroidChannel()
 
-  await ensureAndroidChannel()
-
-  const noun = count === 1 ? 'item' : 'items'
+  const content = buildInboxDigestContent(count)
   await Notifications.scheduleNotificationAsync({
-    identifier: DIGEST_NOTIFICATION_ID,
+    identifier: INBOX_DIGEST_ID,
     content: {
-      title: 'Trove Inbox',
-      body: `You have ${count} unsorted ${noun}`,
-      data: { screen: 'inbox' },
+      title: content.title,
+      body: content.body,
+      data: content.data,
       ...(Platform.OS === 'android' ? { channelId: DIGEST_CHANNEL_ID } : {}),
     },
-    trigger: buildTrigger(settings),
+    trigger: buildDigestTrigger(settings),
   })
 }
 

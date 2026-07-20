@@ -45,8 +45,9 @@ import {
   restorePurchases,
   subscribeTier,
 } from '../lib/entitlements'
-import { syncDigestNotification } from '../lib/digestNotifications'
+import { syncAllDigestNotifications } from '../lib/notificationsSync'
 import { recordNotification, syncPresentedNotifications } from '../lib/notificationLog'
+import { setLibraryFilterIntent } from '../lib/libraryFilterIntent'
 import { runAutoBackupIfDue } from '../lib/autoBackup'
 
 SplashScreen.preventAutoHideAsync()
@@ -149,19 +150,26 @@ function RootNavigator({ session, hasData, dismissed, fontsLoaded, fontError }: 
   useEffect(() => {
     if (Platform.OS === 'web') return
 
-    const goInbox = (response: Notifications.NotificationResponse | null) => {
+    const openFromNotification = (response: Notifications.NotificationResponse | null) => {
       if (!response) return
       const id = `${response.notification.request.identifier}:${response.notification.date}`
       if (handledNotification.current === id) return
       void recordNotification(response.notification)
       const data = response.notification.request.content.data as { screen?: string } | undefined
-      if (data?.screen !== 'inbox') return
-      handledNotification.current = id
-      router.push('/(tabs)/inbox')
+      if (data?.screen === 'inbox') {
+        handledNotification.current = id
+        router.push('/(tabs)/inbox')
+        return
+      }
+      if (data?.screen === 'library-unread') {
+        handledNotification.current = id
+        setLibraryFilterIntent('unread')
+        router.push('/(tabs)')
+      }
     }
 
-    void Notifications.getLastNotificationResponseAsync().then(goInbox)
-    const responseSub = Notifications.addNotificationResponseReceivedListener(goInbox)
+    void Notifications.getLastNotificationResponseAsync().then(openFromNotification)
+    const responseSub = Notifications.addNotificationResponseReceivedListener(openFromNotification)
     const receivedSub = Notifications.addNotificationReceivedListener(notification => {
       void recordNotification(notification)
     })
@@ -173,12 +181,12 @@ function RootNavigator({ session, hasData, dismissed, fontsLoaded, fontError }: 
 
   useEffect(() => {
     if (Platform.OS === 'web') return
-    void syncDigestNotification()
+    void syncAllDigestNotifications()
     void syncPresentedNotifications()
     void runAutoBackupIfDue().catch(() => {})
     const sub = AppState.addEventListener('change', state => {
       if (state === 'active') {
-        void syncDigestNotification()
+        void syncAllDigestNotifications()
         void syncPresentedNotifications()
         void runAutoBackupIfDue().catch(() => {})
       }

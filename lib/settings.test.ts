@@ -39,4 +39,17 @@ describe('patchSettings', () => {
     const after = await getSettings()
     assert.equal(after.autoBackupEnabled, before.autoBackupEnabled)
   })
+
+  it('defaults unreadDigestEnabled to false', async () => {
+    const { getSettings } = await import('./settings')
+    const s = await getSettings()
+    assert.equal(s.unreadDigestEnabled, false)
+  })
+
+  it('round-trips unreadDigestEnabled via patchSettings', async () => {
+    const { patchSettings, getSettings } = await import('./settings')
+    const next = await patchSettings({ unreadDigestEnabled: true })
+    assert.equal(next.unreadDigestEnabled, true)
+    assert.equal((await getSettings()).unreadDigestEnabled, true)
+  })
 })

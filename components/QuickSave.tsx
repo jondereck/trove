@@ -30,7 +30,7 @@ import { uploadImageBatch, MAX_BATCH_IMAGES } from '../lib/batchMediaUpload'
 import { getSettings } from '../lib/settings'
 import { generateVideoThumbnailUri } from '../lib/videoThumb'
 import { extractTextFromImage } from '../lib/ocr'
-import { syncDigestNotification } from '../lib/digestNotifications'
+import { syncAllDigestNotifications } from '../lib/notificationsSync'
 import { quickSaveBottomPadding } from '../lib/quickSaveLayout'
 import * as FileSystem from 'expo-file-system/legacy'
 
@@ -427,7 +427,7 @@ export default function QuickSave({ visible, onClose, onSave, initialUrl }: Quic
     try {
       // Carry the manually chosen collection name ('' = stays in Inbox).
       await onSave?.({ ...draft, collection: selectedCollection })
-      void syncDigestNotification()
+      void syncAllDigestNotifications()
       onClose()
     } catch {
       setError('Could not save. Please try again.')

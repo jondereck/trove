@@ -46,6 +46,7 @@ import {
   loadLibraryCache,
   peekLibraryCache,
 } from '../../lib/libraryCache'
+import { consumeLibraryFilterIntent } from '../../lib/libraryFilterIntent'
 
 type LibraryView = 'grid' | 'list'
 
@@ -184,8 +185,14 @@ export default function LibraryScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      const intent = consumeLibraryFilterIntent()
+      if (intent) {
+        setFilter(intent)
+      }
       if (!initialLoadDone.current) {
         initialLoadDone.current = true
+        // Intent changes filter; the filter effect loads the unread page.
+        if (intent) return
         const cached = peekLibraryCache()
         if (cached && cached.filter === filter) {
           setLoading(false)

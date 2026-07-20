@@ -19,6 +19,7 @@ import {
   clearNotificationLog,
 } from '../lib/notificationLog'
 import type { NotificationLogEntry } from '../lib/notificationLogCore'
+import { setLibraryFilterIntent } from '../lib/libraryFilterIntent'
 
 function formatDate(value: string): string {
   const date = new Date(value)
@@ -77,6 +78,10 @@ export default function NotificationsScreen() {
 
   const openEntry = (entry: NotificationLogEntry) => {
     if (entry.screen === 'inbox') router.push('/(tabs)/inbox')
+    if (entry.screen === 'library-unread') {
+      setLibraryFilterIntent('unread')
+      router.push('/(tabs)')
+    }
   }
 
   const handleClearAll = () => {
@@ -127,7 +132,7 @@ export default function NotificationsScreen() {
             </View>
             <Text style={styles.emptyTitle}>All caught up</Text>
             <Text style={styles.emptyText}>
-              Inbox reminders and other Trove updates will appear here.
+              Inbox and new-saves reminders will appear here.
             </Text>
           </View>
         ) : (
@@ -141,7 +146,7 @@ export default function NotificationsScreen() {
             >
               <View style={[styles.iconWrap, !entry.read && styles.iconWrapUnread]}>
                 <Ionicons
-                  name="file-tray-outline"
+                  name={entry.screen === 'library-unread' ? 'eye-outline' : 'file-tray-outline'}
                   size={20}
                   color={!entry.read ? colors.accent : colors.textSub}
                 />

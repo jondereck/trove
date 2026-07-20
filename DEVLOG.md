@@ -4,6 +4,23 @@ Running record of changes, fixes, and decisions. Most recent first.
 
 ---
 
+### Helpful local notifications — unread digest (2026-07-19)
+**Files:** `lib/notificationKinds.ts`, `lib/notificationKinds.test.ts`, `lib/notificationScheduler.ts`,
+`lib/notificationScheduler.test.ts`, `lib/unreadCount.ts`, `lib/unreadCount.test.ts`,
+`lib/unreadNotifications.ts`, `lib/notificationsSync.ts`, `lib/libraryFilterIntent.ts`,
+`lib/libraryFilterIntent.test.ts`, `lib/digestNotifications.ts`, `lib/settings.ts`,
+`lib/settings.test.ts`, `lib/localDb.ts`, `lib/cloudDb.ts`, `lib/db.ts`,
+`lib/notificationLog.ts`, `lib/notificationLogCore.ts`, `app/notification-settings.tsx`,
+`app/notifications.tsx`, `app/_layout.tsx`, `app/(tabs)/index.tsx`, `app/save/[id].tsx`,
+`components/QuickSave.tsx`
+
+Added an opt-in **New saves reminder** beside Inbox reminder (shared hour/cadence). Counts
+`is_viewed === false` library-wide; taps deep-link to Library with the Unread filter via a
+one-shot intent. Still local-only via `expo-notifications` — no remote push. Default off.
+Copy uses plain language (“New saves reminder” / “New in Trove”) instead of “digest”.
+
+---
+
 ### Fix blank unread cards, Settings CTAs, auth flash, last name (2026-07-19)
 **Files:** `lib/db.ts`, `lib/dataEvents.ts`, `lib/dataEvents.test.ts`, `lib/profileCache.ts`,
 `lib/profileName.test.ts`, `lib/auth.ts`, `app/save/[id].tsx`, `app/(tabs)/index.tsx`,
